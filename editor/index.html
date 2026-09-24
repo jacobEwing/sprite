@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Sprite Editor</title>
+	<link rel="stylesheet" href="style.css">
+</head>
+<body>
+	<header id="toolbar">
+		<span class="brand">Sprite Editor</span>
+
+		<label class="field">
+			<span>Sheet</span>
+			<input type="text" id="sheetPath" value="../sprites/player.json" spellcheck="false">
+		</label>
+
+		<button id="btnLoad">Load</button>
+
+		<span class="sep"></span>
+
+		<button id="btnFit" title="Fit sheet to view">Fit</button>
+		<button id="btnZoomOut" title="Zoom out">−</button>
+		<button id="btnZoomIn"  title="Zoom in">+</button>
+		<span id="zoomLabel" class="readout">100%</span>
+	</header>
+
+	<main id="layout">
+
+		<aside id="leftSidebar">
+			<section class="pane">
+				<h2>Frames <span class="count" id="frameCount"></span></h2>
+				<ul id="frameList" class="list"></ul>
+			</section>
+
+			<section class="pane">
+				<h2>Sequences <span class="count" id="sequenceCount"></span></h2>
+				<ul id="sequenceList" class="list"></ul>
+			</section>
+		</aside>
+
+		<section id="center">
+			<div id="viewportWrap">
+				<canvas id="viewport"></canvas>
+				<div id="emptyMessage">Load a sheet to begin.</div>
+			</div>
+		</section>
+
+		<aside id="rightSidebar">
+			<section class="pane">
+				<h2>Palette</h2>
+				<div id="palette">
+					<div class="swatch primary"   id="swatchPrimary"   title="Primary (left button)"></div>
+					<div class="swatch secondary" id="swatchSecondary" title="Secondary (right button)"></div>
+				</div>
+				<p class="hint">Left button paints primary · Right button paints secondary</p>
+			</section>
+
+			<section class="pane">
+				<h2>Selection</h2>
+				<div id="selectionInfo" class="info">—</div>
+			</section>
+		</aside>
+
+	</main>
+
+	<footer id="statusBar">
+		<span id="statusMessage">Ready.</span>
+		<span id="coordReadout" class="readout"></span>
+	</footer>
+
+	<script src="../libs/sprite.js"></script>
+	<script type="module" src="main.js"></script>
+</body>
+</html>
