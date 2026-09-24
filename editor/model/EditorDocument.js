@@ -4,8 +4,12 @@ import { makeEmitter } from '../lib/emitter.js';
 // subscribe to its events; nothing else holds authoritative state.
 //
 // Events:
-//   sheetChanged     — a new sheet has been set (payload: { sheet })
-//   selectionChanged — the selected frame or sequence changed
+//   sheetChanged     — a new sheet has been set
+//   selectionChanged — { frame?, sequence?, focus } — the selection changed
+//
+// The `focus` flag distinguishes a deliberate "take me to this frame" click
+// (sidebar) from a routine selection (viewport). Only the former pans and
+// zooms the viewport.
 export class EditorDocument {
 	constructor() {
 		makeEmitter(this);
@@ -20,19 +24,19 @@ export class EditorDocument {
 		this.selectedFrame = sheet.frameNames[0] ?? null;
 		this.selectedSequence = sheet.sequenceNames[0] ?? null;
 		this.emit('sheetChanged', { sheet });
-		this.emit('selectionChanged', {});
+		this.emit('selectionChanged', { focus: false });
 	}
 
-	selectFrame(name) {
-		if (this.selectedFrame === name) return;
+	selectFrame(name, { focus = false } = {}) {
+		const changed = this.selectedFrame !== name;
 		this.selectedFrame = name;
-		this.emit('selectionChanged', { frame: name });
+		this.emit('selectionChanged', { frame: name, changed, focus });
 	}
 
 	selectSequence(name) {
-		if (this.selectedSequence === name) return;
+		const changed = this.selectedSequence !== name;
 		this.selectedSequence = name;
-		this.emit('selectionChanged', { sequence: name });
+		this.emit('selectionChanged', { sequence: name, changed });
 	}
 
 	getSelectedFrame() {

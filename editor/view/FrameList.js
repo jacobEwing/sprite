@@ -30,7 +30,7 @@ export class FrameList {
 			li.innerHTML =
 				`<span class="name">${esc(name)}</span>` +
 				`<span class="meta">${frame.width}×${frame.height}</span>`;
-			li.addEventListener('click', () => this.doc.selectFrame(name));
+			li.addEventListener('click', () => this.doc.selectFrame(name, { focus: true }));
 			this.root.appendChild(li);
 		}
 		this._sync();

@@ -1,49 +1,180 @@
 import { EditorDocument } from './model/EditorDocument.js';
 import { Palette }        from './model/Palette.js';
+import { PalettePanel }   from './view/PalettePanel.js';
 import { Viewport }       from './view/Viewport.js';
 import { FrameList }      from './view/FrameList.js';
 import { SequenceList }   from './view/SequenceList.js';
+import { BrushPicker }    from './view/BrushPicker.js';
 import { loadSheet }      from './io/loadSheet.js';
+import { History }        from './history/History.js';
+import { ToolLayer }      from './tools/ToolLayer.js';
+import { PanTool }        from './tools/PanTool.js';
+import { PencilTool }     from './tools/PencilTool.js';
+import { LineTool }       from './tools/LineTool.js';
+import { BoxTool }        from './tools/BoxTool.js';
+import { EllipseTool }    from './tools/EllipseTool.js';
+import { FloodFillTool }  from './tools/FloodFillTool.js';
+import { ColorPickerTool } from './tools/ColorPickerTool.js';
+import { BRUSHES }        from './paint/Brush.js';
+import { Menu }           from './view/Menu.js';
+import { LoadDialog }     from './view/LoadDialog.js';
 
 // --- wiring ---------------------------------------------------------------
 
-const doc = new EditorDocument();
-const palette = new Palette();
+const doc      = new EditorDocument();
+const palette  = new Palette();
+const history  = new History({ limit: 100 });
 
 const viewport = new Viewport(document.getElementById('viewport'));
 new FrameList(document.getElementById('frameList'), doc);
 new SequenceList(document.getElementById('sequenceList'), doc);
 
+const brushPicker = new BrushPicker(document.getElementById('brushPicker'));
+
+const toolLayer = new ToolLayer({ viewport, document: doc, palette, history });
+
+const TOOLS = {
+	pan:     new PanTool(toolLayer.context),
+	pencil:  new PencilTool(toolLayer.context),
+	line:    new LineTool(toolLayer.context),
+	box:     new BoxTool(toolLayer.context),
+	ellipse: new EllipseTool(toolLayer.context),
+	fill:    new FloodFillTool(toolLayer.context),
+	picker:  new ColorPickerTool(toolLayer.context),
+};
+
+toolLayer.setPanTool(TOOLS.pan);
+toolLayer.setDefaultTool(TOOLS.pan);
+toolLayer.setActiveTool(TOOLS.pan);
+
+brushPicker.on('change', ({ brush }) => toolLayer.setBrush(brush));
+brushPicker.select('pixel');
+
 const $ = id => document.getElementById(id);
 
-// --- status bar -----------------------------------------------------------
+// --- viewport → status bar ------------------------------------------------
 
 viewport.on('hover', ({ imageX, imageY }) => {
 	if (!doc.sheet) { $('coordReadout').textContent = ''; return; }
-	$('coordReadout').textContent =
-		`${Math.floor(imageX)}, ${Math.floor(imageY)}`;
+	$('coordReadout').textContent = `${Math.floor(imageX)}, ${Math.floor(imageY)}`;
 });
 viewport.on('leave', () => { $('coordReadout').textContent = ''; });
-
 viewport.on('view', ({ zoom }) => {
 	$('zoomLabel').textContent = Math.round(zoom * 100) + '%';
+});
+viewport.on('frameHover', ({ frameName }) => {
+	if (!doc.sheet) return;
+	$('statusMessage').textContent = frameName
+		? `frame: ${frameName}`
+		: `${doc.sheet.imageWidth}×${doc.sheet.imageHeight}px · ${doc.sheet.frameNames.length} frames`;
+});
+
+// --- tool switching -------------------------------------------------------
+
+const toolButtons = document.querySelectorAll('.tool-btn');
+
+function activateTool(name) {
+	const tool = TOOLS[name];
+	if (!tool) return;
+	toolLayer.setActiveTool(tool);
+	for (const btn of toolButtons) {
+		btn.classList.toggle('selected', btn.dataset.tool === name);
+	}
+	viewport.canvas.style.cursor = name === 'pan' ? 'grab' : 'crosshair';
+}
+
+for (const btn of toolButtons) {
+	btn.addEventListener('click', () => activateTool(btn.dataset.tool));
+}
+activateTool('pan');
+
+// Keyboard shortcuts: single letter per tool, ignored while typing in a field.
+const TOOL_KEYS = {
+	p: 'pan', n: 'pencil', l: 'line', b: 'box',
+	o: 'ellipse', f: 'fill', i: 'picker',
+};
+
+// --- keyboard shortcuts ---------------------------------------------------
+//
+// Consolidated into one handler. Three rules, applied in order:
+//   1. Anything typed into a form field is ignored.
+//   2. Ctrl/Cmd + letter → file and edit commands.
+//   3. Unmodified letters → tool selection and palette swap.
+
+window.addEventListener('keydown', (e) => {
+	const tag = (e.target.tagName || '').toLowerCase();
+	if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+
+	const key = e.key.toLowerCase();
+	const mod = e.ctrlKey || e.metaKey;
+
+	if (mod && !e.altKey) {
+		if (key === 'z' && !e.shiftKey) {
+			e.preventDefault();
+			if (history.undo()) viewport.invalidate();
+		} else if ((key === 'z' && e.shiftKey) || key === 'y') {
+			e.preventDefault();
+			if (history.redo()) viewport.invalidate();
+		} else if (key === 'o') {
+			e.preventDefault();
+			loadDialog.open().then((path) => {
+				if (path) doLoadSheet(path);
+			});
+		}
+		return;
+	}
+
+	if (mod || e.altKey) return;
+
+	if (key === 'x') {
+		e.preventDefault();
+		palette.swap();
+		return;
+	}
+
+	const name = TOOL_KEYS[key];
+	if (name) {
+		e.preventDefault();
+		activateTool(name);
+	}
+});
+// --- shape-fill toggle ----------------------------------------------------
+
+$('fillShapes').addEventListener('change', (e) => {
+	toolLayer.setFillShapes(e.target.checked);
+});
+
+$('clipToFrame').addEventListener('change', (e) => {
+	toolLayer.setClipToFrame(e.target.checked);
 });
 
 // --- document events ------------------------------------------------------
 
 doc.on('sheetChanged', () => {
+	history.clear();
+	viewport.setFrames(doc.sheet.frames);
 	viewport.setSource(doc.sheet.image);
+
 	$('emptyMessage').classList.add('hidden');
 	$('frameCount').textContent = doc.sheet.frameNames.length;
 	$('sequenceCount').textContent = doc.sheet.sequenceNames.length;
 	$('statusMessage').textContent =
 		`Loaded "${doc.sheet.imageSrc ?? '(inline image)'}" — ` +
 		`${doc.sheet.imageWidth}×${doc.sheet.imageHeight}px`;
+
+	if (doc.selectedFrame) viewport.focusFrame(doc.selectedFrame);
 });
 
-doc.on('selectionChanged', () => {
+doc.on('selectionChanged', ({ focus }) => {
+	viewport.setSelectedFrame(doc.selectedFrame);
+	if (focus && doc.selectedFrame) {
+		viewport.focusFrame(doc.selectedFrame);
+	}
+	updateSelectionInfo();
+});
+
+function updateSelectionInfo() {
 	const f = doc.getSelectedFrame();
-	const s = doc.doc?.sheet;
 	const seq = doc.selectedSequence && doc.sheet
 		? doc.sheet.sequences[doc.selectedSequence]
 		: null;
@@ -58,22 +189,32 @@ doc.on('selectionChanged', () => {
 		html += `        ${seq.frames.length} frames @ ${seq.frameRate}fps`;
 	}
 	$('selectionInfo').textContent = html || '—';
+}
+
+// --- history --------------------------------------------------------------
+
+history.on('change', ({ canUndo, canRedo }) => {
+	$('btnUndo').disabled = !canUndo;
+	$('btnRedo').disabled = !canRedo;
+});
+
+$('btnUndo').addEventListener('click', () => {
+	if (history.undo()) viewport.invalidate();
+});
+$('btnRedo').addEventListener('click', () => {
+	if (history.redo()) viewport.invalidate();
 });
 
 // --- palette --------------------------------------------------------------
 
-function paintSwatches() {
-	$('swatchPrimary').style.background   = palette.primary;
-	$('swatchSecondary').style.background = palette.secondary;
-}
-palette.on('change', paintSwatches);
-paintSwatches();
+new PalettePanel(document.getElementById('palettePanel'), palette);
 
 // --- toolbar --------------------------------------------------------------
+// --- file menu ------------------------------------------------------------
 
-$('btnLoad').addEventListener('click', async () => {
-	const path = $('sheetPath').value.trim();
-	if (!path) return;
+const loadDialog = new LoadDialog();
+
+async function doLoadSheet(path) {
 	$('statusMessage').textContent = 'Loading…';
 	try {
 		const sheet = await loadSheet(path);
@@ -82,12 +223,34 @@ $('btnLoad').addEventListener('click', async () => {
 		console.error(err);
 		$('statusMessage').textContent = 'Load failed: ' + err.message;
 	}
-});
+}
 
-$('sheetPath').addEventListener('keydown', (e) => {
-	if (e.key === 'Enter') $('btnLoad').click();
-});
+new Menu(document.getElementById('fileMenuBtn'), [
+	{
+		label: 'New', shortcut: 'Ctrl+N', disabled: true,
+		title: 'Blank sheets are coming with the frame editor',
+	},
+	{
+		label: 'Open…', shortcut: 'Ctrl+O',
+		action: async () => {
+			const path = await loadDialog.open();
+			if (path) await doLoadSheet(path);
+		},
+	},
+	{ separator: true },
+	{
+		label: 'Save', shortcut: 'Ctrl+S', disabled: true,
+		title: 'Saving is coming in a later phase',
+	},
+	{
+		label: 'Save As…', disabled: true,
+		title: 'Saving is coming in a later phase',
+	},
+]);
+
+// --- view toolbar ---------------------------------------------------------
 
 $('btnFit').addEventListener('click',    () => viewport.fit());
 $('btnZoomIn').addEventListener('click', () => viewport.zoomBy(1.25));
 $('btnZoomOut').addEventListener('click',() => viewport.zoomBy(1 / 1.25));
+

@@ -11,7 +11,7 @@ export async function loadSheet(path) {
 	canvas.width  = sheet.imageWidth;
 	canvas.height = sheet.imageHeight;
 
-	const ctx = canvas.getContext('2d');
+	const ctx = canvas.getContext('2d', { willReadFrequently: true });
 	ctx.imageSmoothingEnabled = false;
 	ctx.drawImage(sheet.image, 0, 0);
 

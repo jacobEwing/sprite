@@ -8,14 +8,34 @@
 </head>
 <body>
 	<header id="toolbar">
-		<span class="brand">Sprite Editor</span>
+		<button id="fileMenuBtn" class="menu-trigger" title="File">
+			File <span class="chevron">▾</span>
+		</button>
 
-		<label class="field">
-			<span>Sheet</span>
-			<input type="text" id="sheetPath" value="../sprites/player.json" spellcheck="false">
+		<span class="sep"></span>
+
+		<button id="btnUndo" title="Undo (Ctrl+Z)">↶</button>
+		<button id="btnRedo" title="Redo (Ctrl+Shift+Z)">↷</button>
+
+		<span class="sep"></span>
+
+		<div class="tool-group">
+			<button class="tool-btn" data-tool="pan"     title="Pan (P)">Pan</button>
+			<button class="tool-btn" data-tool="pencil"  title="Pencil (N)">Pencil</button>
+			<button class="tool-btn" data-tool="line"    title="Line (L)">Line</button>
+			<button class="tool-btn" data-tool="box"     title="Box (B)">Box</button>
+			<button class="tool-btn" data-tool="ellipse" title="Ellipse (O)">Oval</button>
+			<button class="tool-btn" data-tool="fill"    title="Flood fill (F)">Fill</button>
+			<button class="tool-btn" data-tool="picker"  title="Eyedropper (I)">Pick</button>
+		</div>
+
+		<label class="checkbox" title="Fill new boxes and ellipses">
+			<input type="checkbox" id="fillShapes"> Fill
 		</label>
 
-		<button id="btnLoad">Load</button>
+		<label class="checkbox" title="Confine strokes to the selected frame">
+			<input type="checkbox" id="clipToFrame" checked> Clip
+		</label>
 
 		<span class="sep"></span>
 
@@ -24,7 +44,6 @@
 		<button id="btnZoomIn"  title="Zoom in">+</button>
 		<span id="zoomLabel" class="readout">100%</span>
 	</header>
-
 	<main id="layout">
 
 		<aside id="leftSidebar">
@@ -48,12 +67,12 @@
 
 		<aside id="rightSidebar">
 			<section class="pane">
-				<h2>Palette</h2>
-				<div id="palette">
-					<div class="swatch primary"   id="swatchPrimary"   title="Primary (left button)"></div>
-					<div class="swatch secondary" id="swatchSecondary" title="Secondary (right button)"></div>
-				</div>
-				<p class="hint">Left button paints primary · Right button paints secondary</p>
+				<h2>Colours</h2>
+				<div id="palettePanel"></div>
+			</section>
+			<section class="pane">
+				<h2>Brush</h2>
+				<div id="brushPicker" class="brush-picker"></div>
 			</section>
 
 			<section class="pane">
@@ -69,7 +88,7 @@
 		<span id="coordReadout" class="readout"></span>
 	</footer>
 
-	<script src="../libs/sprite.js"></script>
+	<script src="sprite.js"></script>
 	<script type="module" src="main.js"></script>
 </body>
 </html>
