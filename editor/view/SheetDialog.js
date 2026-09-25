@@ -22,6 +22,7 @@ export class SheetDialog {
 			title: 'New sheet',
 			imageWidth: 192,
 			imageHeight: 192,
+			imageSrc : '',
 			frameWidth: 24,
 			frameHeight: 24,
 			cellCount: 1,
@@ -39,6 +40,7 @@ export class SheetDialog {
 			imageHeight: sheet.imageHeight,
 			frameWidth: sheet.frameWidth || 24,
 			frameHeight: sheet.frameHeight || 24,
+			imageSrc: sheet.imageSrc || '',
 			cellCount: 1,
 			centerx: sheet.centerx,
 			centery: sheet.centery,
@@ -128,6 +130,13 @@ export class SheetDialog {
 					</div>
 					<div class="modal-row">
 						<label class="modal-field">
+							<span>Image file</span>
+							<input type="text" data-field="imageSrc" spellcheck="false">
+						</label>
+						<label class="modal-field sd-placeholder"></label>
+					</div>
+					<div class="modal-row">
+						<label class="modal-field">
 							<span>Frame rate</span>
 							<input type="number" data-field="defaultFrameRate" min="1">
 						</label>
@@ -188,9 +197,13 @@ export class SheetDialog {
 
 	_updateVisibility() {
 		const isNew = this._mode === 'new';
+		// New mode shows image dimensions and cell count; edit mode shows
+		// the sheet's image-source path. Frame size, centre and rate are
+		// shown in both.
 		for (const key of ['imageWidth', 'imageHeight', 'cellCount']) {
 			this._rowFor(key).hidden = !isNew;
 		}
+		this._rowFor('imageSrc').hidden = isNew;
 		this.backdrop.querySelector('.sd-suggest').hidden = !isNew;
 	}
 
@@ -263,8 +276,12 @@ export class SheetDialog {
 		if (this.confirmBtn.disabled) return;
 		const out = {};
 		for (const [k, el] of Object.entries(this.fields)) {
-			const v = parseFloat(el.value);
-			out[k] = Number.isFinite(v) ? v : 0;
+			if (el.type === 'text') {
+				out[k] = el.value.trim();
+			} else {
+				const v = parseFloat(el.value);
+				out[k] = Number.isFinite(v) ? v : 0;
+			}
 		}
 		this.close(out);
 	}

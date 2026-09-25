@@ -69,6 +69,39 @@ function _inputPickFiles(acceptMap) {
 	});
 }
 
+// Single-file picker. Same activation rules as pickFiles: one click, one
+// picker, one user gesture.
+export async function pickFile({ description, accept, extensions }) {
+	if (typeof window.showOpenFilePicker === 'function') {
+		try {
+			const [handle] = await window.showOpenFilePicker({
+				types: [{ description, accept: { [accept]: extensions } }],
+				multiple: false,
+			});
+			return await handle.getFile();
+		} catch (err) {
+			if (err.name === 'AbortError') return null;
+			// Fall through to the input path for other rejection reasons.
+		}
+	}
+	return _inputPickOne(extensions.join(','));
+}
+
+function _inputPickOne(accept) {
+	return new Promise((resolve) => {
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.accept = accept;
+		input.style.display = 'none';
+		input.addEventListener('change', () => {
+			document.body.removeChild(input);
+			resolve(input.files && input.files[0] ? input.files[0] : null);
+		});
+		document.body.appendChild(input);
+		input.click();
+	});
+}
+
 // Load a sheet from a set of user-picked files. The set must contain a JSON
 // file and (unless the JSON references an absolute URL or data URI) the
 // image it names. Returns { sheet, jsonFilename, imageFilename } or null if
@@ -130,15 +163,15 @@ export async function loadSheetFromDisk() {
 	return { sheet, jsonFilename: jsonFile.name, imageFilename };
 }
 
-function _isAbsoluteImageRef(ref) {
+export function _isAbsoluteImageRef(ref) {
 	return /^(data:|https?:\/\/|\/)/i.test(ref);
 }
 
-function _basename(p) {
+export function _basename(p) {
 	return String(p).split('/').pop().split('?')[0];
 }
 
-function _loadImageFromURL(src) {
+export function _loadImageFromURL(src) {
 	return new Promise((resolve, reject) => {
 		const img = new Image();
 		img.onload  = () => resolve(img);
@@ -147,7 +180,7 @@ function _loadImageFromURL(src) {
 	});
 }
 
-async function _loadImageFromFile(file) {
+export async function _loadImageFromFile(file) {
 	const url = URL.createObjectURL(file);
 	try {
 		const img = new Image();

@@ -1,16 +1,28 @@
-// Serialise an edited sheet and write it out as a JSON + PNG pair.
-//
-// Three output modes:
-//   • directory — File System Access API. Writes both files to a user-
-//     chosen folder. Cacheable handle means subsequent saves are silent.
-//   • download  — two browser downloads. Works everywhere, but the user
-//     has to move the files into place manually.
-//
-// forceDownload: true skips the picker even if it's available. Used by
-// Save (as opposed to Save As) so that download-mode sheets stay in
-// download mode rather than prompting again.
+import { serialiseCollision } from '../model/collisionUtils.js';
 
-export async function saveSheet({
+
+// Serialise the edited sheet. Two independent savers, since the JSON and
+// the image can be written separately and marked clean independently.
+
+export async function saveSheetImage({
+	sheet,
+	imageFilename,
+	directoryHandle = null,
+	forceDownload = false,
+}) {
+	const pngBlob = await _imageToBlob(sheet.image);
+
+	if (!forceDownload && typeof window.showDirectoryPicker === 'function') {
+		const dir = directoryHandle ?? await window.showDirectoryPicker({ mode: 'readwrite' });
+		await _writeFile(dir, imageFilename, pngBlob);
+		return { directoryHandle: dir, mode: 'directory' };
+	}
+
+	_download(pngBlob, imageFilename, 'image/png');
+	return { directoryHandle: null, mode: 'download' };
+}
+
+export async function saveSheetData({
 	sheet,
 	jsonFilename,
 	imageFilename,
@@ -18,15 +30,43 @@ export async function saveSheet({
 	forceDownload = false,
 }) {
 	const data = sheet.toJSON();
+	if (data.collision) {
+		const shorthand = serialiseCollision(data.collision);
+		if (shorthand) data.collision = shorthand;
+		else delete data.collision;
+	}
+
 	data.image = imageFilename;
 	const jsonText = JSON.stringify(data, null, '\t') + '\n';
 
-	const pngBlob = await new Promise((resolve, reject) => {
-		sheet.image.toBlob(
-			(b) => b ? resolve(b) : reject(new Error('toBlob returned null')),
-			'image/png'
-		);
-	});
+	if (!forceDownload && typeof window.showDirectoryPicker === 'function') {
+		const dir = directoryHandle ?? await window.showDirectoryPicker({ mode: 'readwrite' });
+		await _writeFile(dir, jsonFilename, jsonText);
+		return { directoryHandle: dir, mode: 'directory' };
+	}
+
+	_download(jsonText, jsonFilename, 'application/json');
+	return { directoryHandle: null, mode: 'download' };
+}
+
+// Convenience: write both files with a single directory-picker prompt.
+export async function saveSheetBoth({
+	sheet,
+	jsonFilename,
+	imageFilename,
+	directoryHandle = null,
+	forceDownload = false,
+}) {
+	const pngBlob = await _imageToBlob(sheet.image);
+	const data = sheet.toJSON();
+	if (data.collision) {
+		const shorthand = serialiseCollision(data.collision);
+		if (shorthand) data.collision = shorthand;
+		else delete data.collision;
+	}
+
+	data.image = imageFilename;
+	const jsonText = JSON.stringify(data, null, '\t') + '\n';
 
 	if (!forceDownload && typeof window.showDirectoryPicker === 'function') {
 		const dir = directoryHandle ?? await window.showDirectoryPicker({ mode: 'readwrite' });
@@ -38,6 +78,15 @@ export async function saveSheet({
 	_download(jsonText, jsonFilename, 'application/json');
 	_download(pngBlob, imageFilename, 'image/png');
 	return { directoryHandle: null, mode: 'download' };
+}
+
+function _imageToBlob(source) {
+	return new Promise((resolve, reject) => {
+		source.toBlob(
+			(b) => b ? resolve(b) : reject(new Error('toBlob returned null')),
+			'image/png'
+		);
+	});
 }
 
 async function _writeFile(dirHandle, name, contents) {
@@ -59,7 +108,6 @@ function _download(contents, filename, type) {
 	URL.revokeObjectURL(url);
 }
 
-// Propose filenames for a save, based on the current sheet's source paths.
 export function proposeFilenames(sheet) {
 	const image = (sheet.imageSrc || '').split('/').pop() || '';
 	const json = image ? image.replace(/\.\w+$/, '') + '.json' : 'sheet.json';

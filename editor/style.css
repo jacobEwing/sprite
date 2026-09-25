@@ -1348,3 +1348,89 @@ body {
 	background: var(--accent-2);
 	border-color: var(--accent-2);
 }
+
+/* --- disk load dialog --- */
+.dl-step {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+.dl-pick {
+	background: var(--panel-2);
+	color: var(--ink);
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	padding: 6px 14px;
+	cursor: pointer;
+	font: inherit;
+	font-size: 12px;
+	min-width: 160px;
+	text-align: left;
+}
+.dl-pick:hover { background: #383840; }
+.dl-status {
+	flex: 1;
+	min-width: 0;
+	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-size: 11px;
+	color: var(--muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.dl-status.loaded { color: var(--accent-2); }
+.dl-hint {
+	color: var(--muted);
+	font-size: 11.5px;
+	line-height: 1.4;
+	margin: 6px 0 14px;
+}
+.dl-error {
+	background: rgba(208, 64, 64, 0.12);
+	border-left: 3px solid var(--danger);
+	border-radius: 0 4px 4px 0;
+	color: var(--ink);
+	font-size: 12px;
+	padding: 8px 12px;
+	margin: 0 0 14px;
+	line-height: 1.4;
+}
+.dl-error[hidden] { display: none; }
+
+/* --- collision inspector --- */
+.insp-checkbox {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--muted);
+	font-size: 11px;
+	margin-bottom: 10px;
+	cursor: pointer;
+}
+.insp-checkbox input { margin: 0; cursor: pointer; }
+
+.collision-row {
+	background: var(--panel-2);
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	padding: 6px 8px;
+	margin-bottom: 6px;
+}
+.collision-row-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 4px;
+}
+.collision-row-label {
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--muted);
+}
+.collision-row-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	gap: 4px;
+}

@@ -21,6 +21,8 @@ export class ToolLayer {
 		this._active  = null;
 		this._pressed = -1;
 
+		this.collisionOverlay = null;
+
 		this.context = this._buildContext();
 
 		viewport.on('pointerDown', (e) => this._onDown(e));
@@ -34,6 +36,8 @@ export class ToolLayer {
 	setBrush(brush)      { this.brush       = brush; }
 	setFillShapes(on)    { this.fillShapes  = !!on; }
 	setClipToFrame(on)   { this.clipToFrame = !!on; }
+	setCollisionOverlay(overlay) { this.collisionOverlay = overlay; }
+
 
 	notifyPixelsChanged() {
 		this.viewport.invalidate();
@@ -96,6 +100,7 @@ export class ToolLayer {
 			palette:  this.palette,
 			history:  this.history,
 
+			get collisionOverlay() { return self.collisionOverlay; },
 			get brush()       { return self.brush; },
 			get fillShapes()  { return self.fillShapes; },
 			get clipToFrame() { return self.clipToFrame; },

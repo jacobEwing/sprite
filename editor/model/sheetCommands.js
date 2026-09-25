@@ -195,3 +195,16 @@ export class SetSheetSettingsCommand {
 		Object.assign(this.sheet, this.before);
 	}
 }
+
+// --- collision ------------------------------------------------------------
+
+export class SetCollisionCommand {
+	constructor(sheet, before, after) {
+		this.sheet = sheet;
+		this.before = clone(before);
+		this.after  = clone(after);
+	}
+	apply()  { this.sheet.collision = clone(this.after); }
+	revert() { this.sheet.collision = clone(this.before); }
+}
+

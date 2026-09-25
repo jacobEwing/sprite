@@ -32,6 +32,9 @@ export class Viewport {
 		this.selectedFrame = null;
 		this.hoveredFrame = null;
 
+		this.overlays = new Map();
+		this._singlePreviewToken = null;
+
 		// Optional draw function invoked between the source image and the
 		// frame overlays, with the transform already set to image space.
 		this.previewFn = null;
@@ -78,9 +81,28 @@ export class Viewport {
 	// Set a function (ctx) => void that will be called with the context in
 	// image space, after the source and before the frame outlines.
 	// Pass null to clear.
-	setPreview(fn) {
-		this.previewFn = fn || null;
+	// Multiple overlays can be active at once; they render in insertion
+	// order, after the source image and before the frame outlines.
+	// addOverlay returns a token; pass it to removeOverlay.
+	addOverlay(fn) {
+		const token = {};
+		this.overlays.set(token, fn);
 		this.invalidate();
+		return token;
+	}
+
+	removeOverlay(token) {
+		if (this.overlays.delete(token)) this.invalidate();
+	}
+
+	// Legacy single-slot API. Kept so tools that just need "one preview
+	// at a time" don't have to manage tokens themselves.
+	setPreview(fn) {
+		if (this._singlePreviewToken) {
+			this.removeOverlay(this._singlePreviewToken);
+			this._singlePreviewToken = null;
+		}
+		if (fn) this._singlePreviewToken = this.addOverlay(fn);
 	}
 
 	// --- frames -----------------------------------------------------------
@@ -216,11 +238,11 @@ export class Viewport {
 		ctx.strokeRect(px, py, pw, ph);
 		ctx.restore();
 
-		if (this.previewFn) {
+		if (this.overlays.size > 0) {
 			ctx.save();
 			ctx.translate(this.offsetX, this.offsetY);
 			ctx.scale(this.zoom, this.zoom);
-			this.previewFn(ctx, this);
+			for (const fn of this.overlays.values()) fn(ctx, this);
 			ctx.restore();
 		}
 

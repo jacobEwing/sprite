@@ -2,7 +2,7 @@ import { makeEmitter } from '../lib/emitter.js';
 import {
 	AddFrameCommand, RemoveFrameCommand, RenameFrameCommand, SetFrameCommand,
 	AddSequenceCommand, RemoveSequenceCommand, RenameSequenceCommand, SetSequenceCommand,
-	ExpandCanvasCommand,SetSheetSettingsCommand,
+	ExpandCanvasCommand, SetSheetSettingsCommand, SetCollisionCommand,
 } from './sheetCommands.js';
 
 // A facade over SpriteSheet that mediates all structural mutations through
@@ -64,7 +64,7 @@ export class EditableSheet {
 		const y = slot ? slot.y : src.y;
 
 		const frame = { ...src, x, y };
-		this.history.execute(new AddFrameCommand(this.sheet, name, frame));
+		this.history.execute(new AddFrameCommand(this.sheet, name, frame), 'data');
 		this.emit('changed', { type: 'frameAdded', name });
 		return name;
 	}
@@ -100,7 +100,7 @@ export class EditableSheet {
 
 	removeFrame(name) {
 		if (!this.sheet.frames[name]) return;
-		this.history.execute(new RemoveFrameCommand(this.sheet, name));
+		this.history.execute(new RemoveFrameCommand(this.sheet, name), 'data');
 		this.emit('changed', { type: 'frameRemoved', name });
 	}
 
@@ -108,7 +108,7 @@ export class EditableSheet {
 		if (oldName === newName) return;
 		if (!this.sheet.frames[oldName]) throw new Error(`No such frame: ${oldName}`);
 		if (this.sheet.frames[newName]) throw new Error(`Frame already exists: ${newName}`);
-		this.history.execute(new RenameFrameCommand(this.sheet, oldName, newName));
+		this.history.execute(new RenameFrameCommand(this.sheet, oldName, newName), 'data');
 		this.emit('changed', { type: 'frameRenamed', from: oldName, to: newName });
 	}
 
@@ -122,7 +122,7 @@ export class EditableSheet {
 			if (patch[key] !== undefined) after[key] = Number(patch[key]);
 		}
 		if (JSON.stringify(before) === JSON.stringify(after)) return;
-		this.history.execute(new SetFrameCommand(this.sheet, name, before, after));
+		this.history.execute(new SetFrameCommand(this.sheet, name, before, after), 'data');
 		this.emit('changed', { type: 'frameUpdated', name });
 	}
 
@@ -138,14 +138,14 @@ export class EditableSheet {
 			method: 'auto',
 			...sequence,
 		};
-		this.history.execute(new AddSequenceCommand(this.sheet, name, seq));
+		this.history.execute(new AddSequenceCommand(this.sheet, name, seq), 'data');
 		this.emit('changed', { type: 'sequenceAdded', name });
 		return name;
 	}
 
 	removeSequence(name) {
 		if (!this.sheet.sequences[name]) return;
-		this.history.execute(new RemoveSequenceCommand(this.sheet, name));
+		this.history.execute(new RemoveSequenceCommand(this.sheet, name), 'data');
 		this.emit('changed', { type: 'sequenceRemoved', name });
 	}
 
@@ -153,7 +153,7 @@ export class EditableSheet {
 		if (oldName === newName) return;
 		if (!this.sheet.sequences[oldName]) throw new Error(`No such sequence: ${oldName}`);
 		if (this.sheet.sequences[newName]) throw new Error(`Sequence already exists: ${newName}`);
-		this.history.execute(new RenameSequenceCommand(this.sheet, oldName, newName));
+		this.history.execute(new RenameSequenceCommand(this.sheet, oldName, newName), 'data');
 		this.emit('changed', { type: 'sequenceRenamed', from: oldName, to: newName });
 	}
 
@@ -169,7 +169,7 @@ export class EditableSheet {
 		if (patch.method     !== undefined) after.method     = String(patch.method);
 		if (patch.frameTimes !== undefined) after.frameTimes = patch.frameTimes.slice();
 		if (JSON.stringify(before) === JSON.stringify(after)) return;
-		this.history.execute(new SetSequenceCommand(this.sheet, name, before, after));
+		this.history.execute(new SetSequenceCommand(this.sheet, name, before, after), 'data');
 		this.emit('changed', { type: 'sequenceUpdated', name });
 	}
 
@@ -216,7 +216,8 @@ export class EditableSheet {
 			return;
 		}
 		this.history.execute(
-			new ExpandCanvasCommand(this.sheet, newWidth, newHeight, offsetX, offsetY)
+			new ExpandCanvasCommand(this.sheet, newWidth, newHeight, offsetX, offsetY), 
+			'pixels'
 		);
 		this.emit('changed', {
 			type: 'canvasExpanded',
@@ -231,19 +232,93 @@ export class EditableSheet {
 	// rate. All of these are values consulted only when new frames and
 	// sequences are added; changing them never alters existing data.
 	setSheetSettings(patch) {
-		const fields = ['frameWidth', 'frameHeight', 'centerx', 'centery', 'defaultFrameRate'];
+		const numericFields = [
+			'frameWidth', 'frameHeight', 'centerx', 'centery', 'defaultFrameRate',
+		];
 		const before = {};
 		const after  = {};
 		let changed = false;
 
-		for (const k of fields) {
+		for (const k of numericFields) {
 			before[k] = this.sheet[k];
 			after[k]  = patch[k] !== undefined ? Number(patch[k]) : this.sheet[k];
 			if (before[k] !== after[k]) changed = true;
 		}
+
+		// imageSrc is a string: the filename the sheet expects its image
+		// to live under. Changing it doesn't touch pixels; it only affects
+		// what `toJSON()` writes into the "image" field.
+		if (patch.imageSrc !== undefined) {
+			before.imageSrc = this.sheet.imageSrc;
+			after.imageSrc  = String(patch.imageSrc);
+			if (before.imageSrc !== after.imageSrc) changed = true;
+		}
+
 		if (!changed) return;
 
-		this.history.execute(new SetSheetSettingsCommand(this.sheet, before, after));
+		this.history.execute(
+			new SetSheetSettingsCommand(this.sheet, before, after),
+			'data'
+		);
 		this.emit('changed', { type: 'settingsUpdated' });
 	}
+
+	// --- collision --------------------------------------------------------
+
+	// Replace the whole collision shape. Passing null clears it.
+	setCollision(newCollision) {
+		const before = this.sheet.collision;
+		const after  = newCollision;
+		if (_deepEqual(before, after)) return;
+		this.history.execute(new SetCollisionCommand(this.sheet, before, after), 'data');
+		this.emit('changed', { type: 'collisionUpdated' });
+	}
+
+	addCollisionCircle(circle) {
+		const current = this.sheet.collision || { circles: [] };
+		const next = {
+			circles: [
+				...current.circles.map(c => ({ ...c })),
+				{
+					offsetX: Number(circle.offsetX) || 0,
+					offsetY: Number(circle.offsetY) || 0,
+					radius:  Math.max(1, Number(circle.radius) || 1),
+				},
+			],
+		};
+		this.setCollision(next);
+	}
+
+	removeCollisionCircle(index) {
+		if (!this.sheet.collision || !this.sheet.collision.circles[index]) return;
+		const next = this.sheet.collision.circles
+			.filter((_, i) => i !== index)
+			.map(c => ({ ...c }));
+		this.setCollision(next.length ? { circles: next } : null);
+	}
+
+	updateCollisionCircle(index, patch) {
+		if (!this.sheet.collision || !this.sheet.collision.circles[index]) return;
+		const next = this.sheet.collision.circles.map((c, i) => {
+			if (i !== index) return { ...c };
+			return {
+				offsetX: patch.offsetX !== undefined ? Number(patch.offsetX) : c.offsetX,
+				offsetY: patch.offsetY !== undefined ? Number(patch.offsetY) : c.offsetY,
+				radius:  patch.radius  !== undefined ? Math.max(1, Number(patch.radius)) : c.radius,
+			};
+		});
+		this.setCollision({ circles: next });
+	}
+}
+
+function _deepEqual(a, b) {
+	if (a === b) return true;
+	if (a == null || b == null) return false;
+	if (typeof a !== 'object' || typeof b !== 'object') return false;
+	const ka = Object.keys(a), kb = Object.keys(b);
+	if (ka.length !== kb.length) return false;
+	for (const k of ka) {
+		if (!_deepEqual(a[k], b[k])) return false;
+	}
+	return true;
 }

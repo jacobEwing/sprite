@@ -3,10 +3,9 @@ import { makeEmitter } from '../lib/emitter.js';
 // Linear undo/redo. Commands are pushed already-applied; undo() calls
 // revert() and redo() calls apply().
 //
-// The 'change' event is emitted after every mutation, with:
-//   { canUndo, canRedo, depth, source, command? }
-// where source is 'push' | 'undo' | 'redo' | 'clear'. Subscribers that only
-// care about toolbar state can ignore the last two fields.
+// Each push carries a `kind` of 'pixels' (image content) or 'data' (sheet
+// structure and settings). The 'change' event exposes it, so the document
+// can route dirty-flag tracking appropriately.
 export class History {
 	constructor({ limit = 100 } = {}) {
 		makeEmitter(this);
@@ -15,18 +14,16 @@ export class History {
 		this.limit = limit;
 	}
 
-	push(command) {
+	push(command, kind = 'pixels') {
 		this.undoStack.push(command);
 		if (this.undoStack.length > this.limit) this.undoStack.shift();
 		this.redoStack.length = 0;
-		this._emit('push');
+		this._emit('push', kind);
 	}
 
-	// Apply a command and push it. Preferred entry point for new edits:
-	// commands are written assuming they haven't been applied yet.
-	execute(command) {
+	execute(command, kind = 'pixels') {
 		command.apply();
-		this.push(command);
+		this.push(command, kind);
 		return command;
 	}
 
@@ -35,7 +32,7 @@ export class History {
 		if (!cmd) return false;
 		cmd.revert();
 		this.redoStack.push(cmd);
-		this._emit('undo', cmd);
+		this._emit('undo');
 		return true;
 	}
 
@@ -44,7 +41,7 @@ export class History {
 		if (!cmd) return false;
 		cmd.apply();
 		this.undoStack.push(cmd);
-		this._emit('redo', cmd);
+		this._emit('redo');
 		return true;
 	}
 
@@ -57,13 +54,13 @@ export class History {
 	get canUndo() { return this.undoStack.length > 0; }
 	get canRedo() { return this.redoStack.length > 0; }
 
-	_emit(source, command) {
+	_emit(source, kind = null) {
 		this.emit('change', {
 			canUndo: this.canUndo,
 			canRedo: this.canRedo,
 			depth: this.undoStack.length,
 			source,
-			command,
+			kind,
 		});
 	}
 }

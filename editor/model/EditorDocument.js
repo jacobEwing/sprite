@@ -4,15 +4,16 @@ import { EditableSheet } from './EditableSheet.js';
 // Holds the loaded sheet and the current selection. Wraps the sheet in an
 // EditableSheet so all structural mutations go through the command layer.
 //
+// Two dirty flags track unsaved work:
+//   dirtyImage — the PNG differs from what's on disk
+//   dirtyData  — the JSON differs from what's on disk
+// Both must be cleared before the editor considers itself fully saved.
+//
 // Events:
 //   sheetChanged     — a new sheet has been set
 //   selectionChanged — { frame?, sequence?, focus?, changed? }
-//   edit             — something in the sheet changed (data or structure)
-//
-// 'edit' fires for two reasons:
-//   1. EditableSheet executed a mutation (payload describes what changed)
-//   2. History undid or redid a mutation (payload is { type: 'history' })
-// Views can treat both as "something changed, refresh yourself."
+//   edit             — a mutation occurred (any kind)
+//   dirtyChanged     — { dirtyImage, dirtyData, anyDirty }
 export class EditorDocument {
 	constructor(history) {
 		makeEmitter(this);
@@ -21,23 +22,24 @@ export class EditorDocument {
 		this.editable = null;
 		this.selectedFrame = null;
 		this.selectedSequence = null;
-		this.dirty = false;
+		this.dirtyImage = false;
+		this.dirtyData  = false;
 
-		// Undo/redo bypass EditableSheet, so we listen to history directly
-		// and turn its events into the same 'edit' signal views already know.
-		history.on('change', ({ source }) => {
-			// 'clear' fires when a new sheet is loaded; everything else is
-			// a real edit.
-			if (source !== 'clear') this._setDirty(true);
-
+		history.on('change', ({ source, kind }) => {
+			if (source === 'push') {
+				this._setDirty(kind === 'data' ? 'data' : 'image', true);
+			}
+			// Undo/redo leave dirty state as-is: the user has work in
+			// progress, and only an explicit save should clear that.
 			if (source === 'undo' || source === 'redo') {
 				this._reconcileSelection();
 				this.emit('selectionChanged', { changed: true });
 				this.emit('edit', { type: 'history', source });
 			}
 		});
-
 	}
+
+	get anyDirty() { return this.dirtyImage || this.dirtyData; }
 
 	setSheet(sheet) {
 		this.sheet = sheet;
@@ -46,12 +48,17 @@ export class EditorDocument {
 
 		this.selectedFrame = sheet.frameNames[0] ?? null;
 		this.selectedSequence = sheet.sequenceNames[0] ?? null;
-		this._setDirty(false);
+
+		this._setDirty('image', false);
+		this._setDirty('data',  false);
+
 		this.emit('sheetChanged', { sheet });
 		this.emit('selectionChanged', { focus: false });
 	}
 
 	_onEdit(info) {
+		// The history push already set the appropriate dirty flag; we only
+		// reconcile the selection here.
 		let selectionChanged = false;
 
 		if (info.type === 'frameRemoved' && this.selectedFrame === info.name) {
@@ -72,10 +79,6 @@ export class EditorDocument {
 		this.emit('edit', info);
 	}
 
-	// After undo/redo, the selection may point at something that no longer
-	// exists. Fall back to the first available item. (Undoing a rename
-	// leaves the frame under its old name; we don't try to follow it — the
-	// user re-selects. Rare enough that the fallback is fine.)
 	_reconcileSelection() {
 		if (!this.sheet) return;
 		if (this.selectedFrame && !this.sheet.frames[this.selectedFrame]) {
@@ -84,6 +87,23 @@ export class EditorDocument {
 		if (this.selectedSequence && !this.sheet.sequences[this.selectedSequence]) {
 			this.selectedSequence = this.sheet.sequenceNames[0] ?? null;
 		}
+	}
+
+	_setDirty(which, dirty) {
+		const key = which === 'image' ? 'dirtyImage' : 'dirtyData';
+		if (this[key] === dirty) return;
+		this[key] = dirty;
+		this.emit('dirtyChanged', {
+			dirtyImage: this.dirtyImage,
+			dirtyData:  this.dirtyData,
+			anyDirty:   this.anyDirty,
+		});
+	}
+
+	// which: 'image' | 'data' | 'all'
+	markSaved(which = 'all') {
+		if (which === 'image' || which === 'all') this._setDirty('image', false);
+		if (which === 'data'  || which === 'all') this._setDirty('data',  false);
 	}
 
 	selectFrame(name, { focus = false } = {}) {
@@ -108,14 +128,5 @@ export class EditorDocument {
 		return this.sheet && this.selectedSequence
 			? this.sheet.sequences[this.selectedSequence]
 			: null;
-	}
-	_setDirty(dirty) {
-		if (this.dirty === dirty) return;
-		this.dirty = dirty;
-		this.emit('dirtyChanged', { dirty });
-	}
-
-	markSaved() {
-		this._setDirty(false);
 	}
 }
