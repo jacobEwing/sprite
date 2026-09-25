@@ -29,6 +29,7 @@ import { saveSheet, proposeFilenames } from './io/saveSheet.js';
 import { SaveDialog }                   from './view/SaveDialog.js';
 import { FilterPanel }     from './view/FilterPanel.js';
 import { loadSheetFromDisk } from './io/loadSheet.js';
+import { ErrorDialog }     from './view/ErrorDialog.js';
 
 // --- wiring ---------------------------------------------------------------
 
@@ -169,6 +170,8 @@ doc.on('dirtyChanged', ({ dirty }) => {
 	$('dirtyIndicator').hidden = !dirty;
 });
 
+// remove if retaining palette UI between loading different sprites becomes important
+doc.on('sheetChanged', () => palette.reset());
 
 // --- history --------------------------------------------------------------
 
@@ -256,10 +259,12 @@ async function doOpenFromDisk() {
 		$('statusMessage').textContent = `Loaded ${result.jsonFilename} from disk`;
 	} catch (err) {
 		console.error(err);
-		$('statusMessage').textContent = 'Load failed: ' + err.message;
+		$('statusMessage').textContent = 'Load failed.';
+		await errorDialog.show('Couldn\'t open the sheet', err.message);
 	}
 }
 
+const errorDialog = new ErrorDialog();
 const saveDialog = new SaveDialog();
 
 // Cached between saves within a session. Lost on reload — that's fine.
@@ -437,6 +442,23 @@ window.addEventListener('keydown', (e) => {
 		activateTool(name);
 	}
 });
+// --- sidebar tabs --------------------------------------------------------
+
+function setupTabs(sidebarEl) {
+	const tabs   = sidebarEl.querySelectorAll('.sidebar-tab');
+	const panels = sidebarEl.querySelectorAll('.tab-panel');
+
+	tabs.forEach((tab) => {
+		tab.addEventListener('click', () => {
+			const name = tab.dataset.tab;
+			tabs.forEach((t) => t.classList.toggle('selected', t === tab));
+			panels.forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== name));
+		});
+	});
+}
+
+setupTabs(document.getElementById('leftSidebar'));
+setupTabs(document.getElementById('rightSidebar'));
 
 // --- view toolbar ---------------------------------------------------------
 

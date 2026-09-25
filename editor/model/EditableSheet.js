@@ -56,24 +56,46 @@ export class EditableSheet {
 		if (!src) throw new Error(`No such frame: ${sourceName}`);
 		const name = this.uniqueFrameName(newName || sourceName);
 
-		// Place the copy just to the right of the source if there's room;
-		// otherwise just below it; otherwise on top of it (user can move
-		// it via the inspector).
-		let x = src.x + src.width;
-		let y = src.y;
-		if (x + src.width > this.sheet.imageWidth) {
-			x = src.x;
-			y = src.y + src.height;
-		}
-		if (y + src.height > this.sheet.imageHeight) {
-			x = src.x;
-			y = src.y;
-		}
+		// Scan the sheet in row-major order for the first grid-aligned
+		// slot that doesn't overlap an existing frame. Falls back to the
+		// source's own position if the sheet is genuinely full.
+		const slot = this._findFreeSlot(src.width, src.height);
+		const x = slot ? slot.x : src.x;
+		const y = slot ? slot.y : src.y;
 
 		const frame = { ...src, x, y };
 		this.history.execute(new AddFrameCommand(this.sheet, name, frame));
 		this.emit('changed', { type: 'frameAdded', name });
 		return name;
+	}
+
+	// Walks a grid of frame-sized cells across the sheet and returns the
+	// first one that doesn't intersect an existing frame. Returns null if
+	// there's no free space.
+	_findFreeSlot(w, h) {
+		const sheet = this.sheet;
+		const cols = Math.max(1, Math.floor(sheet.imageWidth  / w));
+		const rows = Math.max(1, Math.floor(sheet.imageHeight / h));
+		const frames = Object.values(sheet.frames);
+
+		for (let row = 0; row < rows; row++) {
+			for (let col = 0; col < cols; col++) {
+				const x = col * w;
+				const y = row * h;
+				if (this._regionIsFree(x, y, w, h, frames)) return { x, y };
+			}
+		}
+		return null;
+	}
+
+	_regionIsFree(x, y, w, h, frames) {
+		for (const f of frames) {
+			if (x < f.x + f.width  && x + w > f.x &&
+			    y < f.y + f.height && y + h > f.y) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	removeFrame(name) {

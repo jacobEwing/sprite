@@ -230,12 +230,12 @@ export class Viewport {
 	_drawFrameOverlays(ctx) {
 		if (!this.frames) return;
 
-		const hairline = 1 / this.zoom;
 		const names = Object.keys(this.frames);
 
+		// Faint outline on every frame.
 		ctx.save();
 		ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-		ctx.lineWidth = hairline;
+		ctx.lineWidth = 1;
 		ctx.beginPath();
 		for (const name of names) {
 			const f = this.frames[name];
@@ -249,12 +249,13 @@ export class Viewport {
 		ctx.stroke();
 		ctx.restore();
 
+		// Hovered frame.
 		if (this.hoveredFrame && this.hoveredFrame !== this.selectedFrame) {
 			const f = this.frames[this.hoveredFrame];
 			if (f) {
 				ctx.save();
 				ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-				ctx.lineWidth = hairline;
+				ctx.lineWidth = 1;
 				ctx.strokeRect(
 					this.offsetX + f.x * this.zoom,
 					this.offsetY + f.y * this.zoom,
@@ -265,6 +266,7 @@ export class Viewport {
 			}
 		}
 
+		// Selected frame: dark under-stroke for contrast, bright over-stroke.
 		if (this.selectedFrame) {
 			const f = this.frames[this.selectedFrame];
 			if (f) {
@@ -274,21 +276,17 @@ export class Viewport {
 				const sh = f.height * this.zoom;
 
 				ctx.save();
-				ctx.fillStyle = 'rgba(208, 128, 64, 0.12)';
-				ctx.fillRect(sx, sy, sw, sh);
-
-				ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
-				ctx.lineWidth = hairline * 3;
+				ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+				ctx.lineWidth = 3;
 				ctx.strokeRect(sx, sy, sw, sh);
 
 				ctx.strokeStyle = '#d08040';
-				ctx.lineWidth = hairline * 1.5;
+				ctx.lineWidth = 1.5;
 				ctx.strokeRect(sx, sy, sw, sh);
 				ctx.restore();
 			}
 		}
 	}
-
 	// --- sizing -----------------------------------------------------------
 
 	_observeSize() {

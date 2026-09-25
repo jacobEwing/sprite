@@ -69,9 +69,9 @@ export class PencilTool extends Tool {
 	}
 
 	_colorFor(button) {
-		const hex = button === 2
-			? this.context.palette.secondary
-			: this.context.palette.primary;
-		return hexToRGBA(hex) ?? [0, 0, 0, 255];
+		const p = this.context.palette;
+		const hex   = button === 2 ? p.secondary      : p.primary;
+		const alpha = button === 2 ? p.secondaryAlpha : p.primaryAlpha;
+		return hexToRGBA(hex, alpha) ?? [0, 0, 0, 255];
 	}
 }

@@ -1,4 +1,4 @@
-import { normalizeHex } from '../paint/pixelUtils.js';
+import { normalizeHex, hexToRGBA } from '../paint/pixelUtils.js';
 import { ColorPicker } from './ColorPicker.js';
 
 const PRESETS = [
@@ -24,17 +24,22 @@ export class PalettePanel {
 		this._openSlot = null;
 
 		this.picker = new ColorPicker();
-		this.picker.onLiveChange((hex) => this._applySlot(hex, false));
-		this.picker.onCommit((hex)     => this._applySlot(hex, true));
+		this.picker.onLiveChange((hex, alpha) => this._applySlot(hex, alpha, false));
+		this.picker.onCommit((hex, alpha)     => this._applySlot(hex, alpha, true));
 
 		this._build();
 		this.palette.on('change', () => this._sync());
 		this._sync();
 	}
 
-	_applySlot(hex, pushRecent) {
-		if (this._openSlot === 'primary')   this.palette.setPrimary(hex,   { pushRecent });
-		if (this._openSlot === 'secondary') this.palette.setSecondary(hex, { pushRecent });
+	_applySlot(hex, alpha, pushRecent) {
+		if (this._openSlot === 'primary') {
+			this.palette.setPrimary(hex, { pushRecent });
+			this.palette.setPrimaryAlpha(alpha);
+		} else if (this._openSlot === 'secondary') {
+			this.palette.setSecondary(hex, { pushRecent });
+			this.palette.setSecondaryAlpha(alpha);
+		}
 	}
 
 	_build() {
@@ -42,12 +47,16 @@ export class PalettePanel {
 			<div class="pal-slots">
 				<div class="pal-slot">
 					<div class="pal-slot-label">Primary</div>
-					<button class="pal-swatch" data-slot="primary" title="Click to pick a colour"></button>
+					<button class="pal-swatch" data-slot="primary" title="Click to pick a colour">
+						<span class="pal-swatch-color"></span>
+					</button>
 					<input class="pal-hex" type="text" spellcheck="false" maxlength="7" data-slot="primary">
 				</div>
 				<div class="pal-slot">
 					<div class="pal-slot-label">Secondary</div>
-					<button class="pal-swatch" data-slot="secondary" title="Click to pick a colour"></button>
+					<button class="pal-swatch" data-slot="secondary" title="Click to pick a colour">
+						<span class="pal-swatch-color"></span>
+					</button>
 					<input class="pal-hex" type="text" spellcheck="false" maxlength="7" data-slot="secondary">
 				</div>
 				<button class="pal-swap" title="Swap primary and secondary (X)">⇄</button>
@@ -99,7 +108,10 @@ export class PalettePanel {
 
 	_openPicker(slot) {
 		this._openSlot = slot;
-		this.picker.show(this.palette[slot], slot === 'primary' ? this.swatchPrimary : this.swatchSecondary);
+		const hex   = slot === 'primary' ? this.palette.primary   : this.palette.secondary;
+		const alpha = slot === 'primary' ? this.palette.primaryAlpha : this.palette.secondaryAlpha;
+		const anchor = slot === 'primary' ? this.swatchPrimary : this.swatchSecondary;
+		this.picker.show(hex, alpha, anchor);
 	}
 
 	_buildGrid(container, hexes) {
@@ -115,9 +127,15 @@ export class PalettePanel {
 			// before the browser's contextmenu logic kicks in.
 			btn.addEventListener('mousedown', (e) => {
 				e.preventDefault();
-				if (e.button === 2) this.palette.setSecondary(hex);
-				else                this.palette.setPrimary(hex);
+				if (e.button === 2) {
+					this.palette.setSecondary(hex);
+					this.palette.setSecondaryAlpha(255);
+				} else {
+					this.palette.setPrimary(hex);
+					this.palette.setPrimaryAlpha(255);
+				}
 			});
+
 			btn.addEventListener('contextmenu', (e) => e.preventDefault());
 
 			container.appendChild(btn);
@@ -134,12 +152,18 @@ export class PalettePanel {
 	_sync() {
 		const p = this.palette;
 
-		this.swatchPrimary.style.background   = p.primary;
-		this.swatchSecondary.style.background = p.secondary;
+		this._paintSwatch(this.swatchPrimary,   p.primary,   p.primaryAlpha);
+		this._paintSwatch(this.swatchSecondary, p.secondary, p.secondaryAlpha);
 
 		if (document.activeElement !== this.hexPrimary)   this.hexPrimary.value   = p.primary;
 		if (document.activeElement !== this.hexSecondary) this.hexSecondary.value = p.secondary;
 
 		this._buildGrid(this.recentGrid, p.recent);
+	}
+
+	_paintSwatch(swatchEl, hex, alpha) {
+		const [r, g, b] = hexToRGBA(hex) ?? [0, 0, 0];
+		const inner = swatchEl.querySelector('.pal-swatch-color');
+		if (inner) inner.style.background = `rgba(${r},${g},${b},${alpha / 255})`;
 	}
 }

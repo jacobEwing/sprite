@@ -16,6 +16,8 @@ export class Palette {
 		makeEmitter(this);
 		this.primary   = DEFAULT_PRIMARY;
 		this.secondary = DEFAULT_SECONDARY;
+		this.primaryAlpha = 255;
+		this.secondaryAlpha = 255;
 		this.recent    = [];
 	}
 
@@ -39,8 +41,34 @@ export class Palette {
 		return this;
 	}
 
+	setPrimaryAlpha(a) {
+		a = clampAlpha(a);
+		if (a === this.primaryAlpha) return this;
+		this.primaryAlpha = a;
+		this.emit('change', this);
+		return this;
+	}
+
+	setSecondaryAlpha(a) {
+		a = clampAlpha(a);
+		if (a === this.secondaryAlpha) return this;
+		this.secondaryAlpha = a;
+		this.emit('change', this);
+		return this;
+	}
+
 	swap() {
 		[this.primary, this.secondary] = [this.secondary, this.primary];
+		this.emit('change', this);
+		return this;
+	}
+
+	reset() {
+		this.primary   = DEFAULT_PRIMARY;
+		this.secondary = DEFAULT_SECONDARY;
+		this.primaryAlpha   = 255;
+		this.secondaryAlpha = 255;
+		// Recents are a user preference; leave them alone.
 		this.emit('change', this);
 		return this;
 	}
@@ -51,4 +79,11 @@ export class Palette {
 		this.recent.unshift(hex);
 		if (this.recent.length > MAX_RECENT) this.recent.length = MAX_RECENT;
 	}
+
+}
+
+function clampAlpha(a) {
+	a = Math.round(Number(a));
+	if (!Number.isFinite(a)) return 255;
+	return Math.max(0, Math.min(255, a));
 }

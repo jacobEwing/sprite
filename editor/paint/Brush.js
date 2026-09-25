@@ -14,8 +14,8 @@ export class Brush {
 	// Call fn(x, y, weight) for each mask cell with a nonzero weight,
 	// offset so the anchor lands on (cx, cy). Coordinates are image-space.
 	forEachPixel(cx, cy, fn) {
-		const ox = Math.round(cx) - this.anchorX;
-		const oy = Math.round(cy) - this.anchorY;
+		const ox = Math.floor(cx) - this.anchorX;
+		const oy = Math.floor(cy) - this.anchorY;
 		for (let my = 0; my < this.height; my++) {
 			const row = this.mask[my];
 			for (let mx = 0; mx < this.width; mx++) {

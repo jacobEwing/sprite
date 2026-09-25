@@ -19,6 +19,8 @@ export class ColorPicker {
 		this.h = 0;
 		this.s = 1;
 		this.v = 1;
+		this.alpha = 255;
+
 		this._onLive   = null;
 		this._onCommit = null;
 		this._anchor   = null;
@@ -33,13 +35,14 @@ export class ColorPicker {
 
 	get isOpen() { return this.root.style.display !== 'none'; }
 
-	show(hex, anchor) {
+	show(hex, alpha, anchor) {
 		const norm = normalizeHex(hex);
 		if (norm) {
 			const [r, g, b] = hexToRGBA(norm);
 			const [h, s, v] = rgbToHsv(r, g, b);
 			this.h = h; this.s = s; this.v = v;
 		}
+		if (Number.isFinite(alpha)) this.alpha = Math.max(0, Math.min(255, Math.round(alpha)));
 		this._anchor = anchor;
 		this._open();
 	}
@@ -65,6 +68,11 @@ export class ColorPicker {
 				<span class="cp-hash">#</span>
 				<input class="cp-hex" type="text" maxlength="7" spellcheck="false">
 			</div>
+			<div class="cp-alpha-row">
+				<span class="cp-alpha-label">α</span>
+				<input type="range" class="cp-alpha" min="0" max="255" step="1">
+				<span class="cp-alpha-value">255</span>
+			</div>
 		`;
 		document.body.appendChild(this.root);
 
@@ -87,6 +95,17 @@ export class ColorPicker {
 				this._syncInputs();
 				this.hexInput.blur();
 			}
+		});
+
+		this.alphaInput = this.root.querySelector('.cp-alpha');
+		this.alphaValue = this.root.querySelector('.cp-alpha-value');
+		this.alphaInput.addEventListener('input', () => {
+			this.alpha = parseInt(this.alphaInput.value, 10) || 0;
+			this._syncInputs();
+			if (this._onLive) this._onLive(this._currentHex(), this.alpha);
+		});
+		this.alphaInput.addEventListener('change', () => {
+			if (this._onCommit) this._onCommit(this._currentHex(), this.alpha);
 		});
 	}
 
@@ -157,7 +176,7 @@ export class ColorPicker {
 		}
 
 		this._render();
-		if (this._onLive) this._onLive(this._currentHex());
+		if (this._onLive) this._onLive(this._currentHex(), this.alpha);
 	}
 
 	_commitHex() {
@@ -167,15 +186,16 @@ export class ColorPicker {
 		const [h, s, v] = rgbToHsv(r, g, b);
 		this.h = h; this.s = s; this.v = v;
 		this._render();
-		if (this._onLive)   this._onLive(this._currentHex());
-		if (this._onCommit) this._onCommit(this._currentHex());
+		if (this._onLive)   this._onLive(this._currentHex(), this.alpha);
+		if (this._onCommit) this._onCommit(this._currentHex()), this.alpha;
 	}
 
 	_commit() {
-		if (this._onCommit) this._onCommit(this._currentHex());
+		if (this._onCommit) this._onCommit(this._currentHex(), this.alpha);
 	}
 
 	// --- rendering --------------------------------------------------------
+	_currentAlpha() { return this.alpha; }
 
 	_currentHex() {
 		const [r, g, b] = hsvToRgb(this.h, this.s, this.v);
@@ -192,6 +212,8 @@ export class ColorPicker {
 		if (document.activeElement !== this.hexInput) {
 			this.hexInput.value = this._currentHex();
 		}
+		this.alphaInput.value = this.alpha;
+		this.alphaValue.textContent = this.alpha;
 	}
 
 	_renderSv() {

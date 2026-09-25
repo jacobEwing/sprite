@@ -14,6 +14,7 @@
 		<button id="sheetMenuBtn" class="menu-trigger" title="Sheet">
 			Sheet <span class="chevron">▾</span>
 		</button>
+
 		<span class="sep"></span>
 
 		<button id="btnUndo" title="Undo (Ctrl+Z)">↶</button>
@@ -21,52 +22,41 @@
 
 		<span class="sep"></span>
 
-		<div class="tool-group">
-			<button class="tool-btn" data-tool="pan"     title="Pan (P)">Pan</button>
-			<button class="tool-btn" data-tool="pencil"  title="Pencil (N)">Pencil</button>
-			<button class="tool-btn" data-tool="eraser"  title="Eraser (E)">Eraser</button>
-			<button class="tool-btn" data-tool="line"    title="Line (L)">Line</button>
-			<button class="tool-btn" data-tool="box"     title="Box (B)">Box</button>
-			<button class="tool-btn" data-tool="ellipse" title="Ellipse (O)">Oval</button>
-			<button class="tool-btn" data-tool="fill"    title="Flood fill (F)">Fill</button>
-			<button class="tool-btn" data-tool="picker"  title="Eyedropper (I)">Pick</button>
-			<button id="btnFilter" class="menu-trigger" title="Convolution filter">Filter…</button>
-			<button class="tool-btn" data-tool="frame"   title="Move frame (M)">Frame</button>
-		</div>
+		<button id="btnFilter" class="menu-trigger" title="Convolution filter">
+			Filter…
+		</button>
 
-		<label class="checkbox" title="Fill new boxes and ellipses">
-			<input type="checkbox" id="fillShapes"> Fill
-		</label>
-
-		<label class="checkbox" title="Confine strokes to the selected frame">
-			<input type="checkbox" id="clipToFrame" checked> Clip
-		</label>
-
-		<span class="sep"></span>
+		<span class="toolbar-spacer"></span>
 
 		<button id="btnFit" title="Fit sheet to view">Fit</button>
 		<button id="btnZoomOut" title="Zoom out">−</button>
 		<button id="btnZoomIn"  title="Zoom in">+</button>
 		<span id="zoomLabel" class="readout">100%</span>
 	</header>
+
 	<main id="layout">
 
 		<aside id="leftSidebar">
-			<section class="pane">
-				<h2>
-					Frames <span class="count" id="frameCount"></span>
-					<button class="pane-action" id="btnNewFrame" title="Duplicate selected frame">+</button>
-				</h2>
-				<ul id="frameList" class="list"></ul>
-			</section>
+			<div class="sidebar-tabs">
+				<button class="sidebar-tab selected" data-tab="frames">Frames</button>
+				<button class="sidebar-tab" data-tab="sequences">Sequences</button>
+			</div>
 
-			<section class="pane">
-				<h2>
-					Sequences <span class="count" id="sequenceCount"></span>
+			<div class="tab-panel" data-panel="frames">
+				<div class="pane-action-row">
+					<span class="count" id="frameCount"></span>
+					<button class="pane-action" id="btnNewFrame" title="Duplicate selected frame">+</button>
+				</div>
+				<ul id="frameList" class="list"></ul>
+			</div>
+
+			<div class="tab-panel hidden" data-panel="sequences">
+				<div class="pane-action-row">
+					<span class="count" id="sequenceCount"></span>
 					<button class="pane-action" id="btnNewSequence" title="New sequence">+</button>
-				</h2>
+				</div>
 				<ul id="sequenceList" class="list"></ul>
-			</section>
+			</div>
 		</aside>
 
 		<section id="center">
@@ -78,30 +68,62 @@
 		</section>
 
 		<aside id="rightSidebar">
-			<section class="pane">
-				<h2>Preview</h2>
+			<section class="pane preview-pane">
 				<div id="spritePreview"></div>
 			</section>
-			<section class="pane">
-				<h2>Frame</h2>
-				<div id="frameInspector"></div>
-			</section>
 
-			<section class="pane">
-				<h2>Sequence</h2>
-				<div id="sequenceInspector"></div>
-			</section>
+			<div class="sidebar-tabs">
+				<button class="sidebar-tab selected" data-tab="draw">Draw</button>
+				<button class="sidebar-tab" data-tab="edit">Edit</button>
+			</div>
 
-			<section class="pane">
-				<h2>Colours</h2>
-				<div id="palettePanel"></div>
-			</section>
+			<div class="tab-panel" data-panel="draw">
+				<section class="pane">
+					<h2>Colours</h2>
+					<div id="palettePanel"></div>
+				</section>
 
-			<section class="pane">
-				<h2>Brush</h2>
-				<div id="brushPicker" class="brush-picker"></div>
-			</section>
+				<section class="pane">
+					<h2>Tools</h2>
+					<div id="toolGrid" class="tool-grid">
+						<button class="tool-btn" data-tool="pan"     title="Pan (P)">Pan</button>
+						<button class="tool-btn" data-tool="pencil"  title="Pencil (N)">Pencil</button>
+						<button class="tool-btn" data-tool="eraser"  title="Eraser (E)">Eraser</button>
+						<button class="tool-btn" data-tool="line"    title="Line (L)">Line</button>
+						<button class="tool-btn" data-tool="box"     title="Box (B)">Box</button>
+						<button class="tool-btn" data-tool="ellipse" title="Ellipse (O)">Oval</button>
+						<button class="tool-btn" data-tool="fill"    title="Flood fill (F)">Fill</button>
+						<button class="tool-btn" data-tool="picker"  title="Eyedropper (I)">Pick</button>
+						<button class="tool-btn" data-tool="frame"   title="Move frame (M)">Frame</button>
+					</div>
+					<div class="tool-options">
+						<label class="checkbox" title="Fill new boxes and ellipses">
+							<input type="checkbox" id="fillShapes"> Fill
+						</label>
+						<label class="checkbox" title="Confine strokes to the selected frame">
+							<input type="checkbox" id="clipToFrame" checked> Clip
+						</label>
+					</div>
+				</section>
+
+				<section class="pane">
+					<h2>Brush</h2>
+					<div id="brushPicker" class="brush-picker"></div>
+				</section>
+			</div>
+
+			<div class="tab-panel hidden" data-panel="edit">
+				<section class="pane">
+					<h2>Frame</h2>
+					<div id="frameInspector"></div>
+				</section>
+				<section class="pane">
+					<h2>Sequence</h2>
+					<div id="sequenceInspector"></div>
+				</section>
+			</div>
 		</aside>
+
 	</main>
 
 	<footer id="statusBar">

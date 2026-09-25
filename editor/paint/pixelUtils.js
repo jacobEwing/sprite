@@ -1,5 +1,5 @@
 // Convert "#rrggbb" or "#rgb" to [r, g, b, a=255]. Returns null on bad input.
-export function hexToRGBA(hex) {
+export function hexToRGBA(hex, alpha = 255) {
 	if (typeof hex !== 'string') return null;
 	let h = hex.trim();
 	if (h[0] === '#') h = h.slice(1);
@@ -7,7 +7,7 @@ export function hexToRGBA(hex) {
 	if (h.length !== 6) return null;
 	const n = parseInt(h, 16);
 	if (Number.isNaN(n)) return null;
-	return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 255];
+	return [(n >> 16) & 255, (n >> 8) & 255, n & 255, alpha];
 }
 
 export function rgbaToHex(r, g, b) {
@@ -19,8 +19,8 @@ export function rgbaToHex(r, g, b) {
 // (x1,y1) inclusive. Used by the pencil to fill gaps between pointermove
 // samples during fast drags.
 export function linePoints(x0, y0, x1, y1, cb) {
-	x0 = Math.round(x0); y0 = Math.round(y0);
-	x1 = Math.round(x1); y1 = Math.round(y1);
+	x0 = Math.floor(x0); y0 = Math.floor(y0);
+	x1 = Math.floor(x1); y1 = Math.floor(y1);
 
 	const dx = Math.abs(x1 - x0);
 	const dy = -Math.abs(y1 - y0);

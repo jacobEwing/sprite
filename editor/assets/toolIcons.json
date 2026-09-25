@@ -1,0 +1,83 @@
+{
+	"image": "toolIcons.png",
+	"frameWidth": 12,
+	"frameHeight": 12,
+	"centerx": 0,
+	"centery": 0,
+	"frameRate": 25,
+	"frames": {
+		"pan": {
+			"x": 0,
+			"y": 0,
+			"width": 12,
+			"height": 12,
+			"centerx": 0,
+			"centery": 0
+		},
+		"pencil": {
+			"x": 12,
+			"y": 0,
+			"width": 12,
+			"height": 12,
+			"centerx": 0,
+			"centery": 0
+		},
+		"eraser": {
+			"x": 24,
+			"y": 0,
+			"width": 12,
+			"height": 12,
+			"centerx": 0,
+			"centery": 0
+		},
+		"line": {
+			"x": 36,
+			"y": 0,
+			"width": 12,
+			"height": 12,
+			"centerx": 0,
+			"centery": 0
+		},
+		"box": {
+			"x": 48,
+			"y": 0,
+			"width": 12,
+			"height": 12,
+			"centerx": 0,
+			"centery": 0
+		},
+		"oval": {
+			"x": 0,
+			"y": 12,
+			"width": 12,
+			"height": 12,
+			"centerx": 0,
+			"centery": 0
+		},
+		"fill": {
+			"x": 12,
+			"y": 12,
+			"width": 12,
+			"height": 12,
+			"centerx": 0,
+			"centery": 0
+		},
+		"pick": {
+			"x": 24,
+			"y": 12,
+			"width": 12,
+			"height": 12,
+			"centerx": 0,
+			"centery": 0
+		},
+		"filter": {
+			"x": 36,
+			"y": 12,
+			"width": 12,
+			"height": 12,
+			"centerx": 0,
+			"centery": 0
+		}
+	},
+	"sequences": {}
+}
