@@ -165,3 +165,52 @@ async function _loadImageFromFile(file) {
 		URL.revokeObjectURL(url);
 	}
 }
+
+/* ==========================================================================
+ *  Blank sheet creation
+ * ========================================================================== */
+
+// Build a fresh SpriteSheet with an empty (transparent) canvas of the
+// requested size, and a set of empty frames laid out on the grid.
+export async function makeBlankSheet({
+	imageWidth,
+	imageHeight,
+	frameWidth,
+	frameHeight,
+	centerx = 0,
+	centery = 0,
+	defaultFrameRate = 12,
+	cellCount = 1,
+}) {
+	const canvas = document.createElement('canvas');
+	canvas.width  = imageWidth;
+	canvas.height = imageHeight;
+	const ctx = canvas.getContext('2d', { willReadFrequently: true });
+	ctx.imageSmoothingEnabled = false;
+
+	const cols = Math.max(1, Math.floor(imageWidth  / frameWidth));
+	const rows = Math.max(1, Math.floor(imageHeight / frameHeight));
+	const maxFrames = cols * rows;
+	const n = Math.max(1, Math.min(cellCount, maxFrames));
+
+	const frames = {};
+	for (let i = 0; i < n; i++) {
+		const col = i % cols;
+		const row = Math.floor(i / cols);
+		frames[`frame_${i + 1}`] = { col, row };
+	}
+
+	const sheet = await window.SpriteSheet.fromJSON({
+		image: canvas,
+		frameWidth,
+		frameHeight,
+		centerx,
+		centery,
+		frameRate: defaultFrameRate,
+		frames,
+		sequences: {},
+	});
+
+	// The canvas is already editable; no swap needed.
+	return sheet;
+}

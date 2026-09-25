@@ -2,7 +2,7 @@ import { makeEmitter } from '../lib/emitter.js';
 import {
 	AddFrameCommand, RemoveFrameCommand, RenameFrameCommand, SetFrameCommand,
 	AddSequenceCommand, RemoveSequenceCommand, RenameSequenceCommand, SetSequenceCommand,
-	ExpandCanvasCommand,
+	ExpandCanvasCommand,SetSheetSettingsCommand,
 } from './sheetCommands.js';
 
 // A facade over SpriteSheet that mediates all structural mutations through
@@ -223,5 +223,27 @@ export class EditableSheet {
 			width: newWidth,
 			height: newHeight,
 		});
+	}
+
+	// --- settings ---------------------------------------------------------
+
+	// Updates the sheet's default frame size, origin, and default frame
+	// rate. All of these are values consulted only when new frames and
+	// sequences are added; changing them never alters existing data.
+	setSheetSettings(patch) {
+		const fields = ['frameWidth', 'frameHeight', 'centerx', 'centery', 'defaultFrameRate'];
+		const before = {};
+		const after  = {};
+		let changed = false;
+
+		for (const k of fields) {
+			before[k] = this.sheet[k];
+			after[k]  = patch[k] !== undefined ? Number(patch[k]) : this.sheet[k];
+			if (before[k] !== after[k]) changed = true;
+		}
+		if (!changed) return;
+
+		this.history.execute(new SetSheetSettingsCommand(this.sheet, before, after));
+		this.emit('changed', { type: 'settingsUpdated' });
 	}
 }

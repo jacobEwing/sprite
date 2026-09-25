@@ -176,3 +176,22 @@ export class ExpandCanvasCommand {
 		this.sheet.image = this.oldImage;
 	}
 }
+
+// --- sheet settings -------------------------------------------------------
+
+// Updates the sheet's default values: frame size, origin, default frame
+// rate. None of these affect existing frames or sequences (they all have
+// their own values baked in at creation time), so the command is safe.
+export class SetSheetSettingsCommand {
+	constructor(sheet, before, after) {
+		this.sheet = sheet;
+		this.before = { ...before };
+		this.after  = { ...after };
+	}
+	apply() {
+		Object.assign(this.sheet, this.after);
+	}
+	revert() {
+		Object.assign(this.sheet, this.before);
+	}
+}

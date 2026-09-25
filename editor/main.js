@@ -30,6 +30,9 @@ import { SaveDialog }                   from './view/SaveDialog.js';
 import { FilterPanel }     from './view/FilterPanel.js';
 import { loadSheetFromDisk } from './io/loadSheet.js';
 import { ErrorDialog }     from './view/ErrorDialog.js';
+import { applyToolIcons }  from './view/toolIcons.js';
+import { SheetDialog }     from './view/SheetDialog.js';
+import { makeBlankSheet }  from './io/loadSheet.js';
 
 // --- wiring ---------------------------------------------------------------
 
@@ -240,6 +243,54 @@ async function doLoadSheet(path) {
 		$('statusMessage').textContent = 'Load failed: ' + err.message;
 	}
 }
+async function doNewSheet() {
+	if (doc.dirty && !window.confirm(
+		'The current sheet has unsaved changes. Discard them and create a new sheet?'
+	)) return;
+
+	const values = await sheetDialog.openForNew();
+	if (!values) return;
+
+	$('statusMessage').textContent = 'Creating sheet…';
+	try {
+		const sheet = await makeBlankSheet({
+			imageWidth: values.imageWidth,
+			imageHeight: values.imageHeight,
+			frameWidth: values.frameWidth,
+			frameHeight: values.frameHeight,
+			centerx: values.centerx,
+			centery: values.centery,
+			defaultFrameRate: values.defaultFrameRate,
+			cellCount: values.cellCount,
+		});
+		doc.setSheet(sheet);
+		savedFilenames = null;
+		savedDirectory = null;
+		saveMode = null;
+		$('statusMessage').textContent =
+			`New sheet: ${sheet.imageWidth}×${sheet.imageHeight}, ` +
+			`${sheet.frameNames.length} frames`;
+	} catch (err) {
+		console.error(err);
+		$('statusMessage').textContent = 'Create failed.';
+		await errorDialog.show('Couldn\'t create the sheet', err.message);
+	}
+}
+
+async function doEditSheet() {
+	if (!doc.sheet) return;
+	const values = await sheetDialog.openForEdit(doc.sheet);
+	if (!values) return;
+
+	doc.editable.setSheetSettings({
+		frameWidth: values.frameWidth,
+		frameHeight: values.frameHeight,
+		centerx: values.centerx,
+		centery: values.centery,
+		defaultFrameRate: values.defaultFrameRate,
+	});
+	$('statusMessage').textContent = 'Sheet settings updated.';
+}
 
 async function doOpenFromDisk() {
 	$('statusMessage').textContent = 'Choose a JSON file…';
@@ -327,10 +378,16 @@ async function doSave() {
 	}
 }
 
+function updateFileMenuState() {
+	const enabled = !!doc.sheet;
+	fileMenu.items.find(i => i.label === 'Save').disabled = !enabled;
+	fileMenu.items.find(i => i.label === 'Save As…').disabled = !enabled;
+}
+
 const fileMenu = new Menu(document.getElementById('fileMenuBtn'), [
 	{
-		label: 'New', shortcut: 'Ctrl+N', disabled: true,
-		title: 'Blank sheets are coming in a later phase',
+		label: 'New', shortcut: 'Ctrl+Alt+N',
+		action: doNewSheet,
 	},
 	{
 		label: 'Open URL…', shortcut: 'Ctrl+O',
@@ -353,30 +410,29 @@ const fileMenu = new Menu(document.getElementById('fileMenuBtn'), [
 	{ label: 'Save As…', shortcut: 'Ctrl+Shift+S', action: doSaveAs },
 ]);
 
-function updateFileMenuState() {
-	const enabled = !!doc.sheet;
-	fileMenu.items.find(i => i.label === 'Save').disabled = !enabled;
-	fileMenu.items.find(i => i.label === 'Save As…').disabled = !enabled;
+const sheetMenu = new Menu(document.getElementById('sheetMenuBtn'), [
+	{
+		label: 'Sheet settings…',
+		action: doEditSheet,
+	},
+	{
+		label: 'Expand canvas…',
+		action: doExpandCanvas,
+	},
+]);
+
+async function doExpandCanvas() {
+	if (!doc.sheet || !doc.editable) return;
+	const result = await sheetSizeDialog.open(
+		doc.sheet.imageWidth, doc.sheet.imageHeight);
+	if (!result) return;
+	doc.editable.expandCanvas(result.width, result.height);
 }
 doc.on('sheetChanged', updateFileMenuState);
 updateFileMenuState();
 
 const sheetSizeDialog = new SheetSizeDialog();
-
-new Menu(document.getElementById('sheetMenuBtn'), [
-	{
-		label: 'Expand canvas…',
-		disabled: false,
-		title: 'Increase the atlas dimensions',
-		action: async () => {
-			if (!doc.sheet || !doc.editable) return;
-			const result = await sheetSizeDialog.open(
-				doc.sheet.imageWidth, doc.sheet.imageHeight);
-			if (!result) return;
-			doc.editable.expandCanvas(result.width, result.height);
-		},
-	},
-]);
+const sheetDialog = new SheetDialog();
 
 // --- keyboard events ---------------------------------------------------------
 window.addEventListener('keydown', (e) => {
@@ -385,9 +441,16 @@ window.addEventListener('keydown', (e) => {
 	const mod = e.ctrlKey || e.metaKey;
 	const key = e.key.toLowerCase();
 
-	// File operations: always ours, even from inside a field. preventDefault
-	// stops the browser from offering to save the page.
-	if (mod && !e.altKey) {
+	if (mod) {
+		// Ctrl+Alt+N: new sheet. (Plain Ctrl+N is browser-reserved.)
+		if (key === 'n' && e.altKey) {
+			e.preventDefault();
+			doNewSheet();
+			return;
+		}
+
+		if (e.altKey) return;  // other Ctrl+Alt combos are not ours
+
 		if (key === 's') {
 			e.preventDefault();
 			if (e.shiftKey) doSaveAs();
@@ -410,8 +473,6 @@ window.addEventListener('keydown', (e) => {
 			}
 			return;
 		}
-		// Edit history respects text-field context, so Ctrl+Z inside a
-		// hex or number field undoes the text edit, not the document.
 		if (!inField) {
 			if (key === 'z' && !e.shiftKey) {
 				e.preventDefault();
@@ -430,7 +491,6 @@ window.addEventListener('keydown', (e) => {
 	if (inField) return;
 	if (e.altKey) return;
 
-	// Unmodified keys: tool selection and palette swap.
 	if (key === 'x') {
 		e.preventDefault();
 		palette.swap();
@@ -442,6 +502,7 @@ window.addEventListener('keydown', (e) => {
 		activateTool(name);
 	}
 });
+
 // --- sidebar tabs --------------------------------------------------------
 
 function setupTabs(sidebarEl) {
@@ -472,3 +533,11 @@ window.addEventListener('beforeunload', (e) => {
 	e.preventDefault();
 	e.returnValue = '';
 });
+
+// --- tool icons ----------------------------------------------------------
+//
+// Fire-and-forget. If the sprite loads, buttons swap from text to icons.
+// If it fails, or a frame is missing, the text label stays — no error,
+// no broken UI.
+
+applyToolIcons('assets/toolIcons.json');
