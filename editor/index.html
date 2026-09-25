@@ -24,6 +24,7 @@
 		<div class="tool-group">
 			<button class="tool-btn" data-tool="pan"     title="Pan (P)">Pan</button>
 			<button class="tool-btn" data-tool="pencil"  title="Pencil (N)">Pencil</button>
+			<button class="tool-btn" data-tool="eraser"  title="Eraser (E)">Eraser</button>
 			<button class="tool-btn" data-tool="line"    title="Line (L)">Line</button>
 			<button class="tool-btn" data-tool="box"     title="Box (B)">Box</button>
 			<button class="tool-btn" data-tool="ellipse" title="Ellipse (O)">Oval</button>
@@ -103,6 +104,7 @@
 	</main>
 
 	<footer id="statusBar">
+		<span id="dirtyIndicator" class="readout" hidden>●</span>
 		<span id="statusMessage">Ready.</span>
 		<span id="coordReadout" class="readout"></span>
 	</footer>

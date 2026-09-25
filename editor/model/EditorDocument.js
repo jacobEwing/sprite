@@ -21,16 +21,22 @@ export class EditorDocument {
 		this.editable = null;
 		this.selectedFrame = null;
 		this.selectedSequence = null;
+		this.dirty = false;
 
 		// Undo/redo bypass EditableSheet, so we listen to history directly
 		// and turn its events into the same 'edit' signal views already know.
 		history.on('change', ({ source }) => {
+			// 'clear' fires when a new sheet is loaded; everything else is
+			// a real edit.
+			if (source !== 'clear') this._setDirty(true);
+
 			if (source === 'undo' || source === 'redo') {
 				this._reconcileSelection();
 				this.emit('selectionChanged', { changed: true });
 				this.emit('edit', { type: 'history', source });
 			}
 		});
+
 	}
 
 	setSheet(sheet) {
@@ -40,6 +46,7 @@ export class EditorDocument {
 
 		this.selectedFrame = sheet.frameNames[0] ?? null;
 		this.selectedSequence = sheet.sequenceNames[0] ?? null;
+		this._setDirty(false);
 		this.emit('sheetChanged', { sheet });
 		this.emit('selectionChanged', { focus: false });
 	}
@@ -101,5 +108,14 @@ export class EditorDocument {
 		return this.sheet && this.selectedSequence
 			? this.sheet.sequences[this.selectedSequence]
 			: null;
+	}
+	_setDirty(dirty) {
+		if (this.dirty === dirty) return;
+		this.dirty = dirty;
+		this.emit('dirtyChanged', { dirty });
+	}
+
+	markSaved() {
+		this._setDirty(false);
 	}
 }

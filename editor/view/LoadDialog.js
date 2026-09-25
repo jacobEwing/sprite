@@ -4,7 +4,7 @@
 // The dialog is a singleton: it owns its DOM once, and each open() reuses
 // it. Input value is remembered across opens within a session.
 export class LoadDialog {
-	constructor(defaultPath = '../dungeonCrawler/sprites/player.json') {
+	constructor(defaultPath = 'player.json') {
 		this._resolve = null;
 		this._build(defaultPath);
 	}

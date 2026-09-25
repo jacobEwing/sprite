@@ -297,16 +297,32 @@ body {
 
 #statusBar {
 	display: flex;
-	justify-content: space-between;
 	align-items: center;
+	gap: 8px;
 	padding: 4px 14px;
 	background: var(--panel);
 	border-top: 1px solid var(--rule);
 	font-size: 12px;
 	color: var(--muted);
 }
-#statusBar .readout {
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+#statusBar #statusMessage {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+#statusBar #coordReadout {
+	flex: 0 0 auto;
+	min-width: 60px;
+	text-align: right;
+}
+#statusBar #dirtyIndicator {
+	flex: 0 0 auto;
+	width: 12px;
+	text-align: center;
+	color: var(--accent);
+	font-size: 16px;
 }
 
 /* --- tool buttons --- */
@@ -885,3 +901,8 @@ body {
 	white-space: nowrap;
 }
 
+#dirtyIndicator {
+	color: var(--accent);
+	font-size: 16px;
+	margin-left: 8px;
+}

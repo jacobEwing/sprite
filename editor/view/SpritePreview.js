@@ -105,13 +105,17 @@ export class SpritePreview {
 		this._stopLoop();
 		if (this.sprite.sequenceName) this.sprite.stop();
 
-		// Prefer the explicitly-chosen static frame. If it's gone (deleted
-		// by an edit, or invalidated by an undo), fall back to the selected
-		// frame, then to the sequence's first frame, then to anything.
+		// TODO: when the static frame is still present in the sheet but no
+		// longer part of the selected sequence (e.g. removed from the
+		// sequence inspector while paused), the preview keeps showing it.
+		// The fix is to also require `seq.frames.includes(frameName)` when
+		// a sequence is selected.
 		let frameName = this.staticFrameName;
 		if (!frameName || !this.doc.sheet.frames[frameName]) {
-			frameName = this.doc.selectedFrame
-				|| (seq && seq.frames[0])
+			// When a sequence is selected, its first frame is the natural
+			// "reset" position. Otherwise use the document's selection.
+			frameName = (seq && seq.frames[0])
+				|| this.doc.selectedFrame
 				|| this.doc.sheet.frameNames[0]
 				|| null;
 			this.staticFrameName = frameName;
@@ -144,11 +148,21 @@ export class SpritePreview {
 	// getters on Sprite, so we only need to redraw. A stopped preview with
 	// no sequence needs its static frame re-resolved in case the selected
 	// frame was deleted or renamed.
-	_onEdit() {
+	_onEdit(info) {
 		if (!this.sprite) return;
-		// _recompute handles both playback and paused cases: the sprite's
-		// live getters keep playing animations in sync, and the paused
-		// branch falls back cleanly if the static frame was deleted.
+
+		// When paused and viewing a sequence, if the frame we're showing is
+		// removed from that sequence, clear it so _recompute picks a fresh
+		// frame from the same sequence.
+		if (!this.playing && info && info.type === 'sequenceUpdated' &&
+		    info.name === this.doc.selectedSequence) {
+			const seq = this.doc.sheet.sequences[this.doc.selectedSequence];
+			if (seq && this.staticFrameName &&
+			    !seq.frames.includes(this.staticFrameName)) {
+				this.staticFrameName = null;
+			}
+		}
+
 		this._recompute();
 	}
 

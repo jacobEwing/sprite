@@ -10,6 +10,7 @@ import { History }        from './history/History.js';
 import { ToolLayer }      from './tools/ToolLayer.js';
 import { PanTool }        from './tools/PanTool.js';
 import { PencilTool }     from './tools/PencilTool.js';
+import { EraserTool }     from './tools/EraserTool.js';
 import { LineTool }       from './tools/LineTool.js';
 import { BoxTool }        from './tools/BoxTool.js';
 import { EllipseTool }    from './tools/EllipseTool.js';
@@ -24,6 +25,8 @@ import { Timeline }        from './view/Timeline.js';
 import { SheetSizeDialog } from './view/SheetSizeDialog.js';
 import { FrameTool }       from './tools/FrameTool.js';
 import { SpritePreview }   from './view/SpritePreview.js';
+import { saveSheet, proposeFilenames } from './io/saveSheet.js';
+import { SaveDialog }                   from './view/SaveDialog.js';
 
 // --- wiring ---------------------------------------------------------------
 
@@ -49,6 +52,7 @@ const toolLayer = new ToolLayer({ viewport, document: doc, palette, history });
 const TOOLS = {
 	pan:     new PanTool(toolLayer.context),
 	pencil:  new PencilTool(toolLayer.context),
+	eraser:  new EraserTool(toolLayer.context),
 	line:    new LineTool(toolLayer.context),
 	box:     new BoxTool(toolLayer.context),
 	ellipse: new EllipseTool(toolLayer.context),
@@ -105,54 +109,10 @@ activateTool('pan');
 
 // Keyboard shortcuts: single letter per tool, ignored while typing in a field.
 const TOOL_KEYS = {
-	p: 'pan', n: 'pencil', l: 'line', b: 'box',
+	p: 'pan', n: 'pencil', e : 'eraser', l: 'line', b: 'box',
 	o: 'ellipse', f: 'fill', i: 'picker', m : 'frame',
 };
 
-// --- keyboard shortcuts ---------------------------------------------------
-//
-// Consolidated into one handler. Three rules, applied in order:
-//   1. Anything typed into a form field is ignored.
-//   2. Ctrl/Cmd + letter → file and edit commands.
-//   3. Unmodified letters → tool selection and palette swap.
-
-window.addEventListener('keydown', (e) => {
-	const tag = (e.target.tagName || '').toLowerCase();
-	if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
-
-	const key = e.key.toLowerCase();
-	const mod = e.ctrlKey || e.metaKey;
-
-	if (mod && !e.altKey) {
-		if (key === 'z' && !e.shiftKey) {
-			e.preventDefault();
-			if (history.undo()) viewport.invalidate();
-		} else if ((key === 'z' && e.shiftKey) || key === 'y') {
-			e.preventDefault();
-			if (history.redo()) viewport.invalidate();
-		} else if (key === 'o') {
-			e.preventDefault();
-			loadDialog.open().then((path) => {
-				if (path) doLoadSheet(path);
-			});
-		}
-		return;
-	}
-
-	if (mod || e.altKey) return;
-
-	if (key === 'x') {
-		e.preventDefault();
-		palette.swap();
-		return;
-	}
-
-	const name = TOOL_KEYS[key];
-	if (name) {
-		e.preventDefault();
-		activateTool(name);
-	}
-});
 // --- shape-fill toggle ----------------------------------------------------
 
 $('fillShapes').addEventListener('change', (e) => {
@@ -202,6 +162,11 @@ doc.on('edit', () => {
 	}
 	viewport.invalidate();
 });
+
+doc.on('dirtyChanged', ({ dirty }) => {
+	$('dirtyIndicator').hidden = !dirty;
+});
+
 
 // --- history --------------------------------------------------------------
 
@@ -257,10 +222,72 @@ async function doLoadSheet(path) {
 	}
 }
 
-new Menu(document.getElementById('fileMenuBtn'), [
+const saveDialog = new SaveDialog();
+
+// Cached between saves within a session. Lost on reload — that's fine.
+let savedFilenames = null;
+let savedDirectory = null;
+let saveMode = null;  // 'directory' | 'download' | null
+
+async function doSaveAs() {
+	if (!doc.sheet) return;
+	const defaults = savedFilenames || proposeFilenames(doc.sheet);
+	const names = await saveDialog.open(defaults);
+	if (!names) return;
+
+	$('statusMessage').textContent = 'Saving…';
+	try {
+		// Save As always tries the directory picker (or falls back to
+		// downloads if the browser doesn't support it).
+		const result = await saveSheet({
+			sheet: doc.sheet,
+			jsonFilename: names.jsonFilename,
+			imageFilename: names.imageFilename,
+			directoryHandle: null,
+			forceDownload: false,
+		});
+		savedDirectory = result.directoryHandle;
+		savedFilenames = names;
+		saveMode = result.mode;
+		doc.markSaved();
+		$('statusMessage').textContent = result.mode === 'directory'
+			? `Saved ${names.jsonFilename} + ${names.imageFilename}`
+			: `Downloaded ${names.jsonFilename} + ${names.imageFilename}`;
+	} catch (err) {
+		console.error(err);
+		$('statusMessage').textContent = 'Save failed: ' + err.message;
+	}
+}
+
+async function doSave() {
+	if (!doc.sheet) return;
+	if (!savedFilenames) return doSaveAs();
+
+	$('statusMessage').textContent = 'Saving…';
+	try {
+		const result = await saveSheet({
+			sheet: doc.sheet,
+			jsonFilename: savedFilenames.jsonFilename,
+			imageFilename: savedFilenames.imageFilename,
+			directoryHandle: savedDirectory,
+			forceDownload: saveMode === 'download',
+		});
+		savedDirectory = result.directoryHandle;
+		saveMode = result.mode;
+		doc.markSaved();
+		$('statusMessage').textContent = result.mode === 'directory'
+			? `Saved ${savedFilenames.jsonFilename}`
+			: `Downloaded ${savedFilenames.jsonFilename}`;
+	} catch (err) {
+		console.error(err);
+		$('statusMessage').textContent = 'Save failed: ' + err.message;
+	}
+}
+
+const fileMenu = new Menu(document.getElementById('fileMenuBtn'), [
 	{
 		label: 'New', shortcut: 'Ctrl+N', disabled: true,
-		title: 'Blank sheets are coming with the frame editor',
+		title: 'Blank sheets are coming in a later phase',
 	},
 	{
 		label: 'Open…', shortcut: 'Ctrl+O',
@@ -270,15 +297,17 @@ new Menu(document.getElementById('fileMenuBtn'), [
 		},
 	},
 	{ separator: true },
-	{
-		label: 'Save', shortcut: 'Ctrl+S', disabled: true,
-		title: 'Saving is coming in a later phase',
-	},
-	{
-		label: 'Save As…', disabled: true,
-		title: 'Saving is coming in a later phase',
-	},
+	{ label: 'Save', shortcut: 'Ctrl+S', action: doSave },
+	{ label: 'Save As…', shortcut: 'Ctrl+Shift+S', action: doSaveAs },
 ]);
+
+function updateFileMenuState() {
+	const enabled = !!doc.sheet;
+	fileMenu.items.find(i => i.label === 'Save').disabled = !enabled;
+	fileMenu.items.find(i => i.label === 'Save As…').disabled = !enabled;
+}
+doc.on('sheetChanged', updateFileMenuState);
+updateFileMenuState();
 
 const sheetSizeDialog = new SheetSizeDialog();
 
@@ -296,9 +325,72 @@ new Menu(document.getElementById('sheetMenuBtn'), [
 		},
 	},
 ]);
+
+// --- keyboard events ---------------------------------------------------------
+window.addEventListener('keydown', (e) => {
+	const tag = (e.target.tagName || '').toLowerCase();
+	const inField = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
+	const mod = e.ctrlKey || e.metaKey;
+	const key = e.key.toLowerCase();
+
+	// File operations: always ours, even from inside a field. preventDefault
+	// stops the browser from offering to save the page.
+	if (mod && !e.altKey) {
+		if (key === 's') {
+			e.preventDefault();
+			if (e.shiftKey) doSaveAs();
+			else            doSave();
+			return;
+		}
+		if (key === 'o') {
+			e.preventDefault();
+			loadDialog.open().then((path) => {
+				if (path) doLoadSheet(path);
+			});
+			return;
+		}
+		// Edit history respects text-field context, so Ctrl+Z inside a
+		// hex or number field undoes the text edit, not the document.
+		if (!inField) {
+			if (key === 'z' && !e.shiftKey) {
+				e.preventDefault();
+				if (history.undo()) viewport.invalidate();
+				return;
+			}
+			if ((key === 'z' && e.shiftKey) || key === 'y') {
+				e.preventDefault();
+				if (history.redo()) viewport.invalidate();
+				return;
+			}
+		}
+		return;
+	}
+
+	if (inField) return;
+	if (e.altKey) return;
+
+	// Unmodified keys: tool selection and palette swap.
+	if (key === 'x') {
+		e.preventDefault();
+		palette.swap();
+		return;
+	}
+	const name = TOOL_KEYS[key];
+	if (name) {
+		e.preventDefault();
+		activateTool(name);
+	}
+});
+
 // --- view toolbar ---------------------------------------------------------
 
 $('btnFit').addEventListener('click',    () => viewport.fit());
 $('btnZoomIn').addEventListener('click', () => viewport.zoomBy(1.25));
 $('btnZoomOut').addEventListener('click',() => viewport.zoomBy(1 / 1.25));
 
+// --- unsaved-changes warning ---------------------------------------------
+window.addEventListener('beforeunload', (e) => {
+	if (!doc.dirty) return;
+	e.preventDefault();
+	e.returnValue = '';
+});
