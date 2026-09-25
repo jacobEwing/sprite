@@ -27,6 +27,8 @@ import { FrameTool }       from './tools/FrameTool.js';
 import { SpritePreview }   from './view/SpritePreview.js';
 import { saveSheet, proposeFilenames } from './io/saveSheet.js';
 import { SaveDialog }                   from './view/SaveDialog.js';
+import { FilterPanel }     from './view/FilterPanel.js';
+import { loadSheetFromDisk } from './io/loadSheet.js';
 
 // --- wiring ---------------------------------------------------------------
 
@@ -186,6 +188,20 @@ $('btnRedo').addEventListener('click', () => {
 
 new PalettePanel(document.getElementById('palettePanel'), palette);
 
+// --- filter --------------------------------------------------------------
+
+// Create the filter panel element. It positions itself relative to its
+// anchor when shown.
+const filterPanelEl = document.createElement('div');
+filterPanelEl.id = 'filterPanel';
+document.body.appendChild(filterPanelEl);
+const filterPanel = new FilterPanel(filterPanelEl, doc, viewport);
+
+document.getElementById('btnFilter').addEventListener('click', (e) => {
+	if (filterPanel.visible) filterPanel.hide();
+	else filterPanel.show(e.currentTarget);
+});
+
 // --- toolbar --------------------------------------------------------------
 $('btnNewFrame').addEventListener('click', () => {
 	if (!doc.selectedFrame || !doc.editable) return;
@@ -216,6 +232,28 @@ async function doLoadSheet(path) {
 	try {
 		const sheet = await loadSheet(path);
 		doc.setSheet(sheet);
+	} catch (err) {
+		console.error(err);
+		$('statusMessage').textContent = 'Load failed: ' + err.message;
+	}
+}
+
+async function doOpenFromDisk() {
+	$('statusMessage').textContent = 'Choose a JSON file…';
+	try {
+		const result = await loadSheetFromDisk();
+		if (!result) {
+			$('statusMessage').textContent = 'Open cancelled.';
+			return;
+		}
+		doc.setSheet(result.sheet);
+		savedFilenames = {
+			jsonFilename: result.jsonFilename,
+			imageFilename: result.imageFilename,
+		};
+		savedDirectory = null;
+		saveMode = null;
+		$('statusMessage').textContent = `Loaded ${result.jsonFilename} from disk`;
 	} catch (err) {
 		console.error(err);
 		$('statusMessage').textContent = 'Load failed: ' + err.message;
@@ -290,11 +328,20 @@ const fileMenu = new Menu(document.getElementById('fileMenuBtn'), [
 		title: 'Blank sheets are coming in a later phase',
 	},
 	{
-		label: 'Open…', shortcut: 'Ctrl+O',
+		label: 'Open URL…', shortcut: 'Ctrl+O',
 		action: async () => {
-			const path = await loadDialog.open();
-			if (path) await doLoadSheet(path);
+			const result = await loadDialog.open();
+			if (result === null) return;
+			if (typeof result === 'object' && result.browse) {
+				await doOpenFromDisk();
+			} else if (typeof result === 'string') {
+				await doLoadSheet(result);
+			}
 		},
+	},
+	{
+		label: 'Open from disk…', shortcut: 'Ctrl+Shift+O',
+		action: doOpenFromDisk,
 	},
 	{ separator: true },
 	{ label: 'Save', shortcut: 'Ctrl+S', action: doSave },
@@ -344,9 +391,18 @@ window.addEventListener('keydown', (e) => {
 		}
 		if (key === 'o') {
 			e.preventDefault();
-			loadDialog.open().then((path) => {
-				if (path) doLoadSheet(path);
-			});
+			if (e.shiftKey) {
+				doOpenFromDisk();
+			} else {
+				loadDialog.open().then((result) => {
+					if (result === null) return;
+					if (typeof result === 'object' && result.browse) {
+						doOpenFromDisk();
+					} else if (typeof result === 'string') {
+						doLoadSheet(result);
+					}
+				});
+			}
 			return;
 		}
 		// Edit history respects text-field context, so Ctrl+Z inside a

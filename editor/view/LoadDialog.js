@@ -38,7 +38,10 @@ export class LoadDialog {
 				<h2>Open sheet</h2>
 				<label class="modal-field">
 					<span>JSON path</span>
-					<input type="text" spellcheck="false" autocomplete="off">
+					<div class="modal-field-row">
+						<input type="text" spellcheck="false" autocomplete="off">
+						<button class="modal-browse" type="button">Browse…</button>
+					</div>
 				</label>
 				<div class="modal-actions">
 					<button class="modal-cancel">Cancel</button>
@@ -49,14 +52,16 @@ export class LoadDialog {
 		document.body.appendChild(this.backdrop);
 
 		this.input = this.backdrop.querySelector('input');
+
 		this.input.value = defaultPath;
 
 		this.backdrop.querySelector('.modal-cancel')
 			.addEventListener('click', () => this.close(null));
 		this.backdrop.querySelector('.modal-confirm')
 			.addEventListener('click', () => this._confirm());
+		this.backdrop.querySelector('.modal-browse')
+			.addEventListener('click', () => this._browse());
 
-		// Click on the dim backdrop (but not the modal panel) cancels.
 		this.backdrop.addEventListener('mousedown', (e) => {
 			if (e.target === this.backdrop) this.close(null);
 		});
@@ -71,10 +76,15 @@ export class LoadDialog {
 			}
 		});
 	}
-
 	_confirm() {
 		const value = this.input.value.trim();
 		if (!value) return;
 		this.close(value);
+	}
+
+	// The dialog resolves with either a string (a URL path) or a special
+	// { browse: true } sentinel meaning "let the caller run the disk flow".
+	_browse() {
+		this.close({ browse: true });
 	}
 }
