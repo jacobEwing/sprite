@@ -58,6 +58,21 @@ export class Viewport {
 		return this.source.naturalHeight || this.source.height || 0;
 	}
 
+	// True when the whole source image is visible within the current
+	// viewport, with no part of it panned off-screen. Used by the selection
+	// focus rule: when the sheet fits, a list click only selects; when it
+	// doesn't, the camera follows the selection.
+	get sheetFits() {
+		if (!this.source) return false;
+		const rect = this.canvas.getBoundingClientRect();
+		const w = this.sourceWidth * this.zoom;
+		const h = this.sourceHeight * this.zoom;
+		return this.offsetX >= 0
+			&& this.offsetY >= 0
+			&& this.offsetX + w <= rect.width
+			&& this.offsetY + h <= rect.height;
+	}
+
 	// --- preview overlay --------------------------------------------------
 
 	// Set a function (ctx) => void that will be called with the context in
@@ -187,6 +202,18 @@ export class Viewport {
 		ctx.translate(this.offsetX, this.offsetY);
 		ctx.scale(this.zoom, this.zoom);
 		ctx.drawImage(this.source, 0, 0);
+		ctx.restore();
+
+		// Atlas perimeter — a faint outline at the sheet's bounds so that
+		// transparent edges and off-sheet areas are easy to tell apart.
+		ctx.save();
+		ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+		ctx.lineWidth = 1;
+		const px = Math.round(this.offsetX) + 0.5;
+		const py = Math.round(this.offsetY) + 0.5;
+		const pw = Math.round(this.sourceWidth * this.zoom) - 1;
+		const ph = Math.round(this.sourceHeight * this.zoom) - 1;
+		ctx.strokeRect(px, py, pw, ph);
 		ctx.restore();
 
 		if (this.previewFn) {

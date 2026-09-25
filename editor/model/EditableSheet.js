@@ -2,6 +2,7 @@ import { makeEmitter } from '../lib/emitter.js';
 import {
 	AddFrameCommand, RemoveFrameCommand, RenameFrameCommand, SetFrameCommand,
 	AddSequenceCommand, RemoveSequenceCommand, RenameSequenceCommand, SetSequenceCommand,
+	ExpandCanvasCommand,
 } from './sheetCommands.js';
 
 // A facade over SpriteSheet that mediates all structural mutations through
@@ -179,5 +180,26 @@ export class EditableSheet {
 		const [item] = frames.splice(from, 1);
 		frames.splice(to, 0, item);
 		this.setSequence(seqName, { frames });
+	}
+
+	// --- canvas -----------------------------------------------------------
+
+	// Grow the atlas canvas to newWidth × newHeight. Existing content is
+	// copied to (offsetX, offsetY). Frame rects are not shifted; if
+	// offsetX/offsetY are nonzero the caller is responsible for moving them.
+	expandCanvas(newWidth, newHeight, offsetX = 0, offsetY = 0) {
+		newWidth  = Math.max(newWidth  | 0, this.sheet.imageWidth);
+		newHeight = Math.max(newHeight | 0, this.sheet.imageHeight);
+		if (newWidth === this.sheet.imageWidth && newHeight === this.sheet.imageHeight) {
+			return;
+		}
+		this.history.execute(
+			new ExpandCanvasCommand(this.sheet, newWidth, newHeight, offsetX, offsetY)
+		);
+		this.emit('changed', {
+			type: 'canvasExpanded',
+			width: newWidth,
+			height: newHeight,
+		});
 	}
 }

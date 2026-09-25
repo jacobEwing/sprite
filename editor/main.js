@@ -20,6 +20,10 @@ import { Menu }           from './view/Menu.js';
 import { LoadDialog }     from './view/LoadDialog.js';
 import { FrameInspector }    from './view/FrameInspector.js';
 import { SequenceInspector } from './view/SequenceInspector.js';
+import { Timeline }        from './view/Timeline.js';
+import { SheetSizeDialog } from './view/SheetSizeDialog.js';
+import { FrameTool }       from './tools/FrameTool.js';
+import { SpritePreview }   from './view/SpritePreview.js';
 
 // --- wiring ---------------------------------------------------------------
 
@@ -34,6 +38,9 @@ new SequenceList(document.getElementById('sequenceList'), doc);
 
 new FrameInspector(document.getElementById('frameInspector'), doc);
 new SequenceInspector(document.getElementById('sequenceInspector'), doc);
+new Timeline(document.getElementById('timeline'), doc, viewport);
+new SpritePreview(document.getElementById('spritePreview'), doc);
+
 
 const brushPicker = new BrushPicker(document.getElementById('brushPicker'));
 
@@ -47,6 +54,8 @@ const TOOLS = {
 	ellipse: new EllipseTool(toolLayer.context),
 	fill:    new FloodFillTool(toolLayer.context),
 	picker:  new ColorPickerTool(toolLayer.context),
+	frame:   new FrameTool(toolLayer.context),
+
 };
 
 toolLayer.setPanTool(TOOLS.pan);
@@ -97,7 +106,7 @@ activateTool('pan');
 // Keyboard shortcuts: single letter per tool, ignored while typing in a field.
 const TOOL_KEYS = {
 	p: 'pan', n: 'pencil', l: 'line', b: 'box',
-	o: 'ellipse', f: 'fill', i: 'picker',
+	o: 'ellipse', f: 'fill', i: 'picker', m : 'frame',
 };
 
 // --- keyboard shortcuts ---------------------------------------------------
@@ -171,14 +180,28 @@ doc.on('sheetChanged', () => {
 	if (doc.selectedFrame) viewport.focusFrame(doc.selectedFrame);
 });
 
-doc.on('selectionChanged', ({ focus }) => {
+doc.on('selectionChanged', ({ focus, changed }) => {
 	viewport.setSelectedFrame(doc.selectedFrame);
-	if (focus && doc.selectedFrame) {
+	if (!focus || !doc.selectedFrame) return;
+
+	// Focus rule:
+	//   • Zoomed in (sheet doesn't fit) → follow the selection.
+	//   • Zoomed out, re-clicked same frame → zoom in on it.
+	//   • Zoomed out, picked a different frame → just select, don't move.
+	if (!viewport.sheetFits || !changed) {
 		viewport.focusFrame(doc.selectedFrame);
 	}
 });
 
-doc.on('edit', () => viewport.invalidate());
+doc.on('edit', () => {
+	// Canvas expansion swaps the sheet image; the viewport caches a
+	// reference to it, so detect the change and re-source it.
+	if (doc.sheet && viewport.source !== doc.sheet.image) {
+		viewport.setSource(doc.sheet.image);
+		viewport.setFrames(doc.sheet.frames);
+	}
+	viewport.invalidate();
+});
 
 // --- history --------------------------------------------------------------
 
@@ -257,6 +280,22 @@ new Menu(document.getElementById('fileMenuBtn'), [
 	},
 ]);
 
+const sheetSizeDialog = new SheetSizeDialog();
+
+new Menu(document.getElementById('sheetMenuBtn'), [
+	{
+		label: 'Expand canvas…',
+		disabled: false,
+		title: 'Increase the atlas dimensions',
+		action: async () => {
+			if (!doc.sheet || !doc.editable) return;
+			const result = await sheetSizeDialog.open(
+				doc.sheet.imageWidth, doc.sheet.imageHeight);
+			if (!result) return;
+			doc.editable.expandCanvas(result.width, result.height);
+		},
+	},
+]);
 // --- view toolbar ---------------------------------------------------------
 
 $('btnFit').addEventListener('click',    () => viewport.fit());

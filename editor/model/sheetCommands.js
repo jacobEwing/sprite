@@ -133,3 +133,46 @@ export class SetSequenceCommand {
 	apply()  { this.sheet.sequences[this.name] = clone(this.after); }
 	revert() { this.sheet.sequences[this.name] = clone(this.before); }
 }
+
+// --- canvas operations ----------------------------------------------------
+
+// Replaces sheet.image with a larger canvas that contains the old image at
+// (offsetX, offsetY). The new canvas is built lazily on first apply so
+// redo after undo of later edits rebuilds it fresh if needed; in practice
+// the redo stack is cleared by any intervening edit, so this is a one-shot.
+//
+// Frame rects are assumed to stay at their existing coordinates. Callers
+// that want to insert space *above* or *left of* existing content must also
+// shift every frame's x/y — that's out of scope here.
+export class ExpandCanvasCommand {
+	constructor(sheet, newWidth, newHeight, offsetX = 0, offsetY = 0) {
+		this.sheet = sheet;
+		this.oldImage = sheet.image;
+		this.oldWidth = sheet.imageWidth;
+		this.oldHeight = sheet.imageHeight;
+		this.newWidth = newWidth;
+		this.newHeight = newHeight;
+		this.offsetX = offsetX;
+		this.offsetY = offsetY;
+		this.newImage = null;
+	}
+
+	_build() {
+		const c = document.createElement('canvas');
+		c.width = this.newWidth;
+		c.height = this.newHeight;
+		const ctx = c.getContext('2d', { willReadFrequently: true });
+		ctx.imageSmoothingEnabled = false;
+		ctx.drawImage(this.oldImage, this.offsetX, this.offsetY);
+		return c;
+	}
+
+	apply() {
+		if (!this.newImage) this.newImage = this._build();
+		this.sheet.image = this.newImage;
+	}
+
+	revert() {
+		this.sheet.image = this.oldImage;
+	}
+}
