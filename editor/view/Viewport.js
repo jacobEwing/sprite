@@ -35,6 +35,15 @@ export class Viewport {
 		this.overlays = new Map();
 		this._singlePreviewToken = null;
 
+		this.showGrid  = false;
+		this.gridStepX = 0;
+		this.gridStepY = 0;
+		this.background = {
+			texture: 'checker',
+			colorA:  '#1e1e20',
+			colorB:  '#26262a',
+		};
+
 		// Optional draw function invoked between the source image and the
 		// frame overlays, with the transform already set to image space.
 		this.previewFn = null;
@@ -154,6 +163,23 @@ export class Viewport {
 		this.invalidate();
 	}
 
+	// --- grid setters -------------------------------------------
+	setShowGrid(on) {
+		this.showGrid = !!on;
+		this.invalidate();
+	}
+
+	setGridStep(w, h) {
+		this.gridStepX = Number(w) || 0;
+		this.gridStepY = Number(h) || 0;
+		this.invalidate();
+	}
+
+	setBackground(patch) {
+		Object.assign(this.background, patch);
+		this.invalidate();
+	}
+
 	// --- coordinate conversion -------------------------------------------
 
 	screenToImage(sx, sy) {
@@ -216,9 +242,12 @@ export class Viewport {
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 		ctx.scale(this.dpr, this.dpr);
-		ctx.imageSmoothingEnabled = false;
+
+		this._drawBackground(ctx);
 
 		if (!this.source) return;
+
+		ctx.imageSmoothingEnabled = false;
 
 		ctx.save();
 		ctx.translate(this.offsetX, this.offsetY);
@@ -226,8 +255,9 @@ export class Viewport {
 		ctx.drawImage(this.source, 0, 0);
 		ctx.restore();
 
-		// Atlas perimeter — a faint outline at the sheet's bounds so that
-		// transparent edges and off-sheet areas are easy to tell apart.
+		this._drawGrid(ctx);
+
+		// Atlas perimeter.
 		ctx.save();
 		ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
 		ctx.lineWidth = 1;
@@ -247,6 +277,91 @@ export class Viewport {
 		}
 
 		this._drawFrameOverlays(ctx);
+	}
+	_drawBackground(ctx) {
+		const rect = this.canvas.getBoundingClientRect();
+		const w = rect.width;
+		const h = rect.height;
+		const { texture, colorA, colorB } = this.background;
+
+		ctx.fillStyle = colorA;
+		ctx.fillRect(0, 0, w, h);
+		if (texture === 'none') return;
+
+		const s = 8;
+		ctx.fillStyle = colorB;
+
+		switch(texture){
+			case 'checker':
+				for (let y = 0; y < h; y += s) {
+					for (let x = 0; x < w; x += s) {
+						if ((((x / s) + (y / s)) | 0) % 2 === 0) {
+							ctx.fillRect(x, y, s, s);
+						}
+					}
+				}
+				break;
+			case 'dots':
+				ctx.fillStyle = colorB;
+				for (let y = 0; y < h; y += s) {
+					for (let x = 0; x < w; x += s) {
+						if(x % s == 0 && y % s == 0){
+							ctx.fillRect(x - 1, y - 1, 2, 2);
+						}
+					}
+				}
+				break;
+			case 'stripes':
+				ctx.fillStyle = colorB;
+				for (let y = 0; y < h; y ++) {
+					for (let x = 0; x < w; x ++) {
+						if((x + y) % s < 2){
+							ctx.fillRect(x, y, 1, 1);
+						}
+					}
+				}
+				break;
+		}
+	}
+
+	_drawGrid(ctx) {
+		if (!this.showGrid) return;
+		if (this.gridStepX <= 0 || this.gridStepY <= 0) return;
+		if (this.zoom < 3) return;   // too dense to be useful
+
+		const rect = this.canvas.getBoundingClientRect();
+		const w = rect.width;
+		const h = rect.height;
+
+		const sheetL = Math.max(0, this.offsetX);
+		const sheetT = Math.max(0, this.offsetY);
+		const sheetR = Math.min(w, this.offsetX + this.sourceWidth  * this.zoom);
+		const sheetB = Math.min(h, this.offsetY + this.sourceHeight * this.zoom);
+		if (sheetR <= sheetL || sheetB <= sheetT) return;
+
+		ctx.save();
+		ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+
+		const cols = Math.ceil(this.sourceWidth / this.gridStepX);
+		for (let i = 0; i <= cols; i++) {
+			const sx = Math.round(this.offsetX + i * this.gridStepX * this.zoom) + 0.5;
+			if (sx < sheetL || sx > sheetR) continue;
+			ctx.moveTo(sx, sheetT);
+			ctx.lineTo(sx, sheetB);
+		}
+
+		const rows = Math.ceil(this.sourceHeight / this.gridStepY);
+		for (let j = 0; j <= rows; j++) {
+			const sy = Math.round(this.offsetY + j * this.gridStepY * this.zoom) + 0.5;
+			if (sy < sheetT || sy > sheetB) continue;
+			ctx.moveTo(sheetL, sy);
+			ctx.lineTo(sheetR, sy);
+		}
+
+		ctx.stroke();
+		ctx.restore();
 	}
 
 	_drawFrameOverlays(ctx) {

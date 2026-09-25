@@ -12,7 +12,8 @@ export class SpritePreview {
 		this.doc = doc;
 		this.sprite = null;
 		this.playing = true;
-		this.staticFrameName = null;  // frame shown while paused
+		this.staticFrameName = null;
+		this.staticFrameFollowsSequence = false;
 		this.rafId = null;
 		this.lastTime = 0;
 
@@ -93,7 +94,6 @@ export class SpritePreview {
 		const hasSequence = seq && seq.frames.length > 0;
 
 		if (this.playing && hasSequence) {
-			// Sequence owns the frame.
 			if (this.sprite.sequenceName !== seqName) {
 				this.sprite.play(seqName);
 			}
@@ -101,23 +101,33 @@ export class SpritePreview {
 			return;
 		}
 
-		// Not playing, or no sequence to play: show a static frame.
 		this._stopLoop();
 		if (this.sprite.sequenceName) this.sprite.stop();
 
-		// TODO: when the static frame is still present in the sheet but no
-		// longer part of the selected sequence (e.g. removed from the
-		// sequence inspector while paused), the preview keeps showing it.
-		// The fix is to also require `seq.frames.includes(frameName)` when
-		// a sequence is selected.
+		// Validity: the frame must exist in the sheet, and — if it was
+		// chosen from the sequence — must still be a member of it.
 		let frameName = this.staticFrameName;
-		if (!frameName || !this.doc.sheet.frames[frameName]) {
-			// When a sequence is selected, its first frame is the natural
-			// "reset" position. Otherwise use the document's selection.
-			frameName = (seq && seq.frames[0])
-				|| this.doc.selectedFrame
-				|| this.doc.sheet.frameNames[0]
-				|| null;
+		const inSheet = !!frameName && !!this.doc.sheet.frames[frameName];
+		const inSeq = !this.staticFrameFollowsSequence
+			|| !seq
+			|| seq.frames.includes(frameName);
+
+		if (!frameName || !inSheet || !inSeq) {
+			// Fallback chain. Track which source supplied the replacement
+			// so the follow flag stays accurate for the *next* edit.
+			if (seq && seq.frames.length > 0) {
+				frameName = seq.frames[0];
+				this.staticFrameFollowsSequence = true;
+			} else if (this.doc.selectedFrame && this.doc.sheet.frames[this.doc.selectedFrame]) {
+				frameName = this.doc.selectedFrame;
+				this.staticFrameFollowsSequence = false;
+			} else if (this.doc.sheet.frameNames.length > 0) {
+				frameName = this.doc.sheet.frameNames[0];
+				this.staticFrameFollowsSequence = false;
+			} else {
+				frameName = null;
+				this.staticFrameFollowsSequence = false;
+			}
 			this.staticFrameName = frameName;
 		}
 
@@ -132,12 +142,13 @@ export class SpritePreview {
 		if (!this.sprite) return;
 
 		if (!this.playing) {
-			// Paused: track what the user just selected.
 			if (info.sequence !== undefined) {
 				const seq = this.doc.sheet.sequences[info.sequence];
 				this.staticFrameName = (seq && seq.frames[0]) || null;
+				this.staticFrameFollowsSequence = true;
 			} else if (info.frame !== undefined) {
 				this.staticFrameName = info.frame;
+				this.staticFrameFollowsSequence = false;
 			}
 		}
 
@@ -174,8 +185,8 @@ export class SpritePreview {
 			// Starting playback: let the sequence drive the frame again.
 			this.staticFrameName = null;
 		} else {
-			// Pausing: freeze on whatever's showing right now.
 			this.staticFrameName = this.sprite ? this.sprite.frameName : null;
+			this.staticFrameFollowsSequence = !!(this.sprite && this.sprite.sequenceName);
 		}
 		this._recompute();
 	}

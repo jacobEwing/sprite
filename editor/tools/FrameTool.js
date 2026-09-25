@@ -33,23 +33,37 @@ export class FrameTool extends Tool {
 		if (!this.drag) return;
 		const dx = Math.round(ev.imageX - this.drag.startX);
 		const dy = Math.round(ev.imageY - this.drag.startY);
-		this._updatePreview(this.drag.frameX + dx, this.drag.frameY + dy);
+		let nx = this.drag.frameX + dx;
+		let ny = this.drag.frameY + dy;
+
+		if (this.context.snapToGrid) {
+			const sheet = this.context.document.sheet;
+			const gw = sheet.frameWidth  || 0;
+			const gh = sheet.frameHeight || 0;
+			if (gw > 0) nx = Math.round(nx / gw) * gw;
+			if (gh > 0) ny = Math.round(ny / gh) * gh;
+		}
+
+		this._pendingX = nx;
+		this._pendingY = ny;
+		this._updatePreview(nx, ny);
 	}
 
 	onPointerUp(ev) {
 		if (!this.drag) return;
-		const dx = Math.round(ev.imageX - this.drag.startX);
-		const dy = Math.round(ev.imageY - this.drag.startY);
-		const nx = this.drag.frameX + dx;
-		const ny = this.drag.frameY + dy;
 		const name = this.drag.name;
+		const nx = this._pendingX ?? this.drag.frameX;
+		const ny = this._pendingY ?? this.drag.frameY;
+		const moved = nx !== this.drag.frameX || ny !== this.drag.frameY;
+
 		this.drag = null;
+		this._pendingX = null;
+		this._pendingY = null;
 		this.context.viewport.setPreview(null);
 
-		if (dx === 0 && dy === 0) return;
+		if (!moved) return;
 		const current = this.context.document.sheet.frames[name];
 		if (!current) return;
-		if (current.x === nx && current.y === ny) return;
 		this.context.document.editable.setFrame(name, { x: nx, y: ny });
 	}
 

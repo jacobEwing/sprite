@@ -180,15 +180,9 @@ body {
 	width: 100%;
 	height: 100%;
 	cursor: crosshair;
-	background-color: #151517;
-	background-image:
-		linear-gradient(45deg, #1e1e20 25%, transparent 25%),
-		linear-gradient(-45deg, #1e1e20 25%, transparent 25%),
-		linear-gradient(45deg, transparent 75%, #1e1e20 75%),
-		linear-gradient(-45deg, transparent 75%, #1e1e20 75%);
-	background-size: 16px 16px;
-	background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+	background: #151517;
 }
+
 #emptyMessage {
 	position: absolute;
 	inset: 0;
@@ -542,10 +536,10 @@ body {
 	min-width: 220px;
 	user-select: none;
 }
+
 .menu-item {
 	display: flex;
 	width: 100%;
-	justify-content: space-between;
 	align-items: center;
 	background: transparent;
 	border: none;
@@ -565,15 +559,30 @@ body {
 	opacity: 0.35;
 	cursor: default;
 }
+.menu-check {
+	width: 16px;
+	flex-shrink: 0;
+	color: var(--accent);
+	font-size: 12px;
+}
+.menu-item:hover:not(:disabled) .menu-check {
+	color: #fff;
+}
+.menu-label {
+	flex: 1 1 auto;
+}
 .menu-shortcut {
 	color: var(--muted);
 	font-family: "SF Mono", Menlo, Consolas, monospace;
 	font-size: 11px;
 	margin-left: 24px;
+	flex-shrink: 0;
 }
+
 .menu-item:hover:not(:disabled) .menu-shortcut {
 	color: rgba(255,255,255,0.7);
 }
+
 .menu-separator {
 	height: 1px;
 	background: var(--rule);
@@ -1433,4 +1442,56 @@ body {
 	display: grid;
 	grid-template-columns: 1fr 1fr 1fr;
 	gap: 4px;
+}
+/* --- background picker --- */
+.bg-popover {
+	position: fixed;
+	z-index: 960;
+	width: 240px;
+	background: var(--panel);
+	border: 1px solid var(--rule);
+	border-radius: 6px;
+	box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+	padding: 12px;
+	user-select: none;
+}
+.bg-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 10px;
+}
+.bg-label {
+	flex: 0 0 60px;
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--muted);
+}
+.bg-texture {
+	flex: 1;
+	min-width: 0;
+	background: var(--panel-2);
+	border: 1px solid var(--rule);
+	border-radius: 3px;
+	padding: 3px 6px;
+	color: var(--ink);
+	font: 11px "SF Mono", Menlo, Consolas, monospace;
+}
+.bg-texture:focus { outline: none; border-color: var(--accent-2); }
+.bg-swatch {
+	width: 40px;
+	height: 32px;
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	cursor: pointer;
+	padding: 0;
+	box-shadow: inset 0 0 0 1px rgba(0,0,0,0.3);
+}
+.bg-swatch:hover { border-color: var(--accent-2); }
+.bg-hint {
+	color: var(--muted);
+	font-size: 10.5px;
+	line-height: 1.4;
+	margin: 4px 0 0;
 }

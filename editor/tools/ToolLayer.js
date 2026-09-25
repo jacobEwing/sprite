@@ -22,6 +22,7 @@ export class ToolLayer {
 		this._pressed = -1;
 
 		this.collisionOverlay = null;
+		this.snapToGrid = false;
 
 		this.context = this._buildContext();
 
@@ -37,6 +38,7 @@ export class ToolLayer {
 	setFillShapes(on)    { this.fillShapes  = !!on; }
 	setClipToFrame(on)   { this.clipToFrame = !!on; }
 	setCollisionOverlay(overlay) { this.collisionOverlay = overlay; }
+	setSnapToGrid(on) { this.snapToGrid = !!on; }
 
 
 	notifyPixelsChanged() {
@@ -104,6 +106,7 @@ export class ToolLayer {
 			get brush()       { return self.brush; },
 			get fillShapes()  { return self.fillShapes; },
 			get clipToFrame() { return self.clipToFrame; },
+			get snapToGrid() { return self.snapToGrid; },
 
 			selectedFrame() {
 				const f = self.document.getSelectedFrame();

@@ -27,7 +27,6 @@ import { FrameTool }       from './tools/FrameTool.js';
 import { SpritePreview }   from './view/SpritePreview.js';
 import { saveSheetImage, saveSheetData, saveSheetBoth, proposeFilenames } from './io/saveSheet.js';
 import { DiskLoadDialog }  from './view/DiskLoadDialog.js';
-
 import { SaveDialog }                   from './view/SaveDialog.js';
 import { FilterPanel }     from './view/FilterPanel.js';
 import { loadSheetFromDisk } from './io/loadSheet.js';
@@ -38,14 +37,17 @@ import { makeBlankSheet }  from './io/loadSheet.js';
 import { CollisionOverlay }    from './view/CollisionOverlay.js';
 import { CollisionInspector }  from './view/CollisionInspector.js';
 import { CollisionTool }       from './tools/CollisionTool.js';
+import { BackgroundPicker } from './view/BackgroundPicker.js';
 
 // --- wiring ---------------------------------------------------------------
+const viewOptions = { grid: false, snap: false };
 
 const history  = new History({ limit: 100 });
 const doc      = new EditorDocument(history);
 const palette  = new Palette();
-
 const viewport = new Viewport(document.getElementById('viewport'));
+const backgroundPicker = new BackgroundPicker(viewport);
+
 
 new FrameList(document.getElementById('frameList'), doc);
 new SequenceList(document.getElementById('sequenceList'), doc);
@@ -151,6 +153,7 @@ doc.on('sheetChanged', () => {
 	history.clear();
 	viewport.setFrames(doc.sheet.frames);
 	viewport.setSource(doc.sheet.image);
+	viewport.setGridStep(doc.sheet.frameWidth, doc.sheet.frameHeight);
 
 	$('emptyMessage').classList.add('hidden');
 	$('frameCount').textContent = doc.sheet.frameNames.length;
@@ -181,6 +184,7 @@ doc.on('edit', () => {
 	if (doc.sheet && viewport.source !== doc.sheet.image) {
 		viewport.setSource(doc.sheet.image);
 		viewport.setFrames(doc.sheet.frames);
+		viewport.setGridStep(doc.sheet.frameWidth, doc.sheet.frameHeight);
 	}
 	viewport.invalidate();
 });
@@ -509,6 +513,37 @@ const sheetMenu = new Menu(document.getElementById('sheetMenuBtn'), [
 		},
 	},
 ]);
+
+new Menu(document.getElementById('viewMenuBtn'), [
+	{
+		label: 'Background…',
+		action: (e) => {
+			backgroundPicker.toggle(document.getElementById('viewMenuBtn'));
+		},
+	},
+	{ separator: true },
+	{
+		label: 'Show grid',
+		checked: false,
+		action: () => {
+			viewOptions.grid = !viewOptions.grid;
+			viewport.setShowGrid(viewOptions.grid);
+		},
+	},
+	{
+		label: 'Snap to grid',
+		checked: false,
+		action: () => {
+			viewOptions.snap = !viewOptions.snap;
+			toolLayer.setSnapToGrid(viewOptions.snap);
+		},
+	},
+], {
+	onShow: (items) => {
+		items.find(i => i.label === 'Show grid').checked    = viewOptions.grid;
+		items.find(i => i.label === 'Snap to grid').checked = viewOptions.snap;
+	},
+});
 
 async function doExpandCanvas() {
 	if (!doc.sheet || !doc.editable) return;

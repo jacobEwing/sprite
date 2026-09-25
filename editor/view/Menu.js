@@ -1,14 +1,18 @@
 // A dropdown menu. Items are objects:
-//   { label, shortcut?, action, disabled?, title? } — a normal item
-//   { separator: true }                              — a horizontal rule
+//   { label, shortcut?, action, disabled?, title?, checked? }
+//   { separator: true }
 //
-// Two modes:
-//   new Menu(trigger, items)   — opens below the trigger on click
-//   new Menu(null, items).showAt(x, y) — open programmatically (context menu)
+// Three modes:
+//   new Menu(trigger, items)                — opens below the trigger on click
+//   new Menu(trigger, items, { onShow })    — onShow(items) runs before the
+//                                             panel is built, so callers can
+//                                             refresh `checked`/`disabled`
+//   new Menu(null, items).showAt(x, y)      — open programmatically
 export class Menu {
-	constructor(trigger, items) {
+	constructor(trigger, items, options = {}) {
 		this.trigger = trigger || null;
 		this.items = items;
+		this.onShow = options.onShow || null;
 		this.open = false;
 		this._panel = null;
 
@@ -45,6 +49,7 @@ export class Menu {
 	_show(preferredX, preferredY, flipRight, flipTop) {
 		if (this.open) this.close();
 		this.open = true;
+		if (this.onShow) this.onShow(this.items);
 
 		const panel = document.createElement('div');
 		panel.className = 'menu-panel';
@@ -56,17 +61,33 @@ export class Menu {
 				panel.appendChild(sep);
 				continue;
 			}
+
 			const btn = document.createElement('button');
 			btn.className = 'menu-item';
 			btn.disabled = !!item.disabled;
 			if (item.title) btn.title = item.title;
-			btn.innerHTML =
-				`<span class="menu-label">${item.label}</span>` +
-				`<span class="menu-shortcut">${item.shortcut || ''}</span>`;
+
+			const check = document.createElement('span');
+			check.className = 'menu-check';
+			check.textContent = item.checked ? '✓' : '';
+
+			const label = document.createElement('span');
+			label.className = 'menu-label';
+			label.textContent = item.label;
+
+			const shortcut = document.createElement('span');
+			shortcut.className = 'menu-shortcut';
+			shortcut.textContent = item.shortcut || '';
+
+			btn.appendChild(check);
+			btn.appendChild(label);
+			btn.appendChild(shortcut);
+
 			btn.addEventListener('click', () => {
 				this.close();
 				if (!item.disabled && item.action) item.action();
 			});
+
 			panel.appendChild(btn);
 		}
 
