@@ -1,4 +1,5 @@
 import { makeEmitter } from '../lib/emitter.js';
+import { Menu } from './Menu.js';
 
 function esc(s) {
 	return String(s).replace(/[&<>"']/g, c => ({
@@ -14,6 +15,7 @@ export class FrameList {
 
 		doc.on('sheetChanged',     () => this.render());
 		doc.on('selectionChanged', () => this._sync());
+		doc.on('edit', () => this.render());
 
 		this.render();
 	}
@@ -30,10 +32,27 @@ export class FrameList {
 			li.innerHTML =
 				`<span class="name">${esc(name)}</span>` +
 				`<span class="meta">${frame.width}×${frame.height}</span>`;
+
 			li.addEventListener('click', () => this.doc.selectFrame(name, { focus: true }));
+			li.addEventListener('contextmenu', (e) => {
+				e.preventDefault();
+				this._showContextMenu(name, e.clientX, e.clientY);
+			});
+
 			this.root.appendChild(li);
 		}
 		this._sync();
+	}
+
+	_showContextMenu(name, x, y) {
+		const ed = this.doc.editable;
+		new Menu(null, [
+			{ label: 'Duplicate', action: () => {
+				try { ed.duplicateFrame(name); } catch (err) { console.warn(err); }
+			} },
+			{ separator: true },
+			{ label: 'Delete', action: () => ed.removeFrame(name) },
+		]).showAt(x, y);
 	}
 
 	_sync() {

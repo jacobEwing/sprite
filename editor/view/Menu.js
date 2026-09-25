@@ -1,26 +1,28 @@
-// A dropdown menu attached to a trigger button. Items are objects:
-//   { label, shortcut?, action, disabled? }     — a normal item
-//   { separator: true }                          — a horizontal rule
+// A dropdown menu. Items are objects:
+//   { label, shortcut?, action, disabled?, title? } — a normal item
+//   { separator: true }                              — a horizontal rule
 //
-// The panel is appended to document.body and positioned below the trigger,
-// so it can overflow the toolbar without being clipped. Click-outside,
-// Escape, and item activation all close it.
+// Two modes:
+//   new Menu(trigger, items)   — opens below the trigger on click
+//   new Menu(null, items).showAt(x, y) — open programmatically (context menu)
 export class Menu {
 	constructor(trigger, items) {
-		this.trigger = trigger;
+		this.trigger = trigger || null;
 		this.items = items;
 		this.open = false;
 		this._panel = null;
 
-		this.trigger.addEventListener('click', (e) => {
-			e.stopPropagation();
-			this.toggle();
-		});
+		if (this.trigger) {
+			this.trigger.addEventListener('click', (e) => {
+				e.stopPropagation();
+				this.toggle();
+			});
+		}
 
 		document.addEventListener('mousedown', (e) => {
 			if (!this.open) return;
 			if (this._panel && this._panel.contains(e.target)) return;
-			if (this.trigger.contains(e.target)) return;
+			if (this.trigger && this.trigger.contains(e.target)) return;
 			this.close();
 		});
 
@@ -29,10 +31,19 @@ export class Menu {
 		});
 	}
 
-	toggle() { this.open ? this.close() : this.show(); }
+	toggle() { this.open ? this.close() : (this.trigger && this.showBelow(this.trigger)); }
 
-	show() {
-		if (this.open) return;
+	showBelow(trigger) {
+		const r = trigger.getBoundingClientRect();
+		this._show(r.left, r.bottom + 4, r.right, r.top - 4);
+	}
+
+	showAt(x, y) {
+		this._show(x, y, x, y);
+	}
+
+	_show(preferredX, preferredY, flipRight, flipTop) {
+		if (this.open) this.close();
 		this.open = true;
 
 		const panel = document.createElement('div');
@@ -45,42 +56,29 @@ export class Menu {
 				panel.appendChild(sep);
 				continue;
 			}
-
 			const btn = document.createElement('button');
 			btn.className = 'menu-item';
 			btn.disabled = !!item.disabled;
 			if (item.title) btn.title = item.title;
-
-			const label = document.createElement('span');
-			label.className = 'menu-label';
-			label.textContent = item.label;
-
-			const shortcut = document.createElement('span');
-			shortcut.className = 'menu-shortcut';
-			shortcut.textContent = item.shortcut || '';
-
-			btn.appendChild(label);
-			btn.appendChild(shortcut);
-
+			btn.innerHTML =
+				`<span class="menu-label">${item.label}</span>` +
+				`<span class="menu-shortcut">${item.shortcut || ''}</span>`;
 			btn.addEventListener('click', () => {
 				this.close();
 				if (!item.disabled && item.action) item.action();
 			});
-
 			panel.appendChild(btn);
 		}
 
 		document.body.appendChild(panel);
 		this._panel = panel;
 
-		const r = this.trigger.getBoundingClientRect();
 		const w = panel.offsetWidth;
 		const h = panel.offsetHeight;
-
-		let x = r.left;
-		let y = r.bottom + 4;
-		if (x + w > window.innerWidth  - 8) x = window.innerWidth  - w - 8;
-		if (y + h > window.innerHeight - 8) y = r.top - h - 4;
+		let x = preferredX;
+		let y = preferredY;
+		if (x + w > window.innerWidth  - 8) x = flipRight - w;
+		if (y + h > window.innerHeight - 8) y = flipTop   - h;
 		if (x < 8) x = 8;
 		if (y < 8) y = 8;
 

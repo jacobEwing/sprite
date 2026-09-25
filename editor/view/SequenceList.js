@@ -1,4 +1,5 @@
 import { makeEmitter } from '../lib/emitter.js';
+import { Menu } from './Menu.js';
 
 function esc(s) {
 	return String(s).replace(/[&<>"']/g, c => ({
@@ -14,6 +15,7 @@ export class SequenceList {
 
 		doc.on('sheetChanged',     () => this.render());
 		doc.on('selectionChanged', () => this._sync());
+		doc.on('edit', () => this.render());
 
 		this.render();
 	}
@@ -31,10 +33,23 @@ export class SequenceList {
 			li.innerHTML =
 				`<span class="name">${esc(name)}</span>` +
 				`<span class="meta">${seq.frames.length}f ${iters}</span>`;
+
 			li.addEventListener('click', () => this.doc.selectSequence(name));
+			li.addEventListener('contextmenu', (e) => {
+				e.preventDefault();
+				this._showContextMenu(name, e.clientX, e.clientY);
+			});
+
 			this.root.appendChild(li);
 		}
 		this._sync();
+	}
+
+	_showContextMenu(name, x, y) {
+		const ed = this.doc.editable;
+		new Menu(null, [
+			{ label: 'Delete', action: () => ed.removeSequence(name) },
+		]).showAt(x, y);
 	}
 
 	_sync() {

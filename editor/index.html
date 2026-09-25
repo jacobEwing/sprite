@@ -48,12 +48,18 @@
 
 		<aside id="leftSidebar">
 			<section class="pane">
-				<h2>Frames <span class="count" id="frameCount"></span></h2>
+				<h2>
+					Frames <span class="count" id="frameCount"></span>
+					<button class="pane-action" id="btnNewFrame" title="Duplicate selected frame">+</button>
+				</h2>
 				<ul id="frameList" class="list"></ul>
 			</section>
 
 			<section class="pane">
-				<h2>Sequences <span class="count" id="sequenceCount"></span></h2>
+				<h2>
+					Sequences <span class="count" id="sequenceCount"></span>
+					<button class="pane-action" id="btnNewSequence" title="New sequence">+</button>
+				</h2>
 				<ul id="sequenceList" class="list"></ul>
 			</section>
 		</aside>
@@ -67,20 +73,25 @@
 
 		<aside id="rightSidebar">
 			<section class="pane">
+				<h2>Frame</h2>
+				<div id="frameInspector"></div>
+			</section>
+
+			<section class="pane">
+				<h2>Sequence</h2>
+				<div id="sequenceInspector"></div>
+			</section>
+
+			<section class="pane">
 				<h2>Colours</h2>
 				<div id="palettePanel"></div>
 			</section>
+
 			<section class="pane">
 				<h2>Brush</h2>
 				<div id="brushPicker" class="brush-picker"></div>
 			</section>
-
-			<section class="pane">
-				<h2>Selection</h2>
-				<div id="selectionInfo" class="info">—</div>
-			</section>
 		</aside>
-
 	</main>
 
 	<footer id="statusBar">

@@ -18,16 +18,22 @@ import { ColorPickerTool } from './tools/ColorPickerTool.js';
 import { BRUSHES }        from './paint/Brush.js';
 import { Menu }           from './view/Menu.js';
 import { LoadDialog }     from './view/LoadDialog.js';
+import { FrameInspector }    from './view/FrameInspector.js';
+import { SequenceInspector } from './view/SequenceInspector.js';
 
 // --- wiring ---------------------------------------------------------------
 
-const doc      = new EditorDocument();
-const palette  = new Palette();
 const history  = new History({ limit: 100 });
+const doc      = new EditorDocument(history);
+const palette  = new Palette();
 
 const viewport = new Viewport(document.getElementById('viewport'));
+
 new FrameList(document.getElementById('frameList'), doc);
 new SequenceList(document.getElementById('sequenceList'), doc);
+
+new FrameInspector(document.getElementById('frameInspector'), doc);
+new SequenceInspector(document.getElementById('sequenceInspector'), doc);
 
 const brushPicker = new BrushPicker(document.getElementById('brushPicker'));
 
@@ -170,26 +176,9 @@ doc.on('selectionChanged', ({ focus }) => {
 	if (focus && doc.selectedFrame) {
 		viewport.focusFrame(doc.selectedFrame);
 	}
-	updateSelectionInfo();
 });
 
-function updateSelectionInfo() {
-	const f = doc.getSelectedFrame();
-	const seq = doc.selectedSequence && doc.sheet
-		? doc.sheet.sequences[doc.selectedSequence]
-		: null;
-
-	let html = '';
-	if (doc.selectedFrame) {
-		html += `frame:  ${doc.selectedFrame}\n`;
-		if (f) html += `        ${f.x},${f.y}  ${f.width}×${f.height}\n`;
-	}
-	if (doc.selectedSequence && seq) {
-		html += `seq:    ${doc.selectedSequence}\n`;
-		html += `        ${seq.frames.length} frames @ ${seq.frameRate}fps`;
-	}
-	$('selectionInfo').textContent = html || '—';
-}
+doc.on('edit', () => viewport.invalidate());
 
 // --- history --------------------------------------------------------------
 
@@ -210,6 +199,26 @@ $('btnRedo').addEventListener('click', () => {
 new PalettePanel(document.getElementById('palettePanel'), palette);
 
 // --- toolbar --------------------------------------------------------------
+$('btnNewFrame').addEventListener('click', () => {
+	if (!doc.selectedFrame || !doc.editable) return;
+	try {
+		const name = doc.editable.duplicateFrame(doc.selectedFrame);
+		doc.selectFrame(name, { focus: true });
+	} catch (err) {
+		console.warn(err.message);
+	}
+});
+
+$('btnNewSequence').addEventListener('click', () => {
+	if (!doc.editable) return;
+	const base = doc.selectedFrame ? `seq_${doc.selectedFrame}` : 'new_sequence';
+	const name = doc.editable.uniqueSequenceName(base);
+	doc.editable.addSequence(name, {
+		frames: doc.selectedFrame ? [doc.selectedFrame] : [],
+	});
+	doc.selectSequence(name);
+});
+
 // --- file menu ------------------------------------------------------------
 
 const loadDialog = new LoadDialog();
