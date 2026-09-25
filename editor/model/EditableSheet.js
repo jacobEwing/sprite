@@ -1,4 +1,5 @@
 import { makeEmitter } from '../lib/emitter.js';
+import { PaintCommand } from '../history/PaintCommand.js';
 import {
 	AddFrameCommand, RemoveFrameCommand, RenameFrameCommand, SetFrameCommand,
 	AddSequenceCommand, RemoveSequenceCommand, RenameSequenceCommand, SetSequenceCommand,
@@ -308,6 +309,97 @@ export class EditableSheet {
 			};
 		});
 		this.setCollision({ circles: next });
+	}
+
+	// --- frame content ----------------------------------------------------
+
+	// Wipe the selected frame's pixels to transparent. No-op if already
+	// empty; otherwise a single undoable command.
+	clearFrameContent(frameName) {
+		const frame = this.sheet.frames[frameName];
+		if (!frame) return;
+
+		const ctx = this.sheet.image.getContext('2d', { willReadFrequently: true });
+		const before = ctx.getImageData(frame.x, frame.y, frame.width, frame.height);
+
+		// Early-out if there's nothing to clear.
+		let anyOpaque = false;
+		for (let i = 3; i < before.data.length; i += 4) {
+			if (before.data[i] !== 0) { anyOpaque = true; break; }
+		}
+		if (!anyOpaque) return;
+
+		ctx.clearRect(frame.x, frame.y, frame.width, frame.height);
+		const after = ctx.getImageData(frame.x, frame.y, frame.width, frame.height);
+
+		const cmd = new PaintCommand(
+			ctx, frame.x, frame.y, frame.width, frame.height, before, after
+		);
+		this.history.push(cmd, 'pixels');
+		this.emit('changed', { type: 'frameUpdated', name: frameName });
+	}
+
+	// Composite `imageData` into the frame, centred. Fully transparent
+	// clipboard pixels are skipped; opaque pixels replace; partial alpha
+	// is alpha-blended with the target.
+	pasteIntoFrame(frameName, imageData) {
+		if (!imageData) return;
+		const frame = this.sheet.frames[frameName];
+		if (!frame) return;
+
+		const ctx = this.sheet.image.getContext('2d', { willReadFrequently: true });
+		const before = ctx.getImageData(frame.x, frame.y, frame.width, frame.height);
+
+		// Work in a copy so we only touch pixels the clipboard reaches.
+		const working = new ImageData(
+			new Uint8ClampedArray(before.data),
+			before.width,
+			before.height
+		);
+
+		const ox = Math.floor((frame.width  - imageData.width)  / 2);
+		const oy = Math.floor((frame.height - imageData.height) / 2);
+		const sd = imageData.data;
+		const wd = working.data;
+
+		for (let y = 0; y < imageData.height; y++) {
+			const ty = y + oy;
+			if (ty < 0 || ty >= frame.height) continue;
+			for (let x = 0; x < imageData.width; x++) {
+				const tx = x + ox;
+				if (tx < 0 || tx >= frame.width) continue;
+
+				const si = (y * imageData.width + x) * 4;
+				const ti = (ty * frame.width + tx) * 4;
+				const sa = sd[si + 3] / 255;
+				if (sa === 0) continue;
+
+				if (sa === 1) {
+					wd[ti]     = sd[si];
+					wd[ti + 1] = sd[si + 1];
+					wd[ti + 2] = sd[si + 2];
+					wd[ti + 3] = 255;
+				} else {
+					const da = wd[ti + 3] / 255;
+					const outA = sa + da * (1 - sa);
+					if (outA > 0) {
+						wd[ti]     = Math.round((sd[si]     * sa + wd[ti]     * da * (1 - sa)) / outA);
+						wd[ti + 1] = Math.round((sd[si + 1] * sa + wd[ti + 1] * da * (1 - sa)) / outA);
+						wd[ti + 2] = Math.round((sd[si + 2] * sa + wd[ti + 2] * da * (1 - sa)) / outA);
+						wd[ti + 3] = Math.round(outA * 255);
+					}
+				}
+			}
+		}
+
+		ctx.putImageData(working, frame.x, frame.y);
+		const after = ctx.getImageData(frame.x, frame.y, frame.width, frame.height);
+
+		const cmd = new PaintCommand(
+			ctx, frame.x, frame.y, frame.width, frame.height, before, after
+		);
+		this.history.push(cmd, 'pixels');
+		this.emit('changed', { type: 'frameUpdated', name: frameName });
 	}
 }
 

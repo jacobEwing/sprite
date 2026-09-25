@@ -38,6 +38,7 @@ import { CollisionOverlay }    from './view/CollisionOverlay.js';
 import { CollisionInspector }  from './view/CollisionInspector.js';
 import { CollisionTool }       from './tools/CollisionTool.js';
 import { BackgroundPicker } from './view/BackgroundPicker.js';
+import { Clipboard } from './model/Clipboard.js';
 
 // --- wiring ---------------------------------------------------------------
 const viewOptions = { grid: false, snap: false };
@@ -47,7 +48,7 @@ const doc      = new EditorDocument(history);
 const palette  = new Palette();
 const viewport = new Viewport(document.getElementById('viewport'));
 const backgroundPicker = new BackgroundPicker(viewport);
-
+const clipboard = new Clipboard();
 
 new FrameList(document.getElementById('frameList'), doc);
 new SequenceList(document.getElementById('sequenceList'), doc);
@@ -417,6 +418,7 @@ async function _doSaveData({ forcePrompt = false } = {}) {
 		return false;
 	}
 }
+
 // Ctrl+S: write whichever side is dirty, both if both. Never prompts for
 // filenames if they're already known.
 async function doSave() {
@@ -465,6 +467,36 @@ async function doSaveAll() {
 		console.error(err);
 		$('statusMessage').textContent = 'Save failed: ' + err.message;
 	}
+}
+
+// --- edit operations -----------------------------------------------------
+
+function doCopyFrame() {
+	if (!doc.sheet || !doc.selectedFrame) return;
+	const frame = doc.sheet.frames[doc.selectedFrame];
+	if (!frame) return;
+	clipboard.captureFrom(doc.sheet, frame, doc.selectedFrame);
+	$('statusMessage').textContent =
+		`Copied "${doc.selectedFrame}" (${frame.width}×${frame.height})`;
+}
+
+function doCutFrame() {
+	if (!doc.sheet || !doc.selectedFrame) return;
+	doCopyFrame();
+	doc.editable.clearFrameContent(doc.selectedFrame);
+	$('statusMessage').textContent = `Cut "${doc.selectedFrame}"`;
+}
+
+function doPasteIntoFrame() {
+	if (!doc.sheet || !doc.selectedFrame || clipboard.isEmpty) return;
+	doc.editable.pasteIntoFrame(doc.selectedFrame, clipboard.imageData);
+	$('statusMessage').textContent = `Pasted into "${doc.selectedFrame}"`;
+}
+
+function doClearFrame() {
+	if (!doc.sheet || !doc.selectedFrame) return;
+	doc.editable.clearFrameContent(doc.selectedFrame);
+	$('statusMessage').textContent = `Cleared "${doc.selectedFrame}"`;
 }
 
 const fileMenu = new Menu(document.getElementById('fileMenuBtn'), [
@@ -545,6 +577,23 @@ new Menu(document.getElementById('viewMenuBtn'), [
 	},
 });
 
+new Menu(document.getElementById('editMenuBtn'), [
+	{ label: 'Copy Frame',       shortcut: 'Ctrl+C', action: doCopyFrame },
+	{ label: 'Cut Frame',        shortcut: 'Ctrl+X', action: doCutFrame },
+	{ label: 'Paste Into Frame', shortcut: 'Ctrl+V', action: doPasteIntoFrame },
+	{ separator: true },
+	{ label: 'Clear Frame Content', action: doClearFrame },
+], {
+	onShow: (items) => {
+		const hasFrame = !!(doc.sheet && doc.selectedFrame);
+		const hasClip  = !clipboard.isEmpty;
+		items.find(i => i.label === 'Copy Frame').disabled = !hasFrame;
+		items.find(i => i.label === 'Cut Frame').disabled = !hasFrame;
+		items.find(i => i.label === 'Paste Into Frame').disabled = !hasFrame || !hasClip;
+		items.find(i => i.label === 'Clear Frame Content').disabled = !hasFrame;
+	},
+});
+
 async function doExpandCanvas() {
 	if (!doc.sheet || !doc.editable) return;
 	const result = await sheetSizeDialog.open(
@@ -610,7 +659,11 @@ window.addEventListener('keydown', (e) => {
 
 	if (inField) return;
 	if (e.altKey) return;
-
+	if (key === 'delete') {
+		e.preventDefault();
+		doClearFrame();
+		return;
+	}
 	if (key === 'x') {
 		e.preventDefault();
 		palette.swap();
@@ -640,6 +693,40 @@ function setupTabs(sidebarEl) {
 
 setupTabs(document.getElementById('leftSidebar'));
 setupTabs(document.getElementById('rightSidebar'));
+
+// --- clipboard events ----------------------------------------------------
+//
+// Using the DOM copy/cut/paste events rather than keydown: they fire for
+// the browser's own menu and right-click context menu too, and preventDefault
+// here genuinely stops the browser from doing anything with the system
+// clipboard. The inField check lets text inputs behave normally.
+
+function _isFormField(el) {
+	if (!el) return false;
+	const tag = (el.tagName || '').toLowerCase();
+	return tag === 'input' || tag === 'textarea' || el.isContentEditable;
+}
+
+document.addEventListener('copy', (e) => {
+	if (_isFormField(e.target)) return;
+	if (!doc.sheet || !doc.selectedFrame) return;
+	e.preventDefault();
+	doCopyFrame();
+});
+
+document.addEventListener('cut', (e) => {
+	if (_isFormField(e.target)) return;
+	if (!doc.sheet || !doc.selectedFrame) return;
+	e.preventDefault();
+	doCutFrame();
+});
+
+document.addEventListener('paste', (e) => {
+	if (_isFormField(e.target)) return;
+	if (!doc.sheet || !doc.selectedFrame || clipboard.isEmpty) return;
+	e.preventDefault();
+	doPasteIntoFrame();
+});
 
 // --- view toolbar ---------------------------------------------------------
 
