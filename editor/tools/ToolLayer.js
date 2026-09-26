@@ -1,4 +1,5 @@
 import { StrokeTransaction } from '../paint/StrokeTransaction.js';
+import { rgbaToHex } from '../paint/pixelUtils.js';
 
 // Routes pointer events from the viewport to the active tool, and provides
 // a shared ToolContext. Middle-button gestures are always routed to the pan
@@ -23,6 +24,7 @@ export class ToolLayer {
 
 		this.collisionOverlay = null;
 		this.snapToGrid = false;
+		this.tempSample = false;
 
 		this.context = this._buildContext();
 
@@ -39,6 +41,7 @@ export class ToolLayer {
 	setClipToFrame(on)   { this.clipToFrame = !!on; }
 	setCollisionOverlay(overlay) { this.collisionOverlay = overlay; }
 	setSnapToGrid(on) { this.snapToGrid = !!on; }
+	setTempSample(on) { this.tempSample = !!on; }
 
 
 	notifyPixelsChanged() {
@@ -52,11 +55,13 @@ export class ToolLayer {
 	_onDown(e) {
 		if (this._pressed !== -1) return;
 
-		// If the pointer-down is inside a frame that isn't currently
-		// selected, select it first. Tools clip their writes to the
-		// selected frame, so clicking into a new frame and painting in one
-		// gesture should target that frame, not the previously-selected one.
-		// Middle-drag (pan) doesn't change selection.
+		// Ctrl-held sampling intercepts the click entirely. The active
+		// tool is not started; the sample fires on this one click only.
+		if (this.tempSample && (e.button === 0 || e.button === 2)) {
+			this._sampleAt(e);
+			return;
+		}
+
 		if (e.button === 0 || e.button === 2) {
 			const name = this.viewport.getFrameAt(
 				Math.floor(e.imageX), Math.floor(e.imageY)
@@ -138,5 +143,28 @@ export class ToolLayer {
 				return new StrokeTransaction(ctx, rect);
 			},
 		};
+	}
+
+	// Sample the pixel at the click point into the primary or secondary
+	// palette slot. Alpha comes along for the ride.
+	_sampleAt(e) {
+		const sheet = this.document.sheet;
+		if (!sheet) return;
+		const x = Math.floor(e.imageX);
+		const y = Math.floor(e.imageY);
+		if (x < 0 || y < 0 || x >= sheet.imageWidth || y >= sheet.imageHeight) return;
+
+		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
+		const d = ctx.getImageData(x, y, 1, 1).data;
+		const hex = rgbaToHex(d[0], d[1], d[2]);
+		const alpha = d[3];
+
+		if (e.button === 2) {
+			this.palette.setSecondary(hex);
+			this.palette.setSecondaryAlpha(alpha);
+		} else {
+			this.palette.setPrimary(hex);
+			this.palette.setPrimaryAlpha(alpha);
+		}
 	}
 }

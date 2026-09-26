@@ -11,6 +11,31 @@
 	--danger:    #d04040;
 }
 
+/* --- themed scrollbars --- */
+* {
+	scrollbar-color: var(--rule) transparent;   /* Firefox */
+	scrollbar-width: thin;
+}
+*::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+*::-webkit-scrollbar-track {
+	background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+	background: var(--rule);
+	border-radius: 5px;
+	border: 2px solid var(--panel);
+}
+*::-webkit-scrollbar-thumb:hover {
+	background: #4a4a4e;
+}
+*::-webkit-scrollbar-corner {
+	background: transparent;
+}
+/* ------- */
+
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body {
@@ -1222,6 +1247,10 @@ body {
 	justify-content: space-between;
 	padding: 8px 12px;
 	border-bottom: 1px solid var(--rule);
+	background: var(--panel);
+	position: sticky;
+	top: 0;
+	z-index: 2;
 }
 .pane-action-row .count {
 	font-size: 10px;
@@ -1229,6 +1258,11 @@ body {
 	letter-spacing: 0.08em;
 	color: var(--muted);
 }
+.pane-action-group {
+	display: flex;
+	gap: 2px;
+}
+
 .pane-action {
 	background: transparent;
 	border: 1px solid var(--rule);
@@ -1525,4 +1559,25 @@ body {
 	font-size: 10.5px;
 	margin-top: 8px;
 	font-style: italic;
+}
+
+/* --- preview loop toggle --- */
+.preview-loop {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--muted);
+	font-size: 11px;
+	cursor: pointer;
+	flex-shrink: 0;
+	user-select: none;
+}
+.preview-loop input {
+	margin: 0;
+	cursor: pointer;
+}
+
+/* --- sampling cursor while Ctrl is held --- */
+#viewport.sampling {
+	cursor: copy;
 }

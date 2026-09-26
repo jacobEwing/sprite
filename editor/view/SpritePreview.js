@@ -31,13 +31,24 @@ export class SpritePreview {
 			</div>
 			<div class="preview-controls">
 				<button class="preview-toggle" title="Play / pause">⏸</button>
+				<label class="preview-loop" title="Restart when the sequence finishes">
+					<input type="checkbox" class="preview-loop-input"> Loop
+				</label>
 				<span class="preview-status">—</span>
 			</div>
 		`;
 		this.canvas = this.root.querySelector('.preview-canvas');
 		this.ctx = this.canvas.getContext('2d');
 		this.statusEl = this.root.querySelector('.preview-status');
+
 		this.toggleBtn = this.root.querySelector('.preview-toggle');
+		this.toggleBtn.addEventListener('click', () => this._togglePlay());
+
+		this.loopInput = this.root.querySelector('.preview-loop-input');
+		this.loopInput.checked = this.loopAnyway;
+		this.loopInput.addEventListener('change', () => {
+			this.loopAnyway = this.loopInput.checked;
+		});
 
 		const dpr = window.devicePixelRatio || 1;
 		this.canvas.width = CANVAS_SIZE * dpr;
@@ -46,7 +57,6 @@ export class SpritePreview {
 		this.canvas.style.height = CANVAS_SIZE + 'px';
 		this.dpr = dpr;
 
-		this.toggleBtn.addEventListener('click', () => this._togglePlay());
 	}
 
 	// --- lifecycle --------------------------------------------------------
@@ -215,9 +225,27 @@ export class SpritePreview {
 		this._draw();
 		this._updateStatus();
 
+		// A finite sequence has finished: the runtime clears sequenceName.
+		if (!this.sprite.sequenceName) {
+			if (this.loopAnyway) {
+				const seqName = this.doc.selectedSequence;
+				const seq = seqName ? this.doc.sheet.sequences[seqName] : null;
+				if (seq && seq.frames.length > 0) {
+					this.sprite.play(seqName);
+					this.lastTime = 0;
+					this.rafId = requestAnimationFrame((t) => this._loop(t));
+					return;
+				}
+			}
+			// No loop, no restart: flip the button to "play" so the user
+			// knows the animation completed rather than is paused.
+			this.playing = false;
+			this.toggleBtn.textContent = '▶';
+			return;
+		}
+
 		this.rafId = requestAnimationFrame((t) => this._loop(t));
 	}
-
 	// --- drawing ----------------------------------------------------------
 
 	_draw() {

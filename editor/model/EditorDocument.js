@@ -4,10 +4,8 @@ import { EditableSheet } from './EditableSheet.js';
 // Holds the loaded sheet and the current selection. Wraps the sheet in an
 // EditableSheet so all structural mutations go through the command layer.
 //
-// Two dirty flags track unsaved work:
-//   dirtyImage — the PNG differs from what's on disk
-//   dirtyData  — the JSON differs from what's on disk
-// Both must be cleared before the editor considers itself fully saved.
+// Dirty state is derived from the History's per-kind depths, so undoing
+// back to the save point clears it automatically.
 //
 // Events:
 //   sheetChanged     — a new sheet has been set
@@ -22,24 +20,21 @@ export class EditorDocument {
 		this.editable = null;
 		this.selectedFrame = null;
 		this.selectedSequence = null;
-		this.dirtyImage = false;
-		this.dirtyData  = false;
 
-		history.on('change', ({ source, kind }) => {
-			if (source === 'push') {
-				this._setDirty(kind === 'data' ? 'data' : 'image', true);
-			}
-			// Undo/redo leave dirty state as-is: the user has work in
-			// progress, and only an explicit save should clear that.
+		history.on('change', ({ source }) => {
 			if (source === 'undo' || source === 'redo') {
 				this._reconcileSelection();
 				this.emit('selectionChanged', { changed: true });
 				this.emit('edit', { type: 'history', source });
 			}
+			this._emitDirty();
 		});
 	}
 
-	get anyDirty() { return this.dirtyImage || this.dirtyData; }
+	get anyDirty()   { return this.history.anyDirty; }
+	get dirtyImage() { return this.history.imageDirty; }
+	get dirtyData()  { return this.history.dataDirty; }
+	get dirty()      { return this.anyDirty; }
 
 	setSheet(sheet) {
 		this.sheet = sheet;
@@ -49,16 +44,15 @@ export class EditorDocument {
 		this.selectedFrame = sheet.frameNames[0] ?? null;
 		this.selectedSequence = sheet.sequenceNames[0] ?? null;
 
-		this._setDirty('image', false);
-		this._setDirty('data',  false);
+		// Reset history and everything derived from it. Fires a 'change'
+		// event that emits dirtyChanged, so the indicator clears.
+		this.history.clear();
 
 		this.emit('sheetChanged', { sheet });
 		this.emit('selectionChanged', { focus: false });
 	}
 
 	_onEdit(info) {
-		// The history push already set the appropriate dirty flag; we only
-		// reconcile the selection here.
 		let selectionChanged = false;
 
 		if (info.type === 'frameRemoved' && this.selectedFrame === info.name) {
@@ -89,21 +83,16 @@ export class EditorDocument {
 		}
 	}
 
-	_setDirty(which, dirty) {
-		const key = which === 'image' ? 'dirtyImage' : 'dirtyData';
-		if (this[key] === dirty) return;
-		this[key] = dirty;
+	markSaved(which = 'all') {
+		this.history.markSaved(which);
+	}
+
+	_emitDirty() {
 		this.emit('dirtyChanged', {
 			dirtyImage: this.dirtyImage,
 			dirtyData:  this.dirtyData,
 			anyDirty:   this.anyDirty,
 		});
-	}
-
-	// which: 'image' | 'data' | 'all'
-	markSaved(which = 'all') {
-		if (which === 'image' || which === 'all') this._setDirty('image', false);
-		if (which === 'data'  || which === 'all') this._setDirty('data',  false);
 	}
 
 	selectFrame(name, { focus = false } = {}) {

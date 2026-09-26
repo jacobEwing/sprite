@@ -151,7 +151,6 @@ $('clipToFrame').addEventListener('change', (e) => {
 // --- document events ------------------------------------------------------
 
 doc.on('sheetChanged', () => {
-	history.clear();
 	viewport.setFrames(doc.sheet.frames);
 	viewport.setSource(doc.sheet.image);
 	viewport.setGridStep(doc.sheet.frameWidth, doc.sheet.frameHeight);
@@ -237,6 +236,16 @@ document.getElementById('btnFilter').addEventListener('click', (e) => {
 
 // --- toolbar --------------------------------------------------------------
 $('btnNewFrame').addEventListener('click', () => {
+	if (!doc.editable) return;
+	try {
+		const name = doc.editable.createFrame();
+		doc.selectFrame(name, { focus: true });
+	} catch (err) {
+		console.warn(err.message);
+	}
+});
+
+$('btnDuplicateFrame').addEventListener('click', () => {
 	if (!doc.selectedFrame || !doc.editable) return;
 	try {
 		const name = doc.editable.duplicateFrame(doc.selectedFrame);
@@ -272,7 +281,7 @@ async function doLoadSheet(path) {
 	}
 }
 async function doNewSheet() {
-	if (doc.dirty && !window.confirm(
+	if (doc.anyDirty && !window.confirm(
 		'The current sheet has unsaved changes. Discard them and create a new sheet?'
 	)) return;
 
@@ -674,6 +683,30 @@ window.addEventListener('keydown', (e) => {
 		e.preventDefault();
 		activateTool(name);
 	}
+});
+
+// --- Ctrl-to-sample ------------------------------------------------------
+//
+// Holding Ctrl (or Cmd) temporarily turns the active tool into an
+// eyedropper. Releasing the key returns to whatever was active.
+
+window.addEventListener('keydown', (e) => {
+	if (e.key === 'Control' || e.key === 'Meta') {
+		toolLayer.setTempSample(true);
+		viewport.canvas.classList.add('sampling');
+	}
+});
+window.addEventListener('keyup', (e) => {
+	if (e.key === 'Control' || e.key === 'Meta') {
+		toolLayer.setTempSample(false);
+		viewport.canvas.classList.remove('sampling');
+	}
+});
+// If the tab loses focus while Ctrl is held, keyup never fires; reset
+// defensively on blur.
+window.addEventListener('blur', () => {
+	toolLayer.setTempSample(false);
+	viewport.canvas.classList.remove('sampling');
 });
 
 // --- sidebar tabs --------------------------------------------------------

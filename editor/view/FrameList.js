@@ -47,9 +47,24 @@ export class FrameList {
 	_showContextMenu(name, x, y) {
 		const ed = this.doc.editable;
 		new Menu(null, [
-			{ label: 'Duplicate', action: () => {
-				try { ed.duplicateFrame(name); } catch (err) { console.warn(err); }
-			} },
+			{
+				label: 'New blank frame',
+				action: () => {
+					try {
+						const newName = ed.createFrame();
+						this.doc.selectFrame(newName, { focus: true });
+					} catch (err) { console.warn(err.message); }
+				},
+			},
+			{
+				label: 'Duplicate',
+				action: () => {
+					try {
+						const newName = ed.duplicateFrame(name);
+						this.doc.selectFrame(newName, { focus: true });
+					} catch (err) { console.warn(err.message); }
+				},
+			},
 			{ separator: true },
 			{ label: 'Delete', action: () => ed.removeFrame(name) },
 		]).showAt(x, y);

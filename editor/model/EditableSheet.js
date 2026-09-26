@@ -70,6 +70,32 @@ export class EditableSheet {
 		return name;
 	}
 
+	// Create a blank frame at the next free grid slot, using sheet defaults.
+	// Unlike duplicateFrame, no pixels or per-frame overrides are copied.
+	createFrame(baseName = 'frame') {
+		const sheet = this.sheet;
+		const fw = sheet.frameWidth  || 16;
+		const fh = sheet.frameHeight || 16;
+		const slot = this._findFreeSlot(fw, fh);
+		if (!slot) throw new Error('No free space in the sheet for a new frame.');
+
+		const name = this.uniqueFrameName(baseName);
+		const frame = {
+			x: slot.x,
+			y: slot.y,
+			width: fw,
+			height: fh,
+			centerx: sheet.centerx,
+			centery: sheet.centery,
+			drawOffset: { x: 0, y: 0 },
+			// No collision key: the frame inherits the sheet's default shape.
+		};
+
+		this.history.execute(new AddFrameCommand(sheet, name, frame), 'data');
+		this.emit('changed', { type: 'frameAdded', name });
+		return name;
+	}
+
 	// Walks a grid of frame-sized cells across the sheet and returns the
 	// first one that doesn't intersect an existing frame. Returns null if
 	// there's no free space.
