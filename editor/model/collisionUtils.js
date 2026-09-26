@@ -62,3 +62,33 @@ export function circleAt(circles, px, py) {
 	}
 	return -1;
 }
+
+// --- frame-vs-sheet resolution -------------------------------------------
+//
+// A frame is in one of three collision modes:
+//   'inherit'  — no collision key on the frame; uses sheet.collision
+//   'override' — frame has its own circles
+//   'none'     — frame has an empty circles array (explicit no collision)
+
+export function collisionMode(frame) {
+	if (!frame || !Object.prototype.hasOwnProperty.call(frame, 'collision')) {
+		return 'inherit';
+	}
+	const c = frame.collision;
+	if (!c || !c.circles || c.circles.length === 0) return 'none';
+	return 'override';
+}
+
+// Resolved collision for a frame, following the same fallback the runtime
+// uses. Returns null when neither source has circles.
+export function resolvedCollision(frame, sheetCollision) {
+	const mode = collisionMode(frame);
+	if (mode === 'inherit') return sheetCollision || null;
+	if (mode === 'none')    return null;
+	return frame.collision;
+}
+
+// An empty circles array, used for the 'none' state.
+export function emptyCollision() {
+	return { circles: [] };
+}

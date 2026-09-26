@@ -1495,3 +1495,34 @@ body {
 	line-height: 1.4;
 	margin: 4px 0 0;
 }
+/* --- collision mode selector --- */
+.collision-modes {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	gap: 2px;
+	margin-bottom: 10px;
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	overflow: hidden;
+	background: var(--panel-2);
+}
+.collision-mode {
+	background: transparent;
+	border: none;
+	color: var(--muted);
+	padding: 5px 4px;
+	font: inherit;
+	font-size: 11px;
+	cursor: pointer;
+}
+.collision-mode:hover { color: var(--ink); background: #383840; }
+.collision-mode.selected {
+	background: var(--accent-2);
+	color: #fff;
+}
+.collision-hint {
+	color: var(--muted);
+	font-size: 10.5px;
+	margin-top: 8px;
+	font-style: italic;
+}

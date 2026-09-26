@@ -401,6 +401,33 @@ export class EditableSheet {
 		this.history.push(cmd, 'pixels');
 		this.emit('changed', { type: 'frameUpdated', name: frameName });
 	}
+
+	// --- frame collision --------------------------------------------------
+
+	// Set or clear a frame's collision override.
+	//   value === undefined  → delete the key (frame inherits sheet-level)
+	//   value === null       → explicit none ({ circles: [] })
+	//   value = { circles }  → override with those circles
+	setFrameCollision(frameName, value) {
+		const current = this.sheet.frames[frameName];
+		if (!current) return;
+
+		const before = { ...current };
+		const after  = { ...current };
+
+		if (value === undefined) {
+			delete after.collision;
+		} else if (value === null) {
+			after.collision = { circles: [] };
+		} else {
+			after.collision = JSON.parse(JSON.stringify(value));
+		}
+
+		if (_deepEqual(before, after)) return;
+
+		this.history.execute(new SetFrameCommand(this.sheet, frameName, before, after), 'data');
+		this.emit('changed', { type: 'frameUpdated', name: frameName });
+	}
 }
 
 function _deepEqual(a, b) {

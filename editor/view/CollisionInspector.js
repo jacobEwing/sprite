@@ -1,5 +1,19 @@
-// Edit-tab pane for the sheet's collision shape. Lists each circle with
-// numeric fields, plus add/clear actions and an overlay toggle.
+import {
+	collisionMode,
+	emptyCollision,
+	resolvedCollision,
+} from '../model/collisionUtils.js';
+
+// Edit-tab pane for the selected frame's collision shape.
+//
+// Three modes, chosen via the segmented control:
+//   Inherit  — frame uses the sheet's default shape (read-only list)
+//   Override — frame has its own circles (editable)
+//   None     — frame has no collision
+//
+// Switching to Override for the first time seeds the frame's circles from
+// whatever was inherited, so you're editing a copy rather than starting
+// from scratch.
 
 const FIELDS = ['offsetX', 'offsetY', 'radius'];
 
@@ -21,8 +35,17 @@ export class CollisionInspector {
 		this.root.innerHTML = '';
 		if (!this.doc.sheet) return;
 
-		const collision = this.doc.sheet.collision;
-		const circles = collision && collision.circles ? collision.circles : [];
+		const frame = this.doc.getSelectedFrame();
+		if (!frame) {
+			const empty = document.createElement('div');
+			empty.className = 'info';
+			empty.textContent = 'No frame selected.';
+			this.root.appendChild(empty);
+			return;
+		}
+
+		const mode = collisionMode(frame);
+		const sheetHasShape = !!(this.doc.sheet.collision && this.doc.sheet.collision.circles);
 
 		// Overlay toggle
 		const toggleRow = document.createElement('label');
@@ -39,29 +62,117 @@ export class CollisionInspector {
 		toggleRow.append(toggleInput, toggleLabel);
 		this.root.appendChild(toggleRow);
 
-		if (circles.length === 0) {
+		// Mode selector
+		const modes = document.createElement('div');
+		modes.className = 'collision-modes';
+		for (const [value, label] of [
+			['inherit',  'Inherit'],
+			['override', 'Override'],
+			['none',     'None'],
+		]) {
+			const btn = document.createElement('button');
+			btn.className = 'collision-mode';
+			btn.textContent = label;
+			if (value === mode) btn.classList.add('selected');
+			btn.addEventListener('click', () => this._setMode(value, frame));
+			modes.appendChild(btn);
+		}
+		this.root.appendChild(modes);
+
+		// Shape list, or a placeholder when None.
+		const resolved = resolvedCollision(frame, this.doc.sheet.collision);
+		const editable = mode === 'override';
+
+		if (mode === 'inherit' && !sheetHasShape) {
 			const empty = document.createElement('div');
 			empty.className = 'info';
-			empty.textContent = 'No collision shape. Add a circle to begin.';
+			empty.textContent = 'Sheet has no default collision. ' +
+				'Choose Override to add circles for this frame.';
+			this.root.appendChild(empty);
+			return;
+		}
+
+		if (mode === 'none') {
+			const empty = document.createElement('div');
+			empty.className = 'info';
+			empty.textContent = 'This frame has no collision.';
+			this.root.appendChild(empty);
+			return;
+		}
+
+		if (!resolved || resolved.circles.length === 0) {
+			const empty = document.createElement('div');
+			empty.className = 'info';
+			empty.textContent = editable
+				? 'No circles yet. Add one below.'
+				: 'No circles.';
 			this.root.appendChild(empty);
 		} else {
-			for (let i = 0; i < circles.length; i++) {
-				this.root.appendChild(this._circleRow(i, circles[i]));
+			for (let i = 0; i < resolved.circles.length; i++) {
+				this.root.appendChild(this._circleRow(i, resolved.circles[i], editable));
 			}
 		}
 
-		const addBtn = document.createElement('button');
-		addBtn.className = 'insp-add-btn';
-		addBtn.textContent = '+ Add circle at origin';
-		addBtn.addEventListener('click', () => {
-			this.doc.editable.addCollisionCircle({
-				offsetX: 0, offsetY: 0, radius: this._defaultRadius(),
-			});
-		});
-		this.root.appendChild(addBtn);
+		if (editable) {
+			const addBtn = document.createElement('button');
+			addBtn.className = 'insp-add-btn';
+			addBtn.textContent = '+ Add circle at origin';
+			addBtn.addEventListener('click', () => this._addCircle(frame));
+			this.root.appendChild(addBtn);
+		}
+
+		if (mode === 'inherit' && sheetHasShape) {
+			const hint = document.createElement('div');
+			hint.className = 'collision-hint';
+			hint.textContent = 'Read-only. Switch to Override to edit.';
+			this.root.appendChild(hint);
+		}
 	}
 
-	_circleRow(index, circle) {
+	_setMode(mode, frame) {
+		const ed = this.doc.editable;
+		const name = this.doc.selectedFrame;
+
+		if (mode === 'inherit') {
+			ed.setFrameCollision(name, undefined);
+			return;
+		}
+		if (mode === 'none') {
+			ed.setFrameCollision(name, null);
+			return;
+		}
+		// override: seed from inherited shape if we're not already in override.
+		const current = collisionMode(frame);
+		if (current === 'override') return;
+		const seed = resolvedCollision(frame, this.doc.sheet.collision);
+		const shape = seed && seed.circles && seed.circles.length
+			? { circles: seed.circles.map(c => ({ ...c })) }
+			: { circles: [{ offsetX: 0, offsetY: 0, radius: this._defaultRadius() }] };
+		ed.setFrameCollision(name, shape);
+	}
+
+	_addCircle(frame) {
+		const ed = this.doc.editable;
+		const name = this.doc.selectedFrame;
+		const mode = collisionMode(frame);
+
+		// Promote to override first if needed, then append.
+		if (mode !== 'override') {
+			this._setMode('override', frame);
+		}
+
+		const after = this.doc.sheet.frames[name];
+		if (!after || !after.collision) return;
+		const next = {
+			circles: [
+				...after.collision.circles.map(c => ({ ...c })),
+				{ offsetX: 0, offsetY: 0, radius: this._defaultRadius() },
+			],
+		};
+		ed.setFrameCollision(name, next);
+	}
+
+	_circleRow(index, circle, editable) {
 		const wrap = document.createElement('div');
 		wrap.className = 'collision-row';
 
@@ -73,14 +184,14 @@ export class CollisionInspector {
 		label.textContent = `Circle ${index}`;
 		header.appendChild(label);
 
-		const del = document.createElement('button');
-		del.className = 'insp-mini';
-		del.textContent = '×';
-		del.title = 'Remove this circle';
-		del.addEventListener('click', () => {
-			this.doc.editable.removeCollisionCircle(index);
-		});
-		header.appendChild(del);
+		if (editable) {
+			const del = document.createElement('button');
+			del.className = 'insp-mini';
+			del.textContent = '×';
+			del.title = 'Remove this circle';
+			del.addEventListener('click', () => this._removeCircle(index));
+			header.appendChild(del);
+		}
 
 		wrap.appendChild(header);
 
@@ -95,17 +206,39 @@ export class CollisionInspector {
 			input.className = 'insp-input';
 			input.value = circle[key];
 			if (key === 'radius') input.min = '1';
-			input.addEventListener('change', () => {
-				this.doc.editable.updateCollisionCircle(index, {
-					[key]: input.value,
-				});
-			});
+			input.disabled = !editable;
+			if (editable) {
+				input.addEventListener('change', () => this._updateCircle(index, key, input.value));
+			}
 			cell.appendChild(input);
 			grid.appendChild(cell);
 		}
 		wrap.appendChild(grid);
 
 		return wrap;
+	}
+
+	_removeCircle(index) {
+		const frame = this.doc.getSelectedFrame();
+		if (!frame || !frame.collision) return;
+		const next = frame.collision.circles
+			.filter((_, i) => i !== index)
+			.map(c => ({ ...c }));
+		this.doc.editable.setFrameCollision(this.doc.selectedFrame, { circles: next });
+	}
+
+	_updateCircle(index, key, value) {
+		const frame = this.doc.getSelectedFrame();
+		if (!frame || !frame.collision) return;
+		const next = frame.collision.circles.map((c, i) => {
+			if (i !== index) return { ...c };
+			const updated = { ...c };
+			updated[key] = key === 'radius'
+				? Math.max(1, Number(value) || 1)
+				: Number(value) || 0;
+			return updated;
+		});
+		this.doc.editable.setFrameCollision(this.doc.selectedFrame, { circles: next });
 	}
 
 	_defaultRadius() {

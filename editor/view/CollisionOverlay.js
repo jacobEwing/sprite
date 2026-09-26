@@ -1,11 +1,12 @@
 import { makeEmitter } from '../lib/emitter.js';
+import { resolvedCollision } from '../model/collisionUtils.js';
 
-// Draws the collision circles over the selected frame. Subscribes to the
-// document so it re-renders on selection, sheet, and collision changes.
+// Draws the collision circles over the selected frame.
 //
-// The tool can call setDragPreview(index, x, y, radius) to override the
-// drawn position of one circle during a drag, and setPendingPreview(shape)
-// to draw a shape that hasn't been committed yet.
+// Reads the resolved collision (frame override if present, sheet default
+// otherwise) so inherited shapes are visible read-only. The tool can
+// override the drawn position of one circle during a drag, or supply a
+// pending shape that hasn't been committed yet.
 export class CollisionOverlay {
 	constructor(doc, viewport) {
 		makeEmitter(this);
@@ -13,8 +14,8 @@ export class CollisionOverlay {
 		this.viewport = viewport;
 
 		this.enabled = false;
-		this.dragOverride = null;   // { index, x, y, radius } in image coords
-		this.pendingShape = null;   // { x, y, radius } in image coords
+		this.dragOverride = null;
+		this.pendingShape = null;
 
 		this._token = viewport.addOverlay((ctx) => this._draw(ctx));
 
@@ -48,16 +49,18 @@ export class CollisionOverlay {
 		this.viewport.invalidate();
 	}
 
-	// Circles in image coordinates for the current frame, or [].
+	// Circles in image coordinates for the current frame. Reads the
+	// resolved shape, so an inherited frame shows the sheet's circles.
 	currentCircles() {
 		const frame = this.doc.getSelectedFrame();
 		if (!frame) return [];
-		const collision = this.doc.sheet && this.doc.sheet.collision;
-		if (!collision || !collision.circles) return [];
+
+		const shape = resolvedCollision(frame, this.doc.sheet.collision);
+		if (!shape || !shape.circles) return [];
 
 		const ox = frame.x + frame.centerx;
 		const oy = frame.y + frame.centery;
-		return collision.circles.map((c, i) => ({
+		return shape.circles.map((c, i) => ({
 			index: i,
 			x: ox + c.offsetX,
 			y: oy + c.offsetY,
