@@ -1,7 +1,7 @@
 {
 	"image": "toolIcons.png",
-	"frameWidth": 12,
-	"frameHeight": 12,
+	"frameWidth": 13,
+	"frameHeight": 13,
 	"centerx": 0,
 	"centery": 0,
 	"frameRate": 25,
@@ -70,8 +70,16 @@
 			"centerx": 0,
 			"centery": 0
 		},
-		"filter": {
+		"frame": {
 			"x": 39,
+			"y": 13,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
+		},
+		"collision": {
+			"x": 52,
 			"y": 13,
 			"width": 13,
 			"height": 13,
