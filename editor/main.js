@@ -41,6 +41,11 @@ import { BackgroundPicker } from './view/BackgroundPicker.js';
 import { Clipboard } from './model/Clipboard.js';
 import { SelectionOverlay } from './view/SelectionOverlay.js';
 import { SelectionTool }    from './tools/SelectionTool.js';
+import {
+	rotate90CW, rotate90CCW,
+	flipVertical, flipHorizontal,
+	translateWrapped,
+} from './model/transforms.js';
 
 // --- wiring ---------------------------------------------------------------
 const viewOptions = { grid: false, snap: false };
@@ -140,9 +145,8 @@ activateTool('pan');
 const TOOL_KEYS = {
 	s: 'select',
 	p: 'pan', n: 'pencil', e: 'eraser', l: 'line', b: 'box',
-	o: 'ellipse', f: 'fill', i: 'picker', m: 'frame', k: 'collision',
+	o: 'ellipse', g: 'fill', i: 'picker', m: 'frame', k: 'collision',
 };
-
 // --- shape-fill toggle ----------------------------------------------------
 
 $('fillShapes').addEventListener('change', (e) => {
@@ -527,6 +531,29 @@ function doDeselect() {
 	doc.clearSelection();
 }
 
+// --- transforms ----------------------------------------------------------
+//
+// All operate on the current op rect: the selection if any, else the
+// whole frame.
+
+function _transformOp(label, fn) {
+	if (!doc.sheet) return;
+	const rect = doc.currentOpRect();
+	if (!rect) return;
+	doc.editable.transformRegion(rect, fn);
+	const where = doc.selection.isEmpty ? 'frame' : 'selection';
+	$('statusMessage').textContent = `${label} ${where} (${rect.w}×${rect.h})`;
+}
+
+const doRotateCW   = () => _transformOp('Rotated CW',       rotate90CW);
+const doRotateCCW  = () => _transformOp('Rotated CCW',      rotate90CCW);
+const doFlipV      = () => _transformOp('Flipped vertical', flipVertical);
+const doFlipH      = () => _transformOp('Flipped horizontal', flipHorizontal);
+
+const doMoveUp    = () => _transformOp('Moved up',    (d) => translateWrapped(d,  0, -1));
+const doMoveDown  = () => _transformOp('Moved down',  (d) => translateWrapped(d,  0,  1));
+const doMoveLeft  = () => _transformOp('Moved left',  (d) => translateWrapped(d, -1,  0));
+const doMoveRight = () => _transformOp('Moved right', (d) => translateWrapped(d,  1,  0));
 const fileMenu = new Menu(document.getElementById('fileMenuBtn'), [
 	{ label: 'New', shortcut: 'Ctrl+Alt+N', action: doNewSheet },
 	{ label: 'Open URL…', shortcut: 'Ctrl+O', action: async () => {
@@ -627,6 +654,23 @@ new Menu(document.getElementById('editMenuBtn'), [
 	},
 });
 
+new Menu(document.getElementById('transformMenuBtn'), [
+	{ label: 'Rotate 90° CW',   shortcut: 'R',       action: doRotateCW },
+	{ label: 'Rotate 90° CCW',  shortcut: 'Shift+R', action: doRotateCCW },
+	{ label: 'Flip Vertical',   shortcut: 'F',       action: doFlipV },
+	{ label: 'Flip Horizontal', shortcut: 'Shift+F', action: doFlipH },
+	{ separator: true },
+	{ label: 'Move Up',    shortcut: 'Ctrl+↑', action: doMoveUp },
+	{ label: 'Move Down',  shortcut: 'Ctrl+↓', action: doMoveDown },
+	{ label: 'Move Left',  shortcut: 'Ctrl+←', action: doMoveLeft },
+	{ label: 'Move Right', shortcut: 'Ctrl+→', action: doMoveRight },
+], {
+	onShow: (items) => {
+		const enabled = !!(doc.sheet && doc.selectedFrame);
+		for (const i of items) if (!i.separator) i.disabled = !enabled;
+	},
+});
+
 async function doExpandCanvas() {
 	if (!doc.sheet || !doc.editable) return;
 	const result = await sheetSizeDialog.open(
@@ -676,6 +720,10 @@ window.addEventListener('keydown', (e) => {
 			return;
 		}
 		if (!inField) {
+			if (key === 'arrowup')    { e.preventDefault(); doMoveUp();    return; }
+			if (key === 'arrowdown')  { e.preventDefault(); doMoveDown();  return; }
+			if (key === 'arrowleft')  { e.preventDefault(); doMoveLeft();  return; }
+			if (key === 'arrowright') { e.preventDefault(); doMoveRight(); return; }
 
 			if (key === 'a') {
 				e.preventDefault();
@@ -708,6 +756,18 @@ window.addEventListener('keydown', (e) => {
 		doClearFrame();
 		return;
 	}
+	if (key === 'r') {
+		e.preventDefault();
+		if (e.shiftKey) doRotateCCW();
+		else            doRotateCW();
+		return;
+	}
+	if (key === 'f') {
+		e.preventDefault();
+		if (e.shiftKey) doFlipH();
+		else            doFlipV();
+		return;
+	}	
 	if (key === 'x') {
 		e.preventDefault();
 		palette.swap();

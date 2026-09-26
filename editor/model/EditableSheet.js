@@ -427,6 +427,23 @@ export class EditableSheet {
 		this.emit('changed', { type: 'regionUpdated' });
 	}
 
+	// Apply a pure transform to a region's pixels. `fn` takes an ImageData
+	// and returns a new ImageData of the same dimensions.
+	transformRegion(rect, fn) {
+		if (!rect || rect.w <= 0 || rect.h <= 0) return;
+
+		const ctx = this.sheet.image.getContext('2d', { willReadFrequently: true });
+		const before = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
+		const after = fn(before);
+		if (!after) return;
+
+		ctx.putImageData(after, rect.x, rect.y);
+
+		const cmd = new PaintCommand(ctx, rect.x, rect.y, rect.w, rect.h, before, after);
+		this.history.push(cmd, 'pixels');
+		this.emit('changed', { type: 'regionUpdated' });
+	}
+
 	pasteIntoFrame(frameName, imageData) {
 		const frame = this.sheet.frames[frameName];
 		if (!frame) return;
