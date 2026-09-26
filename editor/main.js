@@ -5,7 +5,6 @@ import { Viewport }       from './view/Viewport.js';
 import { FrameList }      from './view/FrameList.js';
 import { SequenceList }   from './view/SequenceList.js';
 import { BrushPicker }    from './view/BrushPicker.js';
-import { loadSheet }      from './io/loadSheet.js';
 import { History }        from './history/History.js';
 import { ToolLayer }      from './tools/ToolLayer.js';
 import { PanTool }        from './tools/PanTool.js';
@@ -18,7 +17,12 @@ import { FloodFillTool }  from './tools/FloodFillTool.js';
 import { ColorPickerTool } from './tools/ColorPickerTool.js';
 import { BRUSHES }        from './paint/Brush.js';
 import { Menu }           from './view/Menu.js';
-import { LoadDialog }     from './view/LoadDialog.js';
+import {
+	pickFile,
+	loadSpriteFile, sheetFromSpriteJSON, makeEditable,
+	loadImageFile,
+	makeBlankSheet, makeSheetFromImage,
+} from './io/loadSheet.js';
 import { FrameInspector }    from './view/FrameInspector.js';
 import { SequenceInspector } from './view/SequenceInspector.js';
 import { Timeline }        from './view/Timeline.js';
@@ -26,14 +30,11 @@ import { SheetSizeDialog } from './view/SheetSizeDialog.js';
 import { FrameTool }       from './tools/FrameTool.js';
 import { SpritePreview }   from './view/SpritePreview.js';
 import { saveSheetImage, saveSheetData, saveSheetBoth, proposeFilenames } from './io/saveSheet.js';
-import { DiskLoadDialog }  from './view/DiskLoadDialog.js';
 import { SaveDialog }                   from './view/SaveDialog.js';
 import { FilterPanel }     from './view/FilterPanel.js';
-import { loadSheetFromDisk } from './io/loadSheet.js';
 import { ErrorDialog }     from './view/ErrorDialog.js';
 import { applyToolIcons }  from './view/toolIcons.js';
 import { SheetDialog }     from './view/SheetDialog.js';
-import { makeBlankSheet }  from './io/loadSheet.js';
 import { CollisionOverlay }    from './view/CollisionOverlay.js';
 import { CollisionInspector }  from './view/CollisionInspector.js';
 import { CollisionTool }       from './tools/CollisionTool.js';
@@ -46,6 +47,7 @@ import {
 	flipVertical, flipHorizontal,
 	translateWrapped,
 } from './model/transforms.js';
+import { NewImageDialog } from './view/NewImageDialog.js';
 
 // --- wiring ---------------------------------------------------------------
 const viewOptions = { grid: false, snap: false };
@@ -65,7 +67,7 @@ new SequenceInspector(document.getElementById('sequenceInspector'), doc);
 new Timeline(document.getElementById('timeline'), doc, viewport);
 new SpritePreview(document.getElementById('spritePreview'), doc);
 
-
+const newImageDialog = new NewImageDialog();
 const brushPicker = new BrushPicker(document.getElementById('brushPicker'));
 
 const collisionOverlay = new CollisionOverlay(doc, viewport);
@@ -158,20 +160,63 @@ $('clipToFrame').addEventListener('change', (e) => {
 });
 
 // --- document events ------------------------------------------------------
+// Update the footer's image notice. Called on sheet and image changes.
+// Shows nothing when an image is loaded (or when no sheet is loaded —
+// the canvas overlay covers that case).
+function updateImageNotice() {
+	const notice = $('imageNotice');
+	if (!doc.sheet || doc.hasImage) {
+		notice.hidden = true;
+		notice.innerHTML = '';
+		return;
+	}
+	const imgSrc = doc.sheet.imageSrc || '(unnamed)';
+	notice.innerHTML =
+		`No image loaded — sprite uses <code>${imgSrc}</code>.` +
+		` <a href="#" id="imageNoticeLoad">Load…</a>`;
+	notice.hidden = false;
+	const link = $('imageNoticeLoad');
+	if (link) {
+		link.addEventListener('click', (e) => {
+			e.preventDefault();
+			doLoadImage();
+		});
+	}
+}
 
 doc.on('sheetChanged', () => {
-	viewport.setFrames(doc.sheet.frames);
-	viewport.setSource(doc.sheet.image);
-	viewport.setGridStep(doc.sheet.frameWidth, doc.sheet.frameHeight);
+	viewport.setFrames(doc.sheet ? doc.sheet.frames : null);
+	viewport.setSource(doc.sheet ? doc.sheet.image : null);
 
-	$('emptyMessage').classList.add('hidden');
-	$('frameCount').textContent = doc.sheet.frameNames.length;
-	$('sequenceCount').textContent = doc.sheet.sequenceNames.length;
-	$('statusMessage').textContent =
-		`Loaded "${doc.sheet.imageSrc ?? '(inline image)'}" — ` +
-		`${doc.sheet.imageWidth}×${doc.sheet.imageHeight}px`;
+	updateFileMenuState();
+	updateImageNotice();
+
+	const emptyMsg = $('emptyMessage');
+
+	if (!doc.sheet) {
+		emptyMsg.textContent = 'Load a sprite or image to begin.';
+		emptyMsg.classList.remove('hidden');
+		$('frameCount').textContent = '';
+		$('sequenceCount').textContent = '';
+		$('statusMessage').textContent = 'Ready.';
+	} else {
+		emptyMsg.classList.add('hidden');
+		$('frameCount').textContent = doc.sheet.frameNames.length;
+		$('sequenceCount').textContent = doc.sheet.sequenceNames.length;
+		$('statusMessage').textContent =
+			`${doc.sheet.imageWidth}×${doc.sheet.imageHeight}px · ` +
+			`${doc.sheet.frameNames.length} frames`;
+	}
 
 	if (doc.selectedFrame) viewport.focusFrame(doc.selectedFrame);
+});
+
+doc.on('imageChanged', () => {
+	if (doc.sheet) {
+		viewport.setSource(doc.sheet.image);
+		viewport.setFrames(doc.sheet.frames);
+	}
+	updateImageNotice();
 });
 
 doc.on('selectionChanged', ({ focus, changed }) => {
@@ -274,22 +319,67 @@ $('btnNewSequence').addEventListener('click', () => {
 	doc.selectSequence(name);
 });
 
-// --- file menu ------------------------------------------------------------
 
-const loadDialog = new LoadDialog();
-const diskLoadDialog = new DiskLoadDialog();
+// --- file operations -----------------------------------------------------
 
-async function doLoadSheet(path) {
-	$('statusMessage').textContent = 'Loading…';
+async function doLoadSprite() {
+	$('statusMessage').textContent = 'Choose a sprite JSON…';
+	let file;
 	try {
-		const sheet = await loadSheet(path);
-		doc.setSheet(sheet);
+		file = await loadSpriteFile();
+	} catch (err) {
+		$('statusMessage').textContent = 'Load failed.';
+		await errorDialog.show('Couldn\'t load sprite', err.message);
+		return;
+	}
+	if (!file) { $('statusMessage').textContent = 'Cancelled.'; return; }
+
+	$('statusMessage').textContent = 'Building sprite…';
+	try {
+		// Keep the currently-loaded image if there is one; otherwise a
+		// placeholder is installed so the frame outlines render.
+		const keepImage = doc.hasImage;
+		const sheet = await sheetFromSpriteJSON(file.json, null);
+		makeEditable(sheet);
+		if (!keepImage) {
+			sheet.imageSrc = file.imageFilename;
+		}
+		doc.setSheet(sheet, { keepImage, imageLoaded: keepImage });
+		savedFilenames = {
+			jsonFilename: file.jsonFilename,
+			imageFilename: file.imageFilename || savedFilenames?.imageFilename || 'sheet.png',
+		};
+		savedDirectory = null;
+		saveMode = null;
+		$('statusMessage').textContent = keepImage
+			? `Loaded ${file.jsonFilename} (kept current image)`
+			: `Loaded ${file.jsonFilename}`;
 	} catch (err) {
 		console.error(err);
-		$('statusMessage').textContent = 'Load failed: ' + err.message;
+		$('statusMessage').textContent = 'Load failed.';
+		await errorDialog.show('Couldn\'t load sprite', err.message);
 	}
 }
-async function doNewSheet() {
+
+async function doLoadImage() {
+	$('statusMessage').textContent = 'Choose an image…';
+	let file;
+	try {
+		file = await loadImageFile();
+	} catch (err) {
+		$('statusMessage').textContent = 'Load failed.';
+		await errorDialog.show('Couldn\'t load image', err.message);
+		return;
+	}
+	if (!file) { $('statusMessage').textContent = 'Cancelled.'; return; }
+
+	await doc.setImage(file.canvas, file.imageFilename);
+	savedFilenames = savedFilenames || {};
+	savedFilenames.imageFilename = file.imageFilename;
+	$('statusMessage').textContent = `Loaded image ${file.imageFilename}`;
+}
+
+async function doNewSprite() {
 	if (doc.anyDirty && !window.confirm(
 		'The current sheet has unsaved changes. Discard them and create a new sheet?'
 	)) return;
@@ -297,7 +387,6 @@ async function doNewSheet() {
 	const values = await sheetDialog.openForNew();
 	if (!values) return;
 
-	$('statusMessage').textContent = 'Creating sheet…';
 	try {
 		const sheet = await makeBlankSheet({
 			imageWidth: values.imageWidth,
@@ -308,23 +397,40 @@ async function doNewSheet() {
 			centery: values.centery,
 			defaultFrameRate: values.defaultFrameRate,
 			cellCount: values.cellCount,
-			// imageSrc is intentionally not passed: a new sheet has no
-			// image on disk until the user saves.
 		});
-		sheet.imageSrc = null;
-
-		doc.setSheet(sheet);
+		doc.setSheet(sheet, { imageLoaded: true });
 		savedFilenames = null;
 		savedDirectory = null;
 		saveMode = null;
 		$('statusMessage').textContent =
-			`New sheet: ${sheet.imageWidth}×${sheet.imageHeight}, ` +
-			`${sheet.frameNames.length} frames`;
+			`New sheet: ${sheet.imageWidth}×${sheet.imageHeight}`;
 	} catch (err) {
 		console.error(err);
-		$('statusMessage').textContent = 'Create failed.';
 		await errorDialog.show('Couldn\'t create the sheet', err.message);
 	}
+}
+
+async function doNewImage() {
+	if (doc.anyDirty && !window.confirm(
+		'The current sheet has unsaved changes. Discard them and create a new image?'
+	)) return;
+
+	const defaults = {
+		width:  doc.sheet ? doc.sheet.imageWidth  : 256,
+		height: doc.sheet ? doc.sheet.imageHeight : 256,
+	};
+	const values = await newImageDialog.open(defaults);
+	if (!values) return;
+
+	const canvas = document.createElement('canvas');
+	canvas.width  = values.width;
+	canvas.height = values.height;
+	// Force the CPU-backed store so later getImageData calls hit the fast
+	// path; StrokeTransaction and the filters both depend on this.
+	canvas.getContext('2d', { willReadFrequently: true });
+
+	await doc.setImage(canvas, null);
+	$('statusMessage').textContent = `New image: ${values.width}×${values.height}`;
 }
 
 async function doEditSheet() {
@@ -339,6 +445,8 @@ async function doEditSheet() {
 		centery: values.centery,
 		defaultFrameRate: values.defaultFrameRate,
 		imageSrc: values.imageSrc,
+		imageWidth: values.imageWidth,
+		imageHeight: values.imageHeight,
 	});
 	$('statusMessage').textContent = 'Sheet settings updated.';
 }
@@ -554,42 +662,40 @@ const doMoveUp    = () => _transformOp('Moved up',    (d) => translateWrapped(d,
 const doMoveDown  = () => _transformOp('Moved down',  (d) => translateWrapped(d,  0,  1));
 const doMoveLeft  = () => _transformOp('Moved left',  (d) => translateWrapped(d, -1,  0));
 const doMoveRight = () => _transformOp('Moved right', (d) => translateWrapped(d,  1,  0));
+
 const fileMenu = new Menu(document.getElementById('fileMenuBtn'), [
-	{ label: 'New', shortcut: 'Ctrl+Alt+N', action: doNewSheet },
-	{ label: 'Open URL…', shortcut: 'Ctrl+O', action: async () => {
-		const result = await loadDialog.open();
-		if (result === null) return;
-		if (typeof result === 'object' && result.browse) await doOpenFromDisk();
-		else if (typeof result === 'string') await doLoadSheet(result);
-	} },
-	{ label: 'Open from disk…', shortcut: 'Ctrl+Shift+O', action: doOpenFromDisk },
+	{ label: 'New Sprite',   action: doNewSprite },
+	{ label: 'New Image',    action: doNewImage },
+	{ separator: true },
+	{ label: 'Load Sprite…', action: doLoadSprite },
+	{ label: 'Load Image…',  action: doLoadImage },
 	{ separator: true },
 	{ label: 'Save Image',         shortcut: 'Ctrl+S',       action: doSaveImage },
 	{ label: 'Save Sprite Data',   shortcut: 'Ctrl+Shift+S', action: doSaveData },
 	{ label: 'Save All',           shortcut: 'Ctrl+Alt+S',   action: doSave },
 	{ separator: true },
-	{ label: 'Save Image As…',        action: doSaveImageAs },
-	{ label: 'Save Sprite Data As…',  action: doSaveDataAs },
+	{ label: 'Save Image As…',         action: doSaveImageAs },
+	{ label: 'Save Sprite Data As…',   action: doSaveDataAs },
 ]);
 
 function updateFileMenuState() {
-	const enabled = !!doc.sheet;
+	const hasSheet = doc.hasSheet;
+	const hasImage = doc.hasImage;
 	const setEnabled = (label, on) => {
 		const item = fileMenu.items.find(i => i.label === label);
 		if (item) item.disabled = !on;
 	};
-	setEnabled('Save Image',          enabled);
-	setEnabled('Save Sprite Data',    enabled);
-	setEnabled('Save All',            enabled);
-	setEnabled('Save Image As…',      enabled);
-	setEnabled('Save Sprite Data As…', enabled);
+	setEnabled('Save Image',          hasImage);
+	setEnabled('Save Sprite Data',    hasSheet);
+	setEnabled('Save All',            hasSheet && hasImage);
+	setEnabled('Save Image As…',      hasImage);
+	setEnabled('Save Sprite Data As…', hasSheet);
 }
-doc.on('sheetChanged', updateFileMenuState);
+
 updateFileMenuState();
 
-const sheetMenu = new Menu(document.getElementById('sheetMenuBtn'), [
+new Menu(document.getElementById('sheetMenuBtn'), [
 	{ label: 'Sheet settings…', action: doEditSheet },
-	{ label: 'Expand canvas…',  action: doExpandCanvas },
 	{ separator: true },
 	{
 		label: 'Toggle collision overlay',
@@ -671,14 +777,6 @@ new Menu(document.getElementById('transformMenuBtn'), [
 	},
 });
 
-async function doExpandCanvas() {
-	if (!doc.sheet || !doc.editable) return;
-	const result = await sheetSizeDialog.open(
-		doc.sheet.imageWidth, doc.sheet.imageHeight);
-	if (!result) return;
-	doc.editable.expandCanvas(result.width, result.height);
-}
-
 const sheetSizeDialog = new SheetSizeDialog();
 const sheetDialog = new SheetDialog();
 
@@ -693,7 +791,7 @@ window.addEventListener('keydown', (e) => {
 		// using alt on keys where ctrl-* is hijacked by the browser.
 		if (key === 'n' && e.altKey) {
 			e.preventDefault();
-			doNewSheet();
+			doNewSprite();
 			return;
 		}
 		if (key === 's' && e.altKey && !e.shiftKey) {
@@ -703,22 +801,6 @@ window.addEventListener('keydown', (e) => {
 		}
 		if (e.altKey) return;
 
-		if (key === 'o') {
-			e.preventDefault();
-			if (e.shiftKey) {
-				doOpenFromDisk();
-			} else {
-				loadDialog.open().then((result) => {
-					if (result === null) return;
-					if (typeof result === 'object' && result.browse) {
-						doOpenFromDisk();
-					} else if (typeof result === 'string') {
-						doLoadSheet(result);
-					}
-				});
-			}
-			return;
-		}
 		if (!inField) {
 			if (key === 'arrowup')    { e.preventDefault(); doMoveUp();    return; }
 			if (key === 'arrowdown')  { e.preventDefault(); doMoveDown();  return; }

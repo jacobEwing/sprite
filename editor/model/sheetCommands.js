@@ -135,25 +135,14 @@ export class SetSequenceCommand {
 }
 
 // --- canvas operations ----------------------------------------------------
-
-// Replaces sheet.image with a larger canvas that contains the old image at
-// (offsetX, offsetY). The new canvas is built lazily on first apply so
-// redo after undo of later edits rebuilds it fresh if needed; in practice
-// the redo stack is cleared by any intervening edit, so this is a one-shot.
-//
-// Frame rects are assumed to stay at their existing coordinates. Callers
-// that want to insert space *above* or *left of* existing content must also
-// shift every frame's x/y — that's out of scope here.
-export class ExpandCanvasCommand {
-	constructor(sheet, newWidth, newHeight, offsetX = 0, offsetY = 0) {
+export class ResizeCanvasCommand {
+	constructor(sheet, newWidth, newHeight) {
 		this.sheet = sheet;
 		this.oldImage = sheet.image;
 		this.oldWidth = sheet.imageWidth;
 		this.oldHeight = sheet.imageHeight;
 		this.newWidth = newWidth;
 		this.newHeight = newHeight;
-		this.offsetX = offsetX;
-		this.offsetY = offsetY;
 		this.newImage = null;
 	}
 
@@ -163,7 +152,7 @@ export class ExpandCanvasCommand {
 		c.height = this.newHeight;
 		const ctx = c.getContext('2d', { willReadFrequently: true });
 		ctx.imageSmoothingEnabled = false;
-		ctx.drawImage(this.oldImage, this.offsetX, this.offsetY);
+		ctx.drawImage(this.oldImage, 0, 0);
 		return c;
 	}
 
@@ -176,7 +165,6 @@ export class ExpandCanvasCommand {
 		this.sheet.image = this.oldImage;
 	}
 }
-
 // --- sheet settings -------------------------------------------------------
 
 // Updates the sheet's default values: frame size, origin, default frame
@@ -208,3 +196,12 @@ export class SetCollisionCommand {
 	revert() { this.sheet.collision = clone(this.before); }
 }
 
+// Bundle several commands as one atomic action. apply() runs forwards,
+// revert() runs backwards, so dependencies unwind correctly.
+export class CompositeCommand {
+	constructor(commands) {
+		this.commands = commands;
+	}
+	apply()  { for (const c of this.commands) c.apply(); }
+	revert() { for (let i = this.commands.length - 1; i >= 0; i--) this.commands[i].revert(); }
+}

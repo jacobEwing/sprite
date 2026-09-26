@@ -10,7 +10,7 @@
 	--accent-2:  #4a80c0;
 	--danger:    #d04040;
 }
-
+[hidden] { display: none !important; }
 /* --- themed scrollbars --- */
 * {
 	scrollbar-color: var(--rule) transparent;   /* Firefox */
@@ -217,7 +217,24 @@ body {
 	color: var(--muted);
 	pointer-events: none;
 	font-size: 14px;
+	text-align: center;
+	padding: 0 24px;
 }
+#emptyMessage code {
+	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-size: 12px;
+	background: var(--panel-2);
+	padding: 1px 5px;
+	border-radius: 3px;
+	color: var(--ink);
+}
+#emptyMessage a {
+	color: var(--accent);
+	text-decoration: underline;
+	pointer-events: auto;
+	cursor: pointer;
+}
+
 #emptyMessage.hidden { display: none; }
 
 /* --- palette panel --- */
@@ -1596,4 +1613,37 @@ body {
 /* --- sampling cursor while Ctrl is held --- */
 #viewport.sampling {
 	cursor: copy;
+}
+
+.sd-warning.soft {
+	background: rgba(208, 128, 64, 0.12);
+	border-left-color: var(--accent);
+}
+
+#statusBar #imageNotice {
+	flex: 0 1 auto;
+	max-width: 55%;
+	padding: 0 10px;
+	color: var(--accent);
+	font-size: 11px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+#statusBar #imageNotice code {
+	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-size: 11px;
+	color: var(--ink);
+	background: var(--panel-2);
+	padding: 0 4px;
+	border-radius: 2px;
+}
+#statusBar #imageNotice a {
+	color: var(--accent-2);
+	text-decoration: underline;
+	cursor: pointer;
+	margin-left: 4px;
+}
+#statusBar #imageNotice a:hover {
+	color: #6aa0e0;
 }

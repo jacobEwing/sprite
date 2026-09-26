@@ -32,12 +32,9 @@ export class History {
 
 		if (this.undoStack.length > this.limit) {
 			const dropped = this.undoStack.shift();
-			if (dropped._historyKind === 'data') this._dataDepth--;
-			else                                 this._imageDepth--;
+			this._decKind(dropped._historyKind);
 		}
-
-		if (kind === 'data') this._dataDepth++;
-		else                 this._imageDepth++;
+		this._incKind(kind);
 
 		this.redoStack.length = 0;
 		this._emit('push', kind);
@@ -54,8 +51,7 @@ export class History {
 		if (!cmd) return false;
 		cmd.revert();
 		this.redoStack.push(cmd);
-		if (cmd._historyKind === 'data') this._dataDepth--;
-		else                             this._imageDepth--;
+		this._decKind(cmd._historyKind);
 		this._emit('undo', cmd._historyKind);
 		return true;
 	}
@@ -65,8 +61,7 @@ export class History {
 		if (!cmd) return false;
 		cmd.apply();
 		this.undoStack.push(cmd);
-		if (cmd._historyKind === 'data') this._dataDepth++;
-		else                             this._imageDepth++;
+		this._incKind(cmd._historyKind);
 		this._emit('redo', cmd._historyKind);
 		return true;
 	}
@@ -113,11 +108,11 @@ export class History {
 	_topOfKind(kind) {
 		for (let i = this.undoStack.length - 1; i >= 0; i--) {
 			const c = this.undoStack[i];
-			if ((c._historyKind || 'pixels') === kind) return c;
+			const k = c._historyKind || 'pixels';
+			if (k === kind || k === 'both') return c;
 		}
 		return null;
 	}
-
 	_emit(source, kind = null) {
 		this.emit('change', {
 			canUndo: this.canUndo,
@@ -129,5 +124,16 @@ export class History {
 			dirtyData:  this.dataDirty,
 			anyDirty:   this.anyDirty,
 		});
+	}
+
+	_incKind(kind) {
+		if (kind === 'data') this._dataDepth++;
+		else if (kind === 'both') { this._dataDepth++; this._imageDepth++; }
+		else this._imageDepth++;
+	}
+	_decKind(kind) {
+		if (kind === 'data') this._dataDepth--;
+		else if (kind === 'both') { this._dataDepth--; this._imageDepth--; }
+		else this._imageDepth--;
 	}
 }

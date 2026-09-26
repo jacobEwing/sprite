@@ -1,50 +1,53 @@
-// Modal for creating a new sheet or editing an existing one's defaults.
+// Modal for creating a new sheet or editing an existing one's settings.
 //
-// New mode: image size, frame size, cell count, plus a "Suggest dimensions"
-// button and a live warning if the cells won't fit.
+// New mode: image size, frame size, cell count, with a "Suggest dimensions"
+// button and a hard error if the cells won't fit.
 //
-// Edit mode: frame size, centre, and default frame rate. Image size is not
-// editable here; use Sheet → Expand canvas… for that, so an undo only ever
-// walks back one logical change.
+// Edit mode: image size (resizes the canvas), frame size, centre, image
+// filename, and default frame rate. Shrinking is allowed; frames that
+// would be clipped raise a soft warning but don't block the change.
 //
-// open() returns a promise: the form data on confirm, null on cancel.
+// open() returns a promise: form data on confirm, null on cancel.
 
 export class SheetDialog {
 	constructor() {
 		this._resolve = null;
 		this._mode = 'new';
+		this._sheet = null;
 		this._build();
 	}
 
 	openForNew() {
 		this._mode = 'new';
+		this._sheet = null;
 		return this._open({
 			title: 'New sheet',
 			imageWidth: 192,
 			imageHeight: 192,
-			imageSrc : '',
 			frameWidth: 24,
 			frameHeight: 24,
 			cellCount: 1,
 			centerx: 0,
 			centery: 0,
 			defaultFrameRate: 12,
+			imageSrc: '',
 		});
 	}
 
 	openForEdit(sheet) {
 		this._mode = 'edit';
+		this._sheet = sheet;
 		return this._open({
 			title: 'Sheet settings',
 			imageWidth: sheet.imageWidth,
 			imageHeight: sheet.imageHeight,
 			frameWidth: sheet.frameWidth || 24,
 			frameHeight: sheet.frameHeight || 24,
-			imageSrc: sheet.imageSrc || '',
 			cellCount: 1,
 			centerx: sheet.centerx,
 			centery: sheet.centery,
 			defaultFrameRate: sheet.defaultFrameRate ?? 12,
+			imageSrc: sheet.imageSrc || '',
 		});
 	}
 
@@ -81,7 +84,7 @@ export class SheetDialog {
 				<h2 class="sd-title"></h2>
 
 				<div class="sd-section">
-					<div class="sd-section-label">Image</div>
+					<div class="sd-section-label">Image size</div>
 					<div class="modal-row">
 						<label class="modal-field">
 							<span>Width</span>
@@ -154,7 +157,7 @@ export class SheetDialog {
 		`;
 		document.body.appendChild(this.backdrop);
 
-		this.titleEl  = this.backdrop.querySelector('.sd-title');
+		this.titleEl   = this.backdrop.querySelector('.sd-title');
 		this.warningEl = this.backdrop.querySelector('.sd-warning');
 		this.confirmBtn = this.backdrop.querySelector('.modal-confirm');
 
@@ -197,13 +200,10 @@ export class SheetDialog {
 
 	_updateVisibility() {
 		const isNew = this._mode === 'new';
-		// New mode shows image dimensions and cell count; edit mode shows
-		// the sheet's image-source path. Frame size, centre and rate are
-		// shown in both.
-		for (const key of ['imageWidth', 'imageHeight', 'cellCount']) {
-			this._rowFor(key).hidden = !isNew;
-		}
-		this._rowFor('imageSrc').hidden = isNew;
+		// Image size and centre are editable in both modes; Cells and the
+		// Suggest button are New-only; Image file is Edit-only.
+		this._rowFor('cellCount').hidden = !isNew;
+		this._rowFor('imageSrc').hidden  = isNew;
 		this.backdrop.querySelector('.sd-suggest').hidden = !isNew;
 	}
 
@@ -219,8 +219,6 @@ export class SheetDialog {
 		const n  = this._num('cellCount');
 		if (fw <= 0 || fh <= 0 || n <= 0) return;
 
-		// Roughly square overall image, given each cell's own aspect ratio.
-		// Solve cols * rows >= n, cols*fw ≈ rows*fh.
 		const cols = Math.max(1, Math.ceil(Math.sqrt(n * fh / fw)));
 		const rows = Math.max(1, Math.ceil(n / cols));
 		this.fields.imageWidth.value  = cols * fw;
@@ -231,37 +229,59 @@ export class SheetDialog {
 	// --- validation -------------------------------------------------------
 
 	_validate() {
-		let problem = null;
+		let fatal = null;
+		let soft  = null;
 
-		if (this._mode === 'new') {
-			const iw = this._num('imageWidth');
-			const ih = this._num('imageHeight');
-			const fw = this._num('frameWidth');
-			const fh = this._num('frameHeight');
-			const n  = this._num('cellCount');
+		const iw = this._num('imageWidth');
+		const ih = this._num('imageHeight');
+		const fw = this._num('frameWidth');
+		const fh = this._num('frameHeight');
 
-			if (fw <= 0 || fh <= 0) problem = 'Frame size must be at least 1×1.';
-			else if (iw <= 0 || ih <= 0) problem = 'Image size must be at least 1×1.';
-			else if (n <= 0) problem = 'Cell count must be at least 1.';
+		if (fw <= 0 || fh <= 0) fatal = 'Frame size must be at least 1×1.';
+		else if (iw <= 0 || ih <= 0) fatal = 'Image size must be at least 1×1.';
+
+		if (!fatal && this._mode === 'new') {
+			const n = this._num('cellCount');
+			if (n <= 0) fatal = 'Cell count must be at least 1.';
 			else {
 				const capacity = Math.floor(iw / fw) * Math.floor(ih / fh);
 				if (capacity < n) {
 					const fitW = Math.floor(iw / fw);
 					const fitH = Math.floor(ih / fh);
-					problem = `Image fits ${capacity} cells (${fitW}×${fitH}); ` +
+					fatal = `Image fits ${capacity} cells (${fitW}×${fitH}); ` +
 						`the sheet needs ${n}.`;
 				}
 			}
-		} else {
-			const fw = this._num('frameWidth');
-			const fh = this._num('frameHeight');
-			if (fw <= 0 || fh <= 0) problem = 'Frame size must be at least 1×1.';
 		}
 
-		if (problem) {
-			this.warningEl.textContent = problem;
+		// Edit mode: warn (don't block) if the new bounds would clip any
+		// frame. Frames outside the new bounds keep their data; their
+		// pixels are lost.
+		if (!fatal && this._mode === 'edit' && this._sheet) {
+			const lost = [];
+			for (const name of this._sheet.frameNames) {
+				const f = this._sheet.frames[name];
+				if (f.x + f.width > iw || f.y + f.height > ih) lost.push(name);
+			}
+			if (lost.length > 0) {
+				const preview = lost.slice(0, 3).join(', ');
+				const more = lost.length > 3 ? ` and ${lost.length - 3} more` : '';
+				soft = `${lost.length} frame${lost.length === 1 ? '' : 's'} ` +
+					`extend past the new bounds (${preview}${more}). ` +
+					`Their data is kept; their pixels outside the new image are lost.`;
+			}
+		}
+
+		if (fatal) {
+			this.warningEl.textContent = fatal;
+			this.warningEl.className = 'sd-warning';
 			this.warningEl.hidden = false;
 			this.confirmBtn.disabled = true;
+		} else if (soft) {
+			this.warningEl.textContent = soft;
+			this.warningEl.className = 'sd-warning soft';
+			this.warningEl.hidden = false;
+			this.confirmBtn.disabled = false;
 		} else {
 			this.warningEl.hidden = true;
 			this.confirmBtn.disabled = false;

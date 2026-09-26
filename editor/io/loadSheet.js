@@ -1,76 +1,13 @@
-// Loads a sprite sheet and swaps its image for an editable canvas.
+// Loading, from disk or programmatically. Two independent halves:
+//   • Sprite data — frames, sequences, settings, collision
+//   • Image       — the pixel atlas
 //
-// The runtime accepts any CanvasImageSource for sheet.image, so from here on
-// the sheet's pixels live on our canvas. Edits mutate the canvas in place,
-// which means every sprite drawn from the sheet sees the change immediately —
-// no reference swapping, no re-creating sprites.
-export async function loadSheet(path) {
-	const sheet = await window.SpriteSheet.load(path);
-	return makeEditable(sheet);
-}
-
-// Swap the sheet's image for an offscreen canvas so pixel-editing tools
-// have something they can call getContext('2d') and putImageData on. Both
-// the URL loader and the disk loader end with this step.
-export function makeEditable(sheet) {
-	const canvas = document.createElement('canvas');
-	canvas.width  = sheet.imageWidth;
-	canvas.height = sheet.imageHeight;
-
-	const ctx = canvas.getContext('2d', { willReadFrequently: true });
-	ctx.imageSmoothingEnabled = false;
-	ctx.drawImage(sheet.image, 0, 0);
-
-	sheet.image = canvas;
-	return sheet;
-}
+// Each can be loaded, replaced, or absent independently.
 
 /* ==========================================================================
- *  Disk loading
- *
- *  Chromium only grants a file picker a transient user activation once; a
- *  second picker in the same async flow fails with "File chooser dialog
- *  can only be shown with a user activation." So we ask for both files in
- *  one picker and pair them by looking at the JSON's "image" field.
+ *  File pickers
  * ========================================================================== */
 
-// Multi-file picker. Uses the File System Access API when available,
-// falling back to a hidden <input type="file" multiple>.
-export async function pickFiles({ description, accept }) {
-	if (typeof window.showOpenFilePicker === 'function') {
-		try {
-			const handles = await window.showOpenFilePicker({
-				types: [{ description, accept }],
-				multiple: true,
-			});
-			return await Promise.all(handles.map(h => h.getFile()));
-		} catch (err) {
-			if (err.name === 'AbortError') return null;
-			// Some Chromium variants reject for reasons other than user
-			// cancel. Fall through to the input path.
-		}
-	}
-	return _inputPickFiles(accept);
-}
-
-function _inputPickFiles(acceptMap) {
-	return new Promise((resolve) => {
-		const input = document.createElement('input');
-		input.type = 'file';
-		input.multiple = true;
-		input.accept = Object.values(acceptMap).flat().join(',');
-		input.style.display = 'none';
-		input.addEventListener('change', () => {
-			document.body.removeChild(input);
-			resolve(input.files ? Array.from(input.files) : null);
-		});
-		document.body.appendChild(input);
-		input.click();
-	});
-}
-
-// Single-file picker. Same activation rules as pickFiles: one click, one
-// picker, one user gesture.
 export async function pickFile({ description, accept, extensions }) {
 	if (typeof window.showOpenFilePicker === 'function') {
 		try {
@@ -81,7 +18,6 @@ export async function pickFile({ description, accept, extensions }) {
 			return await handle.getFile();
 		} catch (err) {
 			if (err.name === 'AbortError') return null;
-			// Fall through to the input path for other rejection reasons.
 		}
 	}
 	return _inputPickOne(extensions.join(','));
@@ -102,85 +38,127 @@ function _inputPickOne(accept) {
 	});
 }
 
-// Load a sheet from a set of user-picked files. The set must contain a JSON
-// file and (unless the JSON references an absolute URL or data URI) the
-// image it names. Returns { sheet, jsonFilename, imageFilename } or null if
-// the user cancels.
-export async function loadSheetFromDisk() {
-	const files = await pickFiles({
-		description: 'Sprite sheet JSON and its image',
-		accept: {
-			'application/json': ['.json'],
-			'image/png':  ['.png'],
-			'image/gif':  ['.gif'],
-			'image/jpeg': ['.jpg', '.jpeg'],
-			'image/webp': ['.webp'],
-		},
+/* ==========================================================================
+ *  Sprite data
+ * ========================================================================== */
+
+// Load a sprite JSON from disk. Returns:
+//   { json, jsonFilename, imageFilename } — parsed JSON and the filenames
+// The caller decides whether to also load an image.
+export async function loadSpriteFile() {
+	const file = await pickFile({
+		description: 'Sprite sheet JSON',
+		accept: 'application/json',
+		extensions: ['.json'],
 	});
-	if (!files || files.length === 0) return null;
+	if (!file) return null;
 
-	const jsonFile = files.find(f => /\.json$/i.test(f.name));
-	if (!jsonFile) {
-		throw new Error('Please select the sheet JSON along with its image.');
-	}
-
-	let data;
+	let json;
 	try {
-		data = JSON.parse(await jsonFile.text());
+		json = JSON.parse(await file.text());
 	} catch (err) {
-		throw new Error(`Invalid JSON in ${jsonFile.name}: ${err.message}`);
+		throw new Error(`Invalid JSON in ${file.name}: ${err.message}`);
 	}
 
-	const imageRef = data.image;
-	if (!imageRef) {
-		throw new Error(`Sheet ${jsonFile.name} has no "image" field.`);
+	return {
+		json,
+		jsonFilename: file.name,
+		imageFilename: (json.image || '').split('/').pop() || null,
+	};
+}
+
+// Build a SpriteSheet from raw sprite JSON. If no image is supplied, uses
+// a blank canvas sized from the frames themselves, so the frame rectangles
+// land where they would against the real image.
+export async function sheetFromSpriteJSON(json, imageSource = null) {
+	const image = imageSource || _placeholderCanvasFor(json);
+	const sheet = await window.SpriteSheet.fromJSON({ ...json, image });
+	return sheet;
+}
+
+// Compute the tightest canvas that contains every frame, so the placeholder
+// matches what the eventual real image will look like. Handles both the
+// grid form (col/row) and pixel-offset aliases (x/y, xoffset/yoffset).
+function _placeholderCanvasFor(json) {
+	const fw = Number(json.frameWidth)  || 16;
+	const fh = Number(json.frameHeight) || 16;
+	let maxX = fw;
+	let maxY = fh;
+
+	const frames = json.frames || {};
+	for (const name of Object.keys(frames)) {
+		const data = frames[name] || {};
+
+		let fx = 0;
+		let fy = 0;
+		if (data.col !== undefined) fx += Number(data.col) * fw;
+		if (data.row !== undefined) fy += Number(data.row) * fh;
+
+		// Apply the first pixel-offset alias that appears; JSON authors
+		// use one or the other, not both.
+		const xAlias = data.x !== undefined      ? data.x
+		             : data.left !== undefined   ? data.left
+		             : data.xoffset;
+		const yAlias = data.y !== undefined      ? data.y
+		             : data.top !== undefined    ? data.top
+		             : data.yoffset;
+		if (xAlias !== undefined) fx += Number(xAlias);
+		if (yAlias !== undefined) fy += Number(yAlias);
+
+		const w = Number(data.width)  || fw;
+		const h = Number(data.height) || fh;
+
+		if (fx + w > maxX) maxX = fx + w;
+		if (fy + h > maxY) maxY = fy + h;
 	}
 
-	let imageSource;
-	let imageFilename;
-
-	if (_isAbsoluteImageRef(imageRef)) {
-		imageSource = await _loadImageFromURL(imageRef);
-		imageFilename = _basename(imageRef);
-	} else {
-		const wanted = _basename(imageRef).toLowerCase();
-		const imageFile = files.find(f => f.name.toLowerCase() === wanted);
-		if (!imageFile) {
-			const listed = files.map(f => f.name).join(', ');
-			throw new Error(
-				`The JSON refers to "${imageRef}", but that file wasn't ` +
-				`among the selection (${listed}).`
-			);
-		}
-		imageSource = await _loadImageFromFile(imageFile);
-		imageFilename = imageFile.name;
-	}
-
-	const sheet = await window.SpriteSheet.fromJSON({ ...data, image: imageSource });
-	makeEditable(sheet);
-	sheet.imageSrc = imageFilename;
-
-	return { sheet, jsonFilename: jsonFile.name, imageFilename };
+	const c = document.createElement('canvas');
+	c.width  = Math.max(1, maxX);
+	c.height = Math.max(1, maxY);
+	c.getContext('2d', { willReadFrequently: true });
+	return c;
 }
 
-export function _isAbsoluteImageRef(ref) {
-	return /^(data:|https?:\/\/|\/)/i.test(ref);
+// Swap the sheet's image for an editable canvas. Pixels editing tools need
+// a real 2D context, which an HTMLImageElement doesn't provide.
+export function makeEditable(sheet) {
+	const canvas = document.createElement('canvas');
+	canvas.width  = sheet.imageWidth;
+	canvas.height = sheet.imageHeight;
+	const ctx = canvas.getContext('2d', { willReadFrequently: true });
+	ctx.imageSmoothingEnabled = false;
+	ctx.drawImage(sheet.image, 0, 0);
+	sheet.image = canvas;
+	return sheet;
 }
 
-export function _basename(p) {
-	return String(p).split('/').pop().split('?')[0];
-}
+/* ==========================================================================
+ *  Image
+ * ========================================================================== */
 
-export function _loadImageFromURL(src) {
-	return new Promise((resolve, reject) => {
-		const img = new Image();
-		img.onload  = () => resolve(img);
-		img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
-		img.src = src;
+// Load an image file from disk, returned as an offscreen canvas ready for
+// pixel editing.
+export async function loadImageFile() {
+	const file = await pickFile({
+		description: 'Sheet image',
+		accept: 'image/*',
+		extensions: ['.png', '.gif', '.jpg', '.jpeg', '.webp'],
 	});
+	if (!file) return null;
+
+	const img = await _loadImageFromFile(file);
+
+	const canvas = document.createElement('canvas');
+	canvas.width  = img.naturalWidth || img.width;
+	canvas.height = img.naturalHeight || img.height;
+	const ctx = canvas.getContext('2d', { willReadFrequently: true });
+	ctx.imageSmoothingEnabled = false;
+	ctx.drawImage(img, 0, 0);
+
+	return { canvas, imageFilename: file.name };
 }
 
-export async function _loadImageFromFile(file) {
+async function _loadImageFromFile(file) {
 	const url = URL.createObjectURL(file);
 	try {
 		const img = new Image();
@@ -200,11 +178,9 @@ export async function _loadImageFromFile(file) {
 }
 
 /* ==========================================================================
- *  Blank sheet creation
+ *  Blank / minimal sheets
  * ========================================================================== */
 
-// Build a fresh SpriteSheet with an empty (transparent) canvas of the
-// requested size, and a set of empty frames laid out on the grid.
 export async function makeBlankSheet({
 	imageWidth,
 	imageHeight,
@@ -235,15 +211,24 @@ export async function makeBlankSheet({
 
 	const sheet = await window.SpriteSheet.fromJSON({
 		image: canvas,
-		frameWidth,
-		frameHeight,
-		centerx,
-		centery,
+		frameWidth, frameHeight,
+		centerx, centery,
 		frameRate: defaultFrameRate,
 		frames,
 		sequences: {},
 	});
+	return sheet;
+}
 
-	// The canvas is already editable; no swap needed.
+// Wrap a bare canvas in a minimal sheet with default frame settings and no
+// frames. Used when the user loads an image without a sprite.
+export async function makeSheetFromImage(canvas) {
+	const sheet = await window.SpriteSheet.fromJSON({
+		image: canvas,
+		frameWidth: 16,
+		frameHeight: 16,
+		frames: {},
+		sequences: {},
+	});
 	return sheet;
 }

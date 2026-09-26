@@ -3,7 +3,8 @@ import { PaintCommand } from '../history/PaintCommand.js';
 import {
 	AddFrameCommand, RemoveFrameCommand, RenameFrameCommand, SetFrameCommand,
 	AddSequenceCommand, RemoveSequenceCommand, RenameSequenceCommand, SetSequenceCommand,
-	ExpandCanvasCommand, SetSheetSettingsCommand, SetCollisionCommand,
+	ResizeCanvasCommand, SetSheetSettingsCommand, SetCollisionCommand,
+	CompositeCommand,
 } from './sheetCommands.js';
 
 // A facade over SpriteSheet that mediates all structural mutations through
@@ -233,24 +234,21 @@ export class EditableSheet {
 
 	// --- canvas -----------------------------------------------------------
 
-	// Grow the atlas canvas to newWidth × newHeight. Existing content is
-	// copied to (offsetX, offsetY). Frame rects are not shifted; if
-	// offsetX/offsetY are nonzero the caller is responsible for moving them.
-	expandCanvas(newWidth, newHeight, offsetX = 0, offsetY = 0) {
-		newWidth  = Math.max(newWidth  | 0, this.sheet.imageWidth);
-		newHeight = Math.max(newHeight | 0, this.sheet.imageHeight);
+	// Grow or shrink the canvas. Existing content stays anchored at the
+	// top-left; expanding adds blank space on the right/bottom, shrinking
+	// drops the right/bottom. Frame data is not touched, even when a frame
+	// now sits outside the new bounds.
+	resizeCanvas(newWidth, newHeight) {
+		newWidth  = Math.max(1, Number(newWidth)  | 0);
+		newHeight = Math.max(1, Number(newHeight) | 0);
 		if (newWidth === this.sheet.imageWidth && newHeight === this.sheet.imageHeight) {
 			return;
 		}
 		this.history.execute(
-			new ExpandCanvasCommand(this.sheet, newWidth, newHeight, offsetX, offsetY), 
+			new ResizeCanvasCommand(this.sheet, newWidth, newHeight),
 			'pixels'
 		);
-		this.emit('changed', {
-			type: 'canvasExpanded',
-			width: newWidth,
-			height: newHeight,
-		});
+		this.emit('changed', { type: 'canvasResized', width: newWidth, height: newHeight });
 	}
 
 	// --- settings ---------------------------------------------------------
@@ -264,30 +262,51 @@ export class EditableSheet {
 		];
 		const before = {};
 		const after  = {};
-		let changed = false;
+		let settingsChanged = false;
 
 		for (const k of numericFields) {
 			before[k] = this.sheet[k];
 			after[k]  = patch[k] !== undefined ? Number(patch[k]) : this.sheet[k];
-			if (before[k] !== after[k]) changed = true;
+			if (before[k] !== after[k]) settingsChanged = true;
 		}
 
-		// imageSrc is a string: the filename the sheet expects its image
-		// to live under. Changing it doesn't touch pixels; it only affects
-		// what `toJSON()` writes into the "image" field.
 		if (patch.imageSrc !== undefined) {
 			before.imageSrc = this.sheet.imageSrc;
 			after.imageSrc  = String(patch.imageSrc);
-			if (before.imageSrc !== after.imageSrc) changed = true;
+			if (before.imageSrc !== after.imageSrc) settingsChanged = true;
 		}
 
-		if (!changed) return;
+		const commands = [];
 
-		this.history.execute(
-			new SetSheetSettingsCommand(this.sheet, before, after),
-			'data'
-		);
-		this.emit('changed', { type: 'settingsUpdated' });
+		if (settingsChanged) {
+			commands.push(new SetSheetSettingsCommand(this.sheet, before, after));
+		}
+
+		const wantW = patch.imageWidth  !== undefined
+			? Math.max(1, Number(patch.imageWidth)  | 0)
+			: this.sheet.imageWidth;
+		const wantH = patch.imageHeight !== undefined
+			? Math.max(1, Number(patch.imageHeight) | 0)
+			: this.sheet.imageHeight;
+		const resizeChanged =
+			wantW !== this.sheet.imageWidth || wantH !== this.sheet.imageHeight;
+		if (resizeChanged) {
+			commands.push(new ResizeCanvasCommand(this.sheet, wantW, wantH));
+		}
+
+		if (commands.length === 0) return;
+
+		// One command if only one side changed; a composite when both did,
+		// so a single Ctrl+Z reverses the whole dialog interaction.
+		const cmd = commands.length === 1 ? commands[0] : new CompositeCommand(commands);
+		const kind = settingsChanged && resizeChanged ? 'both'
+			: resizeChanged ? 'pixels'
+			: 'data';
+		this.history.execute(cmd, kind);
+		this.emit('changed', {
+			type: 'settingsUpdated',
+			resized: resizeChanged,
+		});
 	}
 
 	// --- collision --------------------------------------------------------
