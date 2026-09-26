@@ -16,8 +16,9 @@ export class ColorPickerTool extends Tool {
 		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
 		const data = ctx.getImageData(x, y, 1, 1).data;
 		const hex = rgbaToHex(data[0], data[1], data[2]);
+		const alpha = data[3];
 
-		if (ev.button === 2) this.context.palette.setSecondary(hex);
-		else                 this.context.palette.setPrimary(hex);
+		if (ev.button === 2) this.context.palette.setSecondary(hex, alpha);
+		else                 this.context.palette.setPrimary(hex, alpha);
 	}
 }

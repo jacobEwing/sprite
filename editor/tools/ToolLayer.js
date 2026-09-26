@@ -159,12 +159,8 @@ export class ToolLayer {
 		const hex = rgbaToHex(d[0], d[1], d[2]);
 		const alpha = d[3];
 
-		if (e.button === 2) {
-			this.palette.setSecondary(hex);
-			this.palette.setSecondaryAlpha(alpha);
-		} else {
-			this.palette.setPrimary(hex);
-			this.palette.setPrimaryAlpha(alpha);
-		}
+		if (e.button === 2) this.palette.setSecondary(hex, alpha);
+		else                this.palette.setPrimary(hex, alpha);
+
 	}
 }

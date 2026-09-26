@@ -18,9 +18,8 @@ export class FloodFillTool extends Tool {
 		if (!target) return;  // click was outside the clip rect
 
 		const p = this.context.palette;
-		const hex   = ev.button === 2 ? p.secondary      : p.primary;
-		const alpha = ev.button === 2 ? p.secondaryAlpha : p.primaryAlpha;
-		const replacement = hexToRGBA(hex, alpha) ?? [0, 0, 0, 255];
+		const color = ev.button === 2 ? p.secondary : p.primary;
+		const replacement = hexToRGBA(color.hex, color.alpha) ?? [0, 0, 0, 255];
 
 		// No-op if the target already equals the replacement.
 		if (target[0] === replacement[0] && target[1] === replacement[1] &&

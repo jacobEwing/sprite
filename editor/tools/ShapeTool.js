@@ -80,8 +80,7 @@ export class ShapeTool extends Tool {
 
 	_colorRGBA() {
 		const p = this.context.palette;
-		const hex   = this.button === 2 ? p.secondary      : p.primary;
-		const alpha = this.button === 2 ? p.secondaryAlpha : p.primaryAlpha;
-		return hexToRGBA(hex, alpha) ?? [0, 0, 0, 255];
+		const color = this.button === 2 ? p.secondary : p.primary;
+		return hexToRGBA(color.hex, color.alpha) ?? [0, 0, 0, 255];
 	}
 }

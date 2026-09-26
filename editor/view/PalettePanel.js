@@ -11,12 +11,9 @@ const PRESETS = [
 // Owns the entire Colours pane. Renders primary/secondary swatches, hex
 // inputs, swap button, recent-colours grid, and a preset grid.
 //
-// Interaction model:
-//   • Click primary/secondary swatch → opens the colour picker popover
-//   • Type in a hex field → sets that slot
-//   • Click ⇄ → swaps primary and secondary
-//   • Left-click a recent or preset → sets primary
-//   • Right-click a recent or preset → sets secondary
+// Alpha is part of the colour: the swatches show it, recents preserve it,
+// and presets always set it back to 255.
+
 export class PalettePanel {
 	constructor(root, palette) {
 		this.root = root;
@@ -34,11 +31,9 @@ export class PalettePanel {
 
 	_applySlot(hex, alpha, pushRecent) {
 		if (this._openSlot === 'primary') {
-			this.palette.setPrimary(hex, { pushRecent });
-			this.palette.setPrimaryAlpha(alpha);
+			this.palette.setPrimary(hex, alpha, { pushRecent });
 		} else if (this._openSlot === 'secondary') {
-			this.palette.setSecondary(hex, { pushRecent });
-			this.palette.setSecondaryAlpha(alpha);
+			this.palette.setSecondary(hex, alpha, { pushRecent });
 		}
 	}
 
@@ -94,7 +89,7 @@ export class PalettePanel {
 			input.addEventListener('keydown', (e) => {
 				if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
 				else if (e.key === 'Escape') {
-					input.value = this.palette[slot];
+					input.value = this.palette[slot].hex;
 					input.blur();
 				}
 			});
@@ -103,48 +98,52 @@ export class PalettePanel {
 		this.root.querySelector('.pal-swap')
 			.addEventListener('click', () => this.palette.swap());
 
-		this._buildGrid(this.presetsGrid, PRESETS);
+		this._buildPresetGrid(this.presetsGrid, PRESETS);
 	}
 
 	_openPicker(slot) {
 		this._openSlot = slot;
-		const hex   = slot === 'primary' ? this.palette.primary   : this.palette.secondary;
-		const alpha = slot === 'primary' ? this.palette.primaryAlpha : this.palette.secondaryAlpha;
+		const color = this.palette[slot];
 		const anchor = slot === 'primary' ? this.swatchPrimary : this.swatchSecondary;
-		this.picker.show(hex, alpha, anchor);
+		this.picker.show(color.hex, color.alpha, anchor);
 	}
 
-	_buildGrid(container, hexes) {
+	_buildPresetGrid(container, hexes) {
 		container.innerHTML = '';
-		for (const hex of hexes) {
-			const btn = document.createElement('button');
-			btn.className = 'pal-cell';
-			btn.dataset.hex = hex;
-			btn.title = hex;
-			btn.style.background = hex;
+		for (const hex of hexes) this._makeColorCell(container, { hex, alpha: 255 });
+	}
 
-			// mousedown rather than click so right-click registers reliably
-			// before the browser's contextmenu logic kicks in.
-			btn.addEventListener('mousedown', (e) => {
-				e.preventDefault();
-				if (e.button === 2) {
-					this.palette.setSecondary(hex);
-					this.palette.setSecondaryAlpha(255);
-				} else {
-					this.palette.setPrimary(hex);
-					this.palette.setPrimaryAlpha(255);
-				}
-			});
+	_buildRecentGrid(container, colors) {
+		container.innerHTML = '';
+		for (const color of colors) this._makeColorCell(container, color);
+	}
 
-			btn.addEventListener('contextmenu', (e) => e.preventDefault());
+	_makeColorCell(container, color) {
+		const btn = document.createElement('button');
+		btn.className = 'pal-cell';
+		btn.dataset.hex = color.hex;
+		btn.dataset.alpha = String(color.alpha);
+		btn.title = color.alpha === 255
+			? color.hex
+			: `${color.hex} α${color.alpha}`;
+		btn.style.setProperty('--cell-color', _cssFor(color));
 
-			container.appendChild(btn);
-		}
+		// Use mousedown rather than click so right-click registers before
+		// the browser's contextmenu fires.
+		btn.addEventListener('mousedown', (e) => {
+			e.preventDefault();
+			if (e.button === 2) this.palette.setSecondary(color.hex, color.alpha);
+			else                this.palette.setPrimary(color.hex, color.alpha);
+		});
+		btn.addEventListener('contextmenu', (e) => e.preventDefault());
+
+		container.appendChild(btn);
 	}
 
 	_commitHex(slot, raw) {
 		const hex = normalizeHex(raw);
 		if (!hex) { this._sync(); return; }
+		// Preserve the current alpha; the hex field only edits the hex part.
 		if (slot === 'primary') this.palette.setPrimary(hex);
 		else                    this.palette.setSecondary(hex);
 	}
@@ -152,18 +151,22 @@ export class PalettePanel {
 	_sync() {
 		const p = this.palette;
 
-		this._paintSwatch(this.swatchPrimary,   p.primary,   p.primaryAlpha);
-		this._paintSwatch(this.swatchSecondary, p.secondary, p.secondaryAlpha);
+		this._paintSwatch(this.swatchPrimary,   p.primary);
+		this._paintSwatch(this.swatchSecondary, p.secondary);
 
-		if (document.activeElement !== this.hexPrimary)   this.hexPrimary.value   = p.primary;
-		if (document.activeElement !== this.hexSecondary) this.hexSecondary.value = p.secondary;
+		if (document.activeElement !== this.hexPrimary)   this.hexPrimary.value   = p.primary.hex;
+		if (document.activeElement !== this.hexSecondary) this.hexSecondary.value = p.secondary.hex;
 
-		this._buildGrid(this.recentGrid, p.recent);
+		this._buildRecentGrid(this.recentGrid, p.recent);
 	}
 
-	_paintSwatch(swatchEl, hex, alpha) {
-		const [r, g, b] = hexToRGBA(hex) ?? [0, 0, 0];
+	_paintSwatch(swatchEl, color) {
 		const inner = swatchEl.querySelector('.pal-swatch-color');
-		if (inner) inner.style.background = `rgba(${r},${g},${b},${alpha / 255})`;
+		if (inner) inner.style.background = _cssFor(color);
 	}
+}
+
+function _cssFor(color) {
+	const [r, g, b] = hexToRGBA(color.hex) ?? [0, 0, 0];
+	return `rgba(${r}, ${g}, ${b}, ${color.alpha / 255})`;
 }
