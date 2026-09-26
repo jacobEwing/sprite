@@ -1,17 +1,18 @@
 import { makeEmitter } from '../lib/emitter.js';
 import { EditableSheet } from './EditableSheet.js';
+import { Selection } from './Selection.js';
 
-// Holds the loaded sheet and the current selection. Wraps the sheet in an
-// EditableSheet so all structural mutations go through the command layer.
-//
-// Dirty state is derived from the History's per-kind depths, so undoing
-// back to the save point clears it automatically.
+// Holds the loaded sheet, the current selection, and the current frame /
+// sequence selections. Wraps the sheet in an EditableSheet so all
+// structural mutations go through the command layer.
 //
 // Events:
-//   sheetChanged     — a new sheet has been set
-//   selectionChanged — { frame?, sequence?, focus?, changed? }
-//   edit             — a mutation occurred (any kind)
-//   dirtyChanged     — { dirtyImage, dirtyData, anyDirty }
+//   sheetChanged      — a new sheet has been set
+//   selectionChanged  — frame or sequence selection changed
+//                       { frame?, sequence?, focus?, changed? }
+//   selectionModified — the pixel selection rect changed (during a drag)
+//   edit              — a mutation occurred (any kind)
+//   dirtyChanged      — { dirtyImage, dirtyData, anyDirty }
 export class EditorDocument {
 	constructor(history) {
 		makeEmitter(this);
@@ -20,6 +21,7 @@ export class EditorDocument {
 		this.editable = null;
 		this.selectedFrame = null;
 		this.selectedSequence = null;
+		this.selection = new Selection();
 
 		history.on('change', ({ source }) => {
 			if (source === 'undo' || source === 'redo') {
@@ -43,9 +45,8 @@ export class EditorDocument {
 
 		this.selectedFrame = sheet.frameNames[0] ?? null;
 		this.selectedSequence = sheet.sequenceNames[0] ?? null;
+		this.selection.clear();
 
-		// Reset history and everything derived from it. Fires a 'change'
-		// event that emits dirtyChanged, so the indicator clears.
 		this.history.clear();
 
 		this.emit('sheetChanged', { sheet });
@@ -87,17 +88,53 @@ export class EditorDocument {
 		this.history.markSaved(which);
 	}
 
-	_emitDirty() {
-		this.emit('dirtyChanged', {
-			dirtyImage: this.dirtyImage,
-			dirtyData:  this.dirtyData,
-			anyDirty:   this.anyDirty,
-		});
+	// --- pixel selection --------------------------------------------------
+
+	setSelection(rect) {
+		const changed = this.selection.set(rect);
+		if (changed) this.emit('selectionModified', {});
+		return changed;
 	}
+
+	clearSelection() {
+		if (this.selection.isEmpty) return;
+		this.selection.clear();
+		this.emit('selectionModified', {});
+	}
+
+	// Select the current frame's full bounds.
+	selectAllOfFrame() {
+		const f = this.getSelectedFrame();
+		if (!f) return;
+		this.setSelection({ x: f.x, y: f.y, w: f.width, h: f.height });
+	}
+
+	// Internal: the SelectionTool mutates .selection directly for live
+	// feedback during a drag, then fires this to redraw.
+	_emitSelectionModified() {
+		this.emit('selectionModified', {});
+	}
+
+	// The rect that pixel-content operations should act on: the current
+	// selection if there is one, otherwise the selected frame's bounds.
+	currentOpRect() {
+		if (this.selection.rect) return { ...this.selection.rect };
+		const f = this.getSelectedFrame();
+		if (!f) return null;
+		return { x: f.x, y: f.y, w: f.width, h: f.height };
+	}
+
+	// --- frame / sequence selection --------------------------------------
 
 	selectFrame(name, { focus = false } = {}) {
 		const changed = this.selectedFrame !== name;
 		this.selectedFrame = name;
+		// Changing frames clears the pixel selection: a rect anchored in
+		// the previous frame's neighbourhood is meaningless here.
+		if (changed && !this.selection.isEmpty) {
+			this.selection.clear();
+			this.emit('selectionModified', {});
+		}
 		this.emit('selectionChanged', { frame: name, changed, focus });
 	}
 
@@ -117,5 +154,13 @@ export class EditorDocument {
 		return this.sheet && this.selectedSequence
 			? this.sheet.sequences[this.selectedSequence]
 			: null;
+	}
+
+	_emitDirty() {
+		this.emit('dirtyChanged', {
+			dirtyImage: this.dirtyImage,
+			dirtyData:  this.dirtyData,
+			anyDirty:   this.anyDirty,
+		});
 	}
 }

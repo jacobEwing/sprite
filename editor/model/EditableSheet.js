@@ -336,67 +336,68 @@ export class EditableSheet {
 		});
 		this.setCollision({ circles: next });
 	}
-
 	// --- frame content ----------------------------------------------------
 
-	// Wipe the selected frame's pixels to transparent. No-op if already
-	// empty; otherwise a single undoable command.
-	clearFrameContent(frameName) {
-		const frame = this.sheet.frames[frameName];
-		if (!frame) return;
-
+	// Clear a specific region to transparent. `rect` is in image coords.
+	clearRegion(rect) {
+		if (!rect || rect.w <= 0 || rect.h <= 0) return;
 		const ctx = this.sheet.image.getContext('2d', { willReadFrequently: true });
-		const before = ctx.getImageData(frame.x, frame.y, frame.width, frame.height);
+		const before = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
 
-		// Early-out if there's nothing to clear.
 		let anyOpaque = false;
 		for (let i = 3; i < before.data.length; i += 4) {
 			if (before.data[i] !== 0) { anyOpaque = true; break; }
 		}
 		if (!anyOpaque) return;
 
-		ctx.clearRect(frame.x, frame.y, frame.width, frame.height);
-		const after = ctx.getImageData(frame.x, frame.y, frame.width, frame.height);
+		ctx.clearRect(rect.x, rect.y, rect.w, rect.h);
+		const after = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
 
-		const cmd = new PaintCommand(
-			ctx, frame.x, frame.y, frame.width, frame.height, before, after
-		);
+		const cmd = new PaintCommand(ctx, rect.x, rect.y, rect.w, rect.h, before, after);
 		this.history.push(cmd, 'pixels');
-		this.emit('changed', { type: 'frameUpdated', name: frameName });
+		this.emit('changed', { type: 'regionUpdated' });
 	}
 
-	// Composite `imageData` into the frame, centred. Fully transparent
-	// clipboard pixels are skipped; opaque pixels replace; partial alpha
-	// is alpha-blended with the target.
-	pasteIntoFrame(frameName, imageData) {
-		if (!imageData) return;
+	clearFrameContent(frameName) {
 		const frame = this.sheet.frames[frameName];
 		if (!frame) return;
+		this.clearRegion({ x: frame.x, y: frame.y, w: frame.width, h: frame.height });
+	}
+
+	// Composite `imageData` into `rect`. Align may be 'center' (default)
+	// or 'topleft'. Pixels outside `rect` are dropped.
+	pasteIntoRegion(rect, imageData, { align = 'center' } = {}) {
+		if (!imageData || !rect || rect.w <= 0 || rect.h <= 0) return;
 
 		const ctx = this.sheet.image.getContext('2d', { willReadFrequently: true });
-		const before = ctx.getImageData(frame.x, frame.y, frame.width, frame.height);
-
-		// Work in a copy so we only touch pixels the clipboard reaches.
+		const before = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
 		const working = new ImageData(
 			new Uint8ClampedArray(before.data),
 			before.width,
 			before.height
 		);
 
-		const ox = Math.floor((frame.width  - imageData.width)  / 2);
-		const oy = Math.floor((frame.height - imageData.height) / 2);
+		let ox, oy;
+		if (align === 'topleft') {
+			ox = 0;
+			oy = 0;
+		} else {
+			ox = Math.floor((rect.w - imageData.width)  / 2);
+			oy = Math.floor((rect.h - imageData.height) / 2);
+		}
+
 		const sd = imageData.data;
 		const wd = working.data;
 
 		for (let y = 0; y < imageData.height; y++) {
 			const ty = y + oy;
-			if (ty < 0 || ty >= frame.height) continue;
+			if (ty < 0 || ty >= rect.h) continue;
 			for (let x = 0; x < imageData.width; x++) {
 				const tx = x + ox;
-				if (tx < 0 || tx >= frame.width) continue;
+				if (tx < 0 || tx >= rect.w) continue;
 
 				const si = (y * imageData.width + x) * 4;
-				const ti = (ty * frame.width + tx) * 4;
+				const ti = (ty * rect.w + tx) * 4;
 				const sa = sd[si + 3] / 255;
 				if (sa === 0) continue;
 
@@ -418,14 +419,22 @@ export class EditableSheet {
 			}
 		}
 
-		ctx.putImageData(working, frame.x, frame.y);
-		const after = ctx.getImageData(frame.x, frame.y, frame.width, frame.height);
+		ctx.putImageData(working, rect.x, rect.y);
+		const after = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
 
-		const cmd = new PaintCommand(
-			ctx, frame.x, frame.y, frame.width, frame.height, before, after
-		);
+		const cmd = new PaintCommand(ctx, rect.x, rect.y, rect.w, rect.h, before, after);
 		this.history.push(cmd, 'pixels');
-		this.emit('changed', { type: 'frameUpdated', name: frameName });
+		this.emit('changed', { type: 'regionUpdated' });
+	}
+
+	pasteIntoFrame(frameName, imageData) {
+		const frame = this.sheet.frames[frameName];
+		if (!frame) return;
+		this.pasteIntoRegion(
+			{ x: frame.x, y: frame.y, w: frame.width, h: frame.height },
+			imageData,
+			{ align: 'center' }
+		);
 	}
 
 	// --- frame collision --------------------------------------------------

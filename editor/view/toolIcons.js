@@ -37,9 +37,15 @@ export async function applyToolIcons(path) {
 }
 
 function _makeIconCanvas(sheet, frame) {
+	const dpr = window.devicePixelRatio || 1;
+	const cssW = frame.width  * ICON_SCALE;
+	const cssH = frame.height * ICON_SCALE;
+
 	const canvas = document.createElement('canvas');
-	canvas.width  = frame.width  * ICON_SCALE;
-	canvas.height = frame.height * ICON_SCALE;
+	canvas.width  = Math.round(cssW * dpr);
+	canvas.height = Math.round(cssH * dpr);
+	canvas.style.width  = cssW + 'px';
+	canvas.style.height = cssH + 'px';
 	canvas.className = 'tool-icon';
 
 	const ctx = canvas.getContext('2d');

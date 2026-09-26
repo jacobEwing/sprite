@@ -39,6 +39,8 @@ import { CollisionInspector }  from './view/CollisionInspector.js';
 import { CollisionTool }       from './tools/CollisionTool.js';
 import { BackgroundPicker } from './view/BackgroundPicker.js';
 import { Clipboard } from './model/Clipboard.js';
+import { SelectionOverlay } from './view/SelectionOverlay.js';
+import { SelectionTool }    from './tools/SelectionTool.js';
 
 // --- wiring ---------------------------------------------------------------
 const viewOptions = { grid: false, snap: false };
@@ -62,18 +64,20 @@ new SpritePreview(document.getElementById('spritePreview'), doc);
 const brushPicker = new BrushPicker(document.getElementById('brushPicker'));
 
 const collisionOverlay = new CollisionOverlay(doc, viewport);
+const selectionOverlay = new SelectionOverlay(doc, viewport);
 const toolLayer = new ToolLayer({ viewport, document: doc, palette, history });
 
 const TOOLS = {
-	pan:     new PanTool(toolLayer.context),
-	pencil:  new PencilTool(toolLayer.context),
-	eraser:  new EraserTool(toolLayer.context),
-	line:    new LineTool(toolLayer.context),
-	box:     new BoxTool(toolLayer.context),
-	ellipse: new EllipseTool(toolLayer.context),
-	fill:    new FloodFillTool(toolLayer.context),
-	picker:  new ColorPickerTool(toolLayer.context),
-	frame:   new FrameTool(toolLayer.context),
+	pan:       new PanTool(toolLayer.context),
+	select:    new SelectionTool(toolLayer.context),
+	pencil:    new PencilTool(toolLayer.context),
+	eraser:    new EraserTool(toolLayer.context),
+	line:      new LineTool(toolLayer.context),
+	box:       new BoxTool(toolLayer.context),
+	ellipse:   new EllipseTool(toolLayer.context),
+	fill:      new FloodFillTool(toolLayer.context),
+	picker:    new ColorPickerTool(toolLayer.context),
+	frame:     new FrameTool(toolLayer.context),
 	collision: new CollisionTool(toolLayer.context),
 
 };
@@ -134,8 +138,9 @@ activateTool('pan');
 
 // Keyboard shortcuts: single letter per tool, ignored while typing in a field.
 const TOOL_KEYS = {
-	p: 'pan', n: 'pencil', e : 'eraser', l: 'line', b: 'box',
-	o: 'ellipse', f: 'fill', i: 'picker', m : 'frame', k: 'collision'
+	s: 'select',
+	p: 'pan', n: 'pencil', e: 'eraser', l: 'line', b: 'box',
+	o: 'ellipse', f: 'fill', i: 'picker', m: 'frame', k: 'collision',
 };
 
 // --- shape-fill toggle ----------------------------------------------------
@@ -482,30 +487,44 @@ async function doSaveAll() {
 
 function doCopyFrame() {
 	if (!doc.sheet || !doc.selectedFrame) return;
-	const frame = doc.sheet.frames[doc.selectedFrame];
-	if (!frame) return;
-	clipboard.captureFrom(doc.sheet, frame, doc.selectedFrame);
+	const rect = doc.currentOpRect();
+	if (!rect) return;
+	clipboard.captureFrom(doc.sheet, rect, doc.selectedFrame);
+	const where = doc.selection.isEmpty ? `"${doc.selectedFrame}"` : 'selection';
 	$('statusMessage').textContent =
-		`Copied "${doc.selectedFrame}" (${frame.width}×${frame.height})`;
+		`Copied ${where} (${rect.w}×${rect.h})`;
 }
 
 function doCutFrame() {
 	if (!doc.sheet || !doc.selectedFrame) return;
 	doCopyFrame();
-	doc.editable.clearFrameContent(doc.selectedFrame);
-	$('statusMessage').textContent = `Cut "${doc.selectedFrame}"`;
+	const rect = doc.currentOpRect();
+	if (!rect) return;
+	doc.editable.clearRegion(rect);
 }
 
 function doPasteIntoFrame() {
 	if (!doc.sheet || !doc.selectedFrame || clipboard.isEmpty) return;
-	doc.editable.pasteIntoFrame(doc.selectedFrame, clipboard.imageData);
-	$('statusMessage').textContent = `Pasted into "${doc.selectedFrame}"`;
+	const rect = doc.currentOpRect();
+	if (!rect) return;
+	const align = doc.selection.isEmpty ? 'center' : 'topleft';
+	doc.editable.pasteIntoRegion(rect, clipboard.imageData, { align });
 }
 
 function doClearFrame() {
 	if (!doc.sheet || !doc.selectedFrame) return;
-	doc.editable.clearFrameContent(doc.selectedFrame);
-	$('statusMessage').textContent = `Cleared "${doc.selectedFrame}"`;
+	const rect = doc.currentOpRect();
+	if (!rect) return;
+	doc.editable.clearRegion(rect);
+}
+
+function doSelectAll() {
+	if (!doc.sheet || !doc.selectedFrame) return;
+	doc.selectAllOfFrame();
+}
+
+function doDeselect() {
+	doc.clearSelection();
 }
 
 const fileMenu = new Menu(document.getElementById('fileMenuBtn'), [
@@ -587,19 +606,24 @@ new Menu(document.getElementById('viewMenuBtn'), [
 });
 
 new Menu(document.getElementById('editMenuBtn'), [
-	{ label: 'Copy Frame',       shortcut: 'Ctrl+C', action: doCopyFrame },
-	{ label: 'Cut Frame',        shortcut: 'Ctrl+X', action: doCutFrame },
-	{ label: 'Paste Into Frame', shortcut: 'Ctrl+V', action: doPasteIntoFrame },
+	{ label: 'Copy',  shortcut: 'Ctrl+C', action: doCopyFrame },
+	{ label: 'Cut',   shortcut: 'Ctrl+X', action: doCutFrame },
+	{ label: 'Paste', shortcut: 'Ctrl+V', action: doPasteIntoFrame },
+	{ label: 'Clear', shortcut: 'Del',    action: doClearFrame },
 	{ separator: true },
-	{ label: 'Clear Frame Content', action: doClearFrame },
+	{ label: 'Select All (frame)', shortcut: 'Ctrl+A', action: doSelectAll },
+	{ label: 'Deselect',           shortcut: 'Ctrl+D', action: doDeselect },
 ], {
 	onShow: (items) => {
 		const hasFrame = !!(doc.sheet && doc.selectedFrame);
 		const hasClip  = !clipboard.isEmpty;
-		items.find(i => i.label === 'Copy Frame').disabled = !hasFrame;
-		items.find(i => i.label === 'Cut Frame').disabled = !hasFrame;
-		items.find(i => i.label === 'Paste Into Frame').disabled = !hasFrame || !hasClip;
-		items.find(i => i.label === 'Clear Frame Content').disabled = !hasFrame;
+		const hasSel   = !doc.selection.isEmpty;
+		items.find(i => i.label === 'Copy').disabled  = !hasFrame;
+		items.find(i => i.label === 'Cut').disabled   = !hasFrame;
+		items.find(i => i.label === 'Paste').disabled = !hasFrame || !hasClip;
+		items.find(i => i.label === 'Clear').disabled = !hasFrame;
+		items.find(i => i.label === 'Select All (frame)').disabled = !hasFrame;
+		items.find(i => i.label === 'Deselect').disabled = !hasSel;
 	},
 });
 
@@ -652,6 +676,17 @@ window.addEventListener('keydown', (e) => {
 			return;
 		}
 		if (!inField) {
+
+			if (key === 'a') {
+				e.preventDefault();
+				doSelectAll();
+				return;
+			}
+			if (key === 'd') {
+				e.preventDefault();
+				doDeselect();
+				return;
+			}
 			if (key === 'z' && !e.shiftKey) {
 				e.preventDefault();
 				if (history.undo()) viewport.invalidate();

@@ -28,9 +28,10 @@ export class FilterPanel {
 		this._bind();
 		this.hide();
 
-		doc.on('selectionChanged', () => { if (this.visible) this._schedule(); });
-		doc.on('sheetChanged',     () => { if (this.visible) this._schedule(); });
-		doc.on('edit',             () => { if (this.visible) this._schedule(); });
+		doc.on('selectionChanged',  () => { if (this.visible) this._schedule(); });
+		doc.on('selectionModified', () => { if (this.visible) this._schedule(); });
+		doc.on('sheetChanged',      () => { if (this.visible) this._schedule(); });
+		doc.on('edit',              () => { if (this.visible) this._schedule(); });
 	}
 
 	get visible() { return this.root.style.display !== 'none'; }
@@ -208,11 +209,10 @@ export class FilterPanel {
 			this._recompute();
 		});
 	}
-
 	_recompute() {
 		const sheet = this.doc.sheet;
-		const frame = this.doc.getSelectedFrame();
-		if (!sheet || !frame) {
+		const rect = this.doc.currentOpRect();
+		if (!sheet || !rect) {
 			this.viewport.setPreview(null);
 			this.previewImageData = null;
 			this.previewFrame = null;
@@ -220,14 +220,12 @@ export class FilterPanel {
 		}
 
 		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
-		const src = ctx.getImageData(frame.x, frame.y, frame.width, frame.height);
+		const src = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
 		const result = applyConvolution(src, this._kernel());
 
 		this.previewImageData = result;
-		this.previewFrame = { x: frame.x, y: frame.y, width: frame.width, height: frame.height };
+		this.previewFrame = { x: rect.x, y: rect.y, width: rect.w, height: rect.h };
 
-		// Draw the result into an offscreen canvas that the viewport preview
-		// callback can blit over the frame's region.
 		if (!this.offscreen) {
 			this.offscreen = document.createElement('canvas');
 			this.offscreenCtx = this.offscreen.getContext('2d');
@@ -250,23 +248,19 @@ export class FilterPanel {
 
 	_apply() {
 		const sheet = this.doc.sheet;
-		const frame = this.doc.getSelectedFrame();
-		if (!sheet || !frame || !this.previewImageData) {
+		const rect = this.doc.currentOpRect();
+		if (!sheet || !rect || !this.previewImageData) {
 			this.hide();
 			return;
 		}
 
 		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
-		const before = ctx.getImageData(frame.x, frame.y, frame.width, frame.height);
+		const before = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
 		const after = this.previewImageData;
 
-		ctx.putImageData(after, frame.x, frame.y);
-		const cmd = new PaintCommand(
-			ctx,
-			frame.x, frame.y, frame.width, frame.height,
-			before, after
-		);
-		this.doc.history.push(cmd);
+		ctx.putImageData(after, rect.x, rect.y);
+		const cmd = new PaintCommand(ctx, rect.x, rect.y, rect.w, rect.h, before, after);
+		this.doc.history.push(cmd, 'pixels');
 
 		this.hide();
 		this.viewport.invalidate();

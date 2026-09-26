@@ -85,6 +85,14 @@
 			"height": 13,
 			"centerx": 0,
 			"centery": 0
+		},
+		"select": {
+			"x": 65,
+			"y": 0,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
 		}
 	},
 	"sequences": {}

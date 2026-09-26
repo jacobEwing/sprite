@@ -13,11 +13,11 @@ export class Clipboard {
 	get width()    { return this.imageData ? this.imageData.width  : 0; }
 	get height()   { return this.imageData ? this.imageData.height : 0; }
 
-	captureFrom(sheet, frame, frameName) {
-		if (!sheet || !frame) return false;
+	captureFrom(sheet, rect, sourceLabel) {
+		if (!sheet || !rect || rect.w <= 0 || rect.h <= 0) return false;
 		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
-		this.imageData = ctx.getImageData(frame.x, frame.y, frame.width, frame.height);
-		this.sourceFrame = frameName;
+		this.imageData = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
+		this.sourceFrame = sourceLabel;
 		return true;
 	}
 
