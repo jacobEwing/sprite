@@ -43,6 +43,8 @@ export class Viewport {
 			colorA:  '#1e1e20',
 			colorB:  '#26262a',
 		};
+		this._bgCache = { signature: null, pattern: null, tile: null };
+
 
 		// Optional draw function invoked between the source image and the
 		// frame overlays, with the transform already set to image space.
@@ -288,40 +290,32 @@ export class Viewport {
 		ctx.fillRect(0, 0, w, h);
 		if (texture === 'none') return;
 
-		const s = 8;
-		ctx.fillStyle = colorB;
+		const pattern = this._patternFor(texture, colorA, colorB);
+		if (!pattern) return;
+		ctx.fillStyle = pattern;
+		ctx.fillRect(0, 0, w, h);
+	}
 
-		switch(texture){
-			case 'checker':
-				for (let y = 0; y < h; y += s) {
-					for (let x = 0; x < w; x += s) {
-						if ((((x / s) + (y / s)) | 0) % 2 === 0) {
-							ctx.fillRect(x, y, s, s);
-						}
-					}
-				}
-				break;
-			case 'dots':
-				ctx.fillStyle = colorB;
-				for (let y = 0; y < h; y += s) {
-					for (let x = 0; x < w; x += s) {
-						if(x % s == 0 && y % s == 0){
-							ctx.fillRect(x - 1, y - 1, 2, 2);
-						}
-					}
-				}
-				break;
-			case 'stripes':
-				ctx.fillStyle = colorB;
-				for (let y = 0; y < h; y ++) {
-					for (let x = 0; x < w; x ++) {
-						if((x + y) % s < 2){
-							ctx.fillRect(x, y, 1, 1);
-						}
-					}
-				}
-				break;
+	// Cached CanvasPattern for the current (texture, colorA, colorB). The
+	// tile is cheap to build but createPattern allocates; caching means
+	// panning, zooming, and idle redraws reuse the same pattern.
+	_patternFor(texture, colorA, colorB) {
+		const signature = `${texture}|${colorA}|${colorB}`;
+		if (this._bgCache.signature === signature) return this._bgCache.pattern;
+
+		const tile = _buildTextureTile(texture, colorA, colorB);
+		if (!tile) {
+			this._bgCache.signature = signature;
+			this._bgCache.pattern   = null;
+			this._bgCache.tile      = null;
+			return null;
 		}
+
+		const pattern = this.ctx.createPattern(tile, 'repeat');
+		this._bgCache.signature = signature;
+		this._bgCache.pattern   = pattern;
+		this._bgCache.tile      = tile;   // hold a reference alongside the pattern
+		return pattern;
 	}
 
 	_drawGrid(ctx) {
@@ -513,4 +507,59 @@ export class Viewport {
 		this.emit('pointerLeave', {});
 		this.setHoveredFrame(null);
 	}
+}
+
+// Build a small tile canvas for the given texture. Returned as a canvas
+// suitable for createPattern. Tile dimensions are chosen so the pattern
+// repeats seamlessly in both axes.
+function _buildTextureTile(texture, colorA, colorB) {
+	const S = 8;
+	let tw, th;
+
+	switch (texture) {
+		case 'checker': tw = th = S * 2; break;
+		case 'dots':    tw = th = S;     break;
+		case 'stripes': tw = th = S;     break;
+		default: return null;
+	}
+
+	const tile = document.createElement('canvas');
+	tile.width  = tw;
+	tile.height = th;
+	const tctx = tile.getContext('2d');
+	tctx.imageSmoothingEnabled = false;
+
+	tctx.fillStyle = colorA;
+	tctx.fillRect(0, 0, tw, th);
+
+	switch (texture) {
+		case 'checker':
+			// 2S×2S with two opposite S×S blocks in colour B. This is the
+			// smallest tile that produces a classic checker.
+			tctx.fillStyle = colorB;
+			tctx.fillRect(0, 0, S, S);
+			tctx.fillRect(S, S, S, S);
+			break;
+
+		case 'dots':
+			// S×S tile with a 2×2 dot at the corner, which wrapping places
+			// at every S-aligned intersection.
+			tctx.fillStyle = colorB;
+			tctx.fillRect(S - 2, S - 2, 2, 2);
+			break;
+
+		case 'stripes':
+			// S×S tile with the same (x + y) % S < 2 predicate as before.
+			// Because the predicate is periodic with period S in both axes,
+			// the tile is exactly the pattern and repeats seamlessly.
+			tctx.fillStyle = colorB;
+			for (let y = 0; y < S; y++) {
+				for (let x = 0; x < S; x++) {
+					if ((x + y) % S < 2) tctx.fillRect(x, y, 1, 1);
+				}
+			}
+			break;
+	}
+
+	return tile;
 }
