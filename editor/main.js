@@ -93,13 +93,21 @@ toolLayer.setPanTool(TOOLS.pan);
 toolLayer.setDefaultTool(TOOLS.pan);
 toolLayer.setActiveTool(TOOLS.pan);
 
+// The collision overlay is shown when the collision tool is active, or
+// when the tool's own "always show" setting is on.
+function updateCollisionOverlay() {
+	const collisionActive = toolLayer.activeTool === TOOLS.collision;
+	const show = collisionActive || TOOLS.collision.showOverlay;
+	collisionOverlay.setEnabled(show);
+}
+
+TOOLS.collision.onSettingChanged = updateCollisionOverlay;
+
 brushPicker.on('change', ({ brush }) => toolLayer.setBrush(brush));
 brushPicker.select('pixel');
 
 const $ = id => document.getElementById(id);
 
-const collisionInspector = new CollisionInspector(
-	document.getElementById('collisionInspector'), doc);
 collisionInspector.onOverlayToggle = (on) => collisionOverlay.setEnabled(on);
 
 // --- viewport → status bar ------------------------------------------------
@@ -132,10 +140,8 @@ function activateTool(name) {
 	}
 	viewport.canvas.style.cursor = name === 'pan' ? 'grab' : 'crosshair';
 
-	const showCollision = name === 'collision' || collisionInspector.showOverlay;
-	collisionOverlay.setEnabled(showCollision);
-
 	toolSettingsPanel.showFor(tool);
+	updateCollisionOverlay();
 }
 
 for (const btn of toolButtons) {
@@ -728,14 +734,6 @@ new Menu(document.getElementById('sheetMenuBtn'), [
 	{ label: 'Sheet settings…', action: doEditSheet },
 	{ label: 'Reshape…',        action: doReshape },
 	{ separator: true },
-	{
-		label: 'Toggle collision overlay',
-		action: () => {
-			collisionInspector.showOverlay = !collisionInspector.showOverlay;
-			collisionOverlay.setEnabled(collisionInspector.showOverlay);
-			collisionInspector.rebuild();
-		},
-	},
 ]);
 
 new Menu(document.getElementById('viewMenuBtn'), [

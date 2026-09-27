@@ -15,6 +15,12 @@ export class CollisionTool extends Tool {
 		this.start = null;
 		this.currentX = 0;
 		this.currentY = 0;
+
+		// Persistent user preference: whether collision circles are shown
+		// for every frame even when this tool isn't active. When the tool
+		// *is* active, the overlay is always shown regardless of this flag.
+		this.showOverlay = true;
+		this.onSettingChanged = null;
 	}
 
 	onPointerDown(ev) {
@@ -157,6 +163,26 @@ export class CollisionTool extends Tool {
 		if (overlay) {
 			overlay.clearDragPreview();
 			overlay.clearPendingPreview();
+		}
+	}
+
+	getSettings() {
+		return [{
+			key: 'showOverlay',
+			label: 'Always show',
+			type: 'checkbox',
+		}];
+	}
+
+	getSettingValue(key) {
+		if (key === 'showOverlay') return this.showOverlay;
+		return undefined;
+	}
+
+	setSettingValue(key, value) {
+		if (key === 'showOverlay') {
+			this.showOverlay = !!value;
+			if (typeof this.onSettingChanged === 'function') this.onSettingChanged();
 		}
 	}
 }

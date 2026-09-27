@@ -70,27 +70,55 @@ export class CollisionOverlay {
 
 	_draw(ctx) {
 		if (!this.enabled) return;
-		const circles = this.currentCircles();
-		if (circles.length === 0 && !this.pendingShape) return;
+
+		const sheet = this.doc.sheet;
+		if (!sheet || !sheet.frames) return;
 
 		const hairline = 1 / this.viewport.zoom;
+		const sheetCollision = sheet.collision;
+		const selected = this.doc.selectedFrame;
 
-		for (const c of circles) {
-			const dragging = this.dragOverride && this.dragOverride.index === c.index;
-			const x = dragging ? this.dragOverride.x : c.x;
-			const y = dragging ? this.dragOverride.y : c.y;
-			const r = dragging ? this.dragOverride.radius : c.radius;
-			this._strokeCircle(ctx, x, y, r, hairline, dragging);
+		// Draw every frame's resolved shape. The selected frame's circles
+		// are the ones the tool can edit, so they render at full strength;
+		// the rest are dimmed to keep the selected frame legible.
+		for (const name of sheet.frameNames) {
+			const frame = sheet.frames[name];
+			const shape = resolvedCollision(frame, sheetCollision);
+			if (!shape || !shape.circles || shape.circles.length === 0) continue;
+
+			const isSelected = name === selected;
+			const ox = frame.x + frame.centerx;
+			const oy = frame.y + frame.centery;
+
+			shape.circles.forEach((c, i) => {
+				let x = ox + c.offsetX;
+				let y = oy + c.offsetY;
+				let r = c.radius;
+
+				const dragging =
+					isSelected &&
+					this.dragOverride &&
+					this.dragOverride.index === i;
+
+				if (dragging) {
+					x = this.dragOverride.x;
+					y = this.dragOverride.y;
+					r = this.dragOverride.radius;
+				}
+
+				this._strokeCircle(ctx, x, y, r, hairline, dragging, false, !isSelected);
+			});
 		}
 
+		// The pending shape only ever belongs to the selected frame.
 		if (this.pendingShape) {
 			const p = this.pendingShape;
-			this._strokeCircle(ctx, p.x, p.y, p.radius, hairline, false);
-			this._strokeCircle(ctx, p.x, p.y, 0.5, hairline, true, true);
+			this._strokeCircle(ctx, p.x, p.y, p.radius, hairline, false, false, false);
+			this._strokeCircle(ctx, p.x, p.y, 0.5, hairline, true, true, false);
 		}
 	}
 
-	_strokeCircle(ctx, x, y, r, hairline, highlighted, isCenter) {
+	_strokeCircle(ctx, x, y, r, hairline, highlighted, isCenter, dim) {
 		ctx.save();
 		ctx.beginPath();
 		ctx.arc(x, y, Math.max(r, 0.01), 0, Math.PI * 2);
@@ -99,7 +127,12 @@ export class CollisionOverlay {
 		ctx.lineWidth = hairline * 3;
 		ctx.stroke();
 
-		ctx.strokeStyle = highlighted ? '#50d0ff' : '#d08040';
+		let stroke;
+		if (highlighted)   stroke = '#50d0ff';
+		else if (dim)      stroke = 'rgba(208, 128, 64, 0.5)';
+		else               stroke = '#d08040';
+
+		ctx.strokeStyle = stroke;
 		ctx.lineWidth = hairline * 1.5;
 		ctx.stroke();
 

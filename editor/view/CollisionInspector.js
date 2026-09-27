@@ -20,8 +20,6 @@ export class CollisionInspector {
 	constructor(root, doc) {
 		this.root = root;
 		this.doc = doc;
-		this.showOverlay = false;
-		this.onOverlayToggle = null;
 
 		doc.on('sheetChanged',     () => this.rebuild());
 		doc.on('selectionChanged', () => this.rebuild());
@@ -45,21 +43,6 @@ export class CollisionInspector {
 
 		const mode = collisionMode(frame);
 		const sheetHasShape = !!(this.doc.sheet.collision && this.doc.sheet.collision.circles);
-
-		// Overlay toggle
-		const toggleRow = document.createElement('label');
-		toggleRow.className = 'insp-checkbox';
-		const toggleInput = document.createElement('input');
-		toggleInput.type = 'checkbox';
-		toggleInput.checked = this.showOverlay;
-		toggleInput.addEventListener('change', () => {
-			this.showOverlay = toggleInput.checked;
-			if (this.onOverlayToggle) this.onOverlayToggle(this.showOverlay);
-		});
-		const toggleLabel = document.createElement('span');
-		toggleLabel.textContent = 'Always show overlay';
-		toggleRow.append(toggleInput, toggleLabel);
-		this.root.appendChild(toggleRow);
 
 		// Mode selector
 		const modes = document.createElement('div');
