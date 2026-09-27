@@ -49,6 +49,7 @@ import {
 } from './model/transforms.js';
 import { NewImageDialog } from './view/NewImageDialog.js';
 import { AirbrushTool }    from './tools/AirbrushTool.js';
+import { ReshapeDialog } from './view/ReshapeDialog.js';
 
 // --- wiring ---------------------------------------------------------------
 const viewOptions = { grid: false, snap: false };
@@ -74,6 +75,7 @@ const brushPicker = new BrushPicker(document.getElementById('brushPicker'));
 const collisionOverlay = new CollisionOverlay(doc, viewport);
 const selectionOverlay = new SelectionOverlay(doc, viewport);
 const toolLayer = new ToolLayer({ viewport, document: doc, palette, history });
+const reshapeDialog = new ReshapeDialog();
 
 const TOOLS = {
 	pan:       new PanTool(toolLayer.context),
@@ -454,6 +456,21 @@ async function doEditSheet() {
 	$('statusMessage').textContent = 'Sheet settings updated.';
 }
 
+async function doReshape() {
+	if (!doc.sheet || !doc.editable) return;
+	if (doc.sheet.frameNames.length === 0) {
+		$('statusMessage').textContent = 'No frames to reshape.';
+		return;
+	}
+	const values = await reshapeDialog.open(doc.sheet);
+	if (!values) return;
+
+	doc.editable.reshapeToGrid(values.cols);
+	doc.clearSelection();
+	$('statusMessage').textContent =
+		`Reshaped to ${values.cols} column${values.cols === 1 ? '' : 's'}`;
+}
+
 async function doOpenFromDisk() {
 	$('statusMessage').textContent = 'Choose files…';
 	const result = await diskLoadDialog.open();
@@ -703,6 +720,7 @@ updateFileMenuState();
 
 new Menu(document.getElementById('sheetMenuBtn'), [
 	{ label: 'Sheet settings…', action: doEditSheet },
+	{ label: 'Reshape…',        action: doReshape },
 	{ separator: true },
 	{
 		label: 'Toggle collision overlay',

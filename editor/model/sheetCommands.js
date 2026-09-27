@@ -205,3 +205,74 @@ export class CompositeCommand {
 	apply()  { for (const c of this.commands) c.apply(); }
 	revert() { for (let i = this.commands.length - 1; i >= 0; i--) this.commands[i].revert(); }
 }
+
+// --- reshape --------------------------------------------------------------
+
+// Repack every frame into a clean row-major grid, then resize the canvas to
+// fit. Frame widths and heights are preserved on the frame objects
+// themselves; only x/y change. Content that extends past a frame's new cell
+// is clipped to the cell boundary.
+//
+// The old canvas is left untouched (we build a new one), so revert only has
+// to swap the image reference back and restore the old positions.
+export class ReshapeCommand {
+	constructor(sheet, newPositions, newCanvasWidth, newCanvasHeight, cellW, cellH) {
+		this.sheet = sheet;
+		this.oldImage = sheet.image;
+		this.oldFrames = {};
+		for (const name of Object.keys(sheet.frames)) {
+			const f = sheet.frames[name];
+			this.oldFrames[name] = { x: f.x, y: f.y };
+		}
+		this.newPositions = newPositions;
+		this.newCanvasWidth = newCanvasWidth;
+		this.newCanvasHeight = newCanvasHeight;
+		this.cellW = cellW;
+		this.cellH = cellH;
+		this.newImage = null;
+	}
+
+	apply() {
+		if (!this.newImage) this.newImage = this._build();
+		this.sheet.image = this.newImage;
+		for (const [name, pos] of Object.entries(this.newPositions)) {
+			const f = this.sheet.frames[name];
+			if (f) { f.x = pos.x; f.y = pos.y; }
+		}
+	}
+
+	revert() {
+		this.sheet.image = this.oldImage;
+		for (const [name, pos] of Object.entries(this.oldFrames)) {
+			const f = this.sheet.frames[name];
+			if (f) { f.x = pos.x; f.y = pos.y; }
+		}
+	}
+
+	_build() {
+		const c = document.createElement('canvas');
+		c.width  = this.newCanvasWidth;
+		c.height = this.newCanvasHeight;
+		const ctx = c.getContext('2d', { willReadFrequently: true });
+		ctx.imageSmoothingEnabled = false;
+
+		for (const [name, newPos] of Object.entries(this.newPositions)) {
+			const frame = this.sheet.frames[name];
+			if (!frame) continue;
+			const old = this.oldFrames[name];
+			if (!old) continue;
+
+			// Clip to the cell size: a frame bigger than one cell
+			// contributes only its top-left cell-sized area.
+			const copyW = Math.min(frame.width,  this.cellW);
+			const copyH = Math.min(frame.height, this.cellH);
+
+			ctx.drawImage(
+				this.oldImage,
+				old.x, old.y, copyW, copyH,
+				newPos.x, newPos.y, copyW, copyH
+			);
+		}
+		return c;
+	}
+}

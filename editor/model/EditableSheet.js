@@ -4,7 +4,7 @@ import {
 	AddFrameCommand, RemoveFrameCommand, RenameFrameCommand, SetFrameCommand,
 	AddSequenceCommand, RemoveSequenceCommand, RenameSequenceCommand, SetSequenceCommand,
 	ResizeCanvasCommand, SetSheetSettingsCommand, SetCollisionCommand,
-	CompositeCommand,
+	CompositeCommand, ReshapeCommand,
 } from './sheetCommands.js';
 
 // A facade over SpriteSheet that mediates all structural mutations through
@@ -498,6 +498,53 @@ export class EditableSheet {
 
 		this.history.execute(new SetFrameCommand(this.sheet, frameName, before, after), 'data');
 		this.emit('changed', { type: 'frameUpdated', name: frameName });
+	}
+
+	// --- reshape ----------------------------------------------------------
+
+	// Repack every frame into a row-major grid with the given column count.
+	// Cell size is the sheet's frameWidth/frameHeight; frames larger than
+	// that are clipped into their cell.
+	reshapeToGrid(cols) {
+		cols = Math.max(1, Number(cols) | 0);
+		const names = this.sheet.frameNames;
+		if (names.length === 0) return;
+
+		const cellW = this.sheet.frameWidth  || 16;
+		const cellH = this.sheet.frameHeight || 16;
+		const rows  = Math.ceil(names.length / cols);
+		const canvasW = cols * cellW;
+		const canvasH = rows * cellH;
+
+		const newPositions = {};
+		names.forEach((name, i) => {
+			const col = i % cols;
+			const row = Math.floor(i / cols);
+			newPositions[name] = { x: col * cellW, y: row * cellH };
+		});
+
+		this.history.execute(
+			new ReshapeCommand(this.sheet, newPositions, canvasW, canvasH, cellW, cellH),
+			'both'
+		);
+		this.emit('changed', {
+			type: 'reshaped',
+			cols, rows,
+			width: canvasW, height: canvasH,
+		});
+	}
+
+	// Frames that would be clipped by a reshape at the current cell size.
+	// Used by the dialog to build its warning.
+	framesClippedByReshape() {
+		const cellW = this.sheet.frameWidth  || 16;
+		const cellH = this.sheet.frameHeight || 16;
+		const out = [];
+		for (const name of this.sheet.frameNames) {
+			const f = this.sheet.frames[name];
+			if (f.width > cellW || f.height > cellH) out.push(name);
+		}
+		return out;
 	}
 }
 
