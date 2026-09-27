@@ -1,4 +1,4 @@
-import { applyConvolution, matrixSum, PRESETS } from '../paint/filters.js';
+import { applyConvolution, matrixSum, PRESETS, defaultMatrix } from '../paint/filters.js';
 import { PaintCommand } from '../history/PaintCommand.js';
 
 // Floating panel for the convolution filter. Shows a preset dropdown, a
@@ -40,6 +40,7 @@ export class FilterPanel {
 		this.root.style.display = 'block';
 		this._positionBelow(anchor);
 		this._sync();
+		this._schedule();
 	}
 
 	hide() {
@@ -64,7 +65,13 @@ export class FilterPanel {
 				</label>
 
 				<div class="fp-matrix-wrap">
-					<div class="fp-label">Matrix</div>
+					<div class="fp-matrix-header">
+						<div class="fp-label">Matrix</div>
+						<div class="fp-size">
+							<button class="fp-size-btn" data-size="3">3×3</button>
+							<button class="fp-size-btn" data-size="5">5×5</button>
+						</div>
+					</div>
 					<div class="fp-matrix"></div>
 				</div>
 
@@ -99,7 +106,12 @@ export class FilterPanel {
 		this.divisorInput = this.root.querySelector('.fp-divisor');
 		this.offsetInput  = this.root.querySelector('.fp-offset');
 		this.alphaInput   = this.root.querySelector('.fp-alpha');
-
+		this.sizeButtons = Array.from(this.root.querySelectorAll('.fp-size-btn'));
+		for (const btn of this.sizeButtons) {
+			btn.addEventListener('click', () => {
+				this._setSize(parseInt(btn.dataset.size, 10));
+			});
+		}
 		for (const p of PRESETS) {
 			const opt = document.createElement('option');
 			opt.value = p.name;
@@ -118,11 +130,10 @@ export class FilterPanel {
 			this.divisor = p.divisor ?? matrixSum(p.matrix);
 			this.offset = 0;
 			this.presetName = p.name;
-			this._renderMatrix();
+			this._renderMatrix();     // also updates size buttons
 			this._sync();
 			this._schedule();
 		});
-
 		this.divisorInput.addEventListener('input', () => {
 			this.divisor = parseFloat(this.divisorInput.value) || 0;
 			this._schedule();
@@ -149,6 +160,7 @@ export class FilterPanel {
 		this.matrixEl.innerHTML = '';
 		this.matrixInputs = [];
 		const size = this.matrix.length;
+
 		for (let y = 0; y < size; y++) {
 			const row = [];
 			for (let x = 0; x < size; x++) {
@@ -167,6 +179,13 @@ export class FilterPanel {
 			this.matrixInputs.push(row);
 		}
 		this.matrixEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+
+		if (this.sizeButtons) {
+			for (const btn of this.sizeButtons) {
+				btn.classList.toggle('selected',
+					parseInt(btn.dataset.size, 10) === size);
+			}
+		}
 	}
 
 	_sync() {
@@ -209,6 +228,7 @@ export class FilterPanel {
 			this._recompute();
 		});
 	}
+
 	_recompute() {
 		const sheet = this.doc.sheet;
 		const rect = this.doc.currentOpRect();
@@ -224,7 +244,9 @@ export class FilterPanel {
 		const result = applyConvolution(src, this._kernel());
 
 		this.previewImageData = result;
-		this.previewFrame = { x: rect.x, y: rect.y, width: rect.w, height: rect.h };
+		// The region is stored as { x, y, w, h } — matching what
+		// redrawBackgroundInRegion and the rest of the editor use.
+		this.previewFrame = { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
 
 		if (!this.offscreen) {
 			this.offscreen = document.createElement('canvas');
@@ -235,14 +257,15 @@ export class FilterPanel {
 		this.offscreenCtx.putImageData(result, 0, 0);
 
 		this.viewport.setPreview((vctx) => {
-			if (!this.previewFrame || !this.offscreen) return;
-			vctx.drawImage(
-				this.offscreen,
-				this.previewFrame.x,
-				this.previewFrame.y,
-				this.previewFrame.width,
-				this.previewFrame.height
-			);
+			const pf = this.previewFrame;
+			if (!pf || !this.offscreen) return;
+
+			// Replace the region's pixels with the background, then draw
+			// the filter result over it — matching the putImageData that
+			// _apply performs.
+			this.viewport.redrawBackgroundInRegion(vctx, pf);
+
+			vctx.drawImage(this.offscreen, pf.x, pf.y, pf.w, pf.h);
 		});
 	}
 
@@ -264,6 +287,18 @@ export class FilterPanel {
 
 		this.hide();
 		this.viewport.invalidate();
+	}
+
+	_setSize(size) {
+		if (size !== 3 && size !== 5) return;
+		if (this.matrix.length === size) return;
+
+		this.matrix = defaultMatrix(size);
+		this.divisor = 1;
+		this.offset = 0;
+		this._renderMatrix();
+		this._sync();
+		this._schedule();
 	}
 }
 

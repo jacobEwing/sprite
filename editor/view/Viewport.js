@@ -280,6 +280,7 @@ export class Viewport {
 
 		this._drawFrameOverlays(ctx);
 	}
+
 	_drawBackground(ctx) {
 		const rect = this.canvas.getBoundingClientRect();
 		const w = rect.width;
@@ -296,6 +297,23 @@ export class Viewport {
 		ctx.fillRect(0, 0, w, h);
 	}
 
+	// Redraw the background pattern within a region of the canvas. `rect`
+	// is in image coordinates. Used by previews that need to *replace*
+	// pixels rather than composite over them: they clear the region back
+	// to the background first, then draw on top.
+	redrawBackgroundInRegion(ctx, rect) {
+		ctx.save();
+		ctx.beginPath();
+		ctx.rect(rect.x, rect.y, rect.w, rect.h);
+		ctx.clip();
+
+		ctx.save();
+		ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+		this._drawBackground(ctx);
+		ctx.restore();
+
+		ctx.restore();
+	}
 	// Cached CanvasPattern for the current (texture, colorA, colorB). The
 	// tile is cheap to build but createPattern allocates; caching means
 	// panning, zooming, and idle redraws reuse the same pattern.

@@ -75,6 +75,22 @@ export function matrixSum(matrix) {
 	return s;
 }
 
+// A neutral identity matrix of the given odd size. Multiplies each pixel
+// by 1 and everything else by 0, so it has no visual effect. Used when
+// the user switches matrix size with no preset to seed it.
+export function defaultMatrix(size) {
+	const mid = Math.floor(size / 2);
+	const m = [];
+	for (let y = 0; y < size; y++) {
+		const row = [];
+		for (let x = 0; x < size; x++) {
+			row.push(x === mid && y === mid ? 1 : 0);
+		}
+		m.push(row);
+	}
+	return m;
+}
+
 // Preset kernels. When `divisor` is omitted, the panel computes it from the
 // matrix sum. Presets are copied into the editor when chosen; editing a
 // preset's matrix does not modify the preset.
@@ -103,4 +119,30 @@ export const PRESETS = [
 	{ name: 'Neighbour mix',
 	  matrix: [[0,.1,0],[.1,.6,.1],[0,.1,0]],
 	  divisor: 1 },
+	{ name: 'Blur (gaussian 5×5)',
+	  matrix: [
+		[ 1,  4,  6,  4, 1],
+		[ 4, 16, 24, 16, 4],
+		[ 6, 24, 36, 24, 6],
+		[ 4, 16, 24, 16, 4],
+		[ 1,  4,  6,  4, 1],
+	  ] },
+
+	{ name: 'Sharpen (5×5)',
+	  matrix: [
+		[-1, -1, -1, -1, -1],
+		[-1, -1, -1, -1, -1],
+		[-1, -1, 25, -1, -1],
+		[-1, -1, -1, -1, -1],
+		[-1, -1, -1, -1, -1],
+	  ] },
+
+	{ name: 'Neighbour mix (5×5)',
+	  matrix: [
+		[0, 0, .05, 0, 0],
+		[0, .1, .1, .1, 0],
+		[.05, .1, .2, .1, .05],
+		[0, .1, .1, .1, 0],
+		[0, 0, .05, 0, 0],
+	  ] },
 ];
