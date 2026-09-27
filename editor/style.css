@@ -1649,3 +1649,75 @@ body {
 	color: var(--muted);
 	background: transparent;
 }
+
+/* --- rotate panel --- */
+#rotatePanel {
+	position: fixed;
+	z-index: 950;
+	width: 260px;
+	background: var(--panel);
+	border: 1px solid var(--rule);
+	border-radius: 6px;
+	box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+	display: flex;
+	flex-direction: column;
+	user-select: none;
+}
+.rp-angle-value {
+	flex: 0 0 auto;
+	min-width: 44px;
+	text-align: right;
+	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-size: 11px;
+	color: var(--muted);
+}
+/* The angle slider inherits the fp-row input look from the panel body
+   styles, so no extra rules are needed beyond the readout. */
+
+/* --- rotate panel: pivot section --- */
+.rp-pivot-section {
+	margin-bottom: 10px;
+}
+.rp-pivot-section > .fp-label {
+	display: block;
+	margin-bottom: 4px;
+}
+.rp-pivot-inputs {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 6px;
+	margin-bottom: 6px;
+}
+.rp-pivot-inputs input {
+	width: 100%;
+	min-width: 0;
+	background: var(--panel-2);
+	border: 1px solid var(--rule);
+	border-radius: 3px;
+	padding: 3px 6px;
+	color: var(--ink);
+	font: 11px "SF Mono", Menlo, Consolas, monospace;
+}
+.rp-pivot-inputs input:focus {
+	outline: none;
+	border-color: var(--accent-2);
+}
+.rp-pivot-presets {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 6px;
+}
+.rp-preset-btn {
+	background: var(--panel-2);
+	color: var(--ink);
+	border: 1px solid var(--rule);
+	border-radius: 3px;
+	padding: 4px 6px;
+	cursor: pointer;
+	font: inherit;
+	font-size: 11px;
+}
+.rp-preset-btn:hover {
+	background: #383840;
+	border-color: var(--accent-2);
+}

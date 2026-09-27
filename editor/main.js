@@ -48,6 +48,7 @@ import { NewImageDialog } from './view/NewImageDialog.js';
 import { AirbrushTool }    from './tools/AirbrushTool.js';
 import { ReshapeDialog } from './view/ReshapeDialog.js';
 import { ToolSettingsPanel } from './view/ToolSettingsPanel.js';
+import { RotatePanel } from './view/RotatePanel.js';
 
 // --- wiring ---------------------------------------------------------------
 const viewOptions = { grid: false, snap: false };
@@ -356,7 +357,11 @@ document.getElementById('btnFilter').addEventListener('click', (e) => {
 	else filterPanel.show(e.currentTarget);
 });
 
-// --- toolbar --------------------------------------------------------------
+// --- arbitrary rotation --------------------------------------------------------------
+const rotatePanelEl = document.createElement('div');
+rotatePanelEl.id = 'rotatePanel';
+document.body.appendChild(rotatePanelEl);
+const rotatePanel = new RotatePanel(rotatePanelEl, doc, viewport);
 
 // --- list actions --------------------------------------------------------
 
@@ -863,6 +868,31 @@ new Menu(document.getElementById('editMenuBtn'), [
 new Menu(document.getElementById('transformMenuBtn'), [
 	{ label: 'Rotate 90° CW',   shortcut: 'R',       action: doRotateCW },
 	{ label: 'Rotate 90° CCW',  shortcut: 'Shift+R', action: doRotateCCW },
+	{ label: 'Flip Vertical',   shortcut: 'F',       action: doFlipV },
+	{ label: 'Flip Horizontal', shortcut: 'Shift+F', action: doFlipH },
+	{ separator: true },
+	{ label: 'Move Up',    shortcut: 'Ctrl+↑', action: doMoveUp },
+	{ label: 'Move Down',  shortcut: 'Ctrl+↓', action: doMoveDown },
+	{ label: 'Move Left',  shortcut: 'Ctrl+←', action: doMoveLeft },
+	{ label: 'Move Right', shortcut: 'Ctrl+→', action: doMoveRight },
+], {
+	onShow: (items) => {
+		const enabled = !!(doc.sheet && doc.selectedFrame);
+		for (const i of items) if (!i.separator) i.disabled = !enabled;
+	},
+});
+
+new Menu(document.getElementById('transformMenuBtn'), [
+	{ label: 'Rotate 90° CW',   shortcut: 'R',       action: doRotateCW },
+	{ label: 'Rotate 90° CCW',  shortcut: 'Shift+R', action: doRotateCCW },
+	{
+		label: 'Rotate…',
+		action: () => {
+			const anchor = document.getElementById('transformMenuBtn');
+			rotatePanel.show(anchor);
+		},
+	},
+	{ separator: true },
 	{ label: 'Flip Vertical',   shortcut: 'F',       action: doFlipV },
 	{ label: 'Flip Horizontal', shortcut: 'Shift+F', action: doFlipH },
 	{ separator: true },

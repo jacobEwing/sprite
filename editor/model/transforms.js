@@ -91,3 +91,56 @@ export function translateWrapped(src, dx, dy) {
 	}
 	return dst;
 }
+
+// Rotate by an arbitrary angle in degrees. Positive values rotate the
+// content clockwise, matching rotate90CW. The output has the same
+// dimensions as the input; pixels that rotate outside the region are
+// clipped, and the corners they leave behind are transparent.
+//
+// `pivotX` and `pivotY` are in region-relative coordinates (0, 0 = the
+// region's top-left corner). Defaults to the region's centre. Values
+// outside the region are legal — rotating around a point beyond the edge
+// is sometimes what you want, and there's no clipping to enforce.
+//
+// Nearest-neighbour sampling. Bilinear would introduce colours not present
+// in the source — undesirable for pixel art, and rarely what's wanted for
+// a small sprite.
+export function rotateArbitrary(src, degrees, pivotX = null, pivotY = null) {
+	const w = src.width;
+	const h = src.height;
+	const dst = new ImageData(w, h);
+
+	const rad = (degrees % 360) * Math.PI / 180;
+	const cos = Math.cos(rad);
+	const sin = Math.sin(rad);
+
+	const px = pivotX === null ? w / 2 : pivotX;
+	const py = pivotY === null ? h / 2 : pivotY;
+
+	for (let dy = 0; dy < h; dy++) {
+		for (let dx = 0; dx < w; dx++) {
+			// Destination pixel centre, relative to the pivot.
+			const ox = dx + 0.5 - px;
+			const oy = dy + 0.5 - py;
+
+			// Inverse rotation: where in the source did this destination
+			// pixel come from?
+			const rx =  ox * cos + oy * sin;
+			const ry = -ox * sin + oy * cos;
+
+			const sx = Math.floor(px + rx);
+			const sy = Math.floor(py + ry);
+
+			if (sx < 0 || sy < 0 || sx >= w || sy >= h) continue;
+
+			const si = (sy * w + sx) * 4;
+			const di = (dy * w + dx) * 4;
+			dst.data[di]     = src.data[si];
+			dst.data[di + 1] = src.data[si + 1];
+			dst.data[di + 2] = src.data[si + 2];
+			dst.data[di + 3] = src.data[si + 3];
+		}
+	}
+
+	return dst;
+}
