@@ -1,3 +1,7 @@
+import { announceOpen, announceClosed } from '../lib/modalCoordination.js';
+import { closeAllPanels } from '../lib/panelCoordination.js';
+
+
 // Simple modal for errors the user needs to act on. Unlike the status bar,
 // this can't be missed, and it names the file it was looking for so the
 // fix is obvious.
@@ -10,6 +14,8 @@ export class ErrorDialog {
 
 	show(title, message) {
 		return new Promise((resolve) => {
+			announceOpen(this);
+			closeAllPanels();
 			this._resolve = resolve;
 			this.titleEl.textContent = title;
 			this.messageEl.textContent = message;
@@ -23,6 +29,7 @@ export class ErrorDialog {
 		this.backdrop.classList.remove('visible');
 		const r = this._resolve;
 		this._resolve = null;
+		announceClosed(this);
 		r();
 	}
 

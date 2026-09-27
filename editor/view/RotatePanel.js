@@ -1,5 +1,6 @@
 import { rotateArbitrary } from '../model/transforms.js';
 import { PaintCommand } from '../history/PaintCommand.js';
+import { announcePanelOpen, announcePanelClosed } from '../lib/panelCoordination.js';
 
 // Floating panel for arbitrary-angle rotation. Slider plus numeric input
 // for the angle; two numeric inputs and two preset buttons for the pivot.
@@ -37,19 +38,10 @@ export class RotatePanel {
 	get visible() { return this.root.style.display !== 'none'; }
 
 	show(anchor) {
-		// Fresh start every time: angle 0, pivot at the region's centre.
-		this.angle = 0;
-		const rect = this.doc.currentOpRect();
-		if (rect) {
-			this.pivotX = rect.w / 2;
-			this.pivotY = rect.h / 2;
-		} else {
-			this.pivotX = 0;
-			this.pivotY = 0;
-		}
-		this._sync();
+		announcePanelOpen(this);
 		this.root.style.display = 'block';
 		this._positionBelow(anchor);
+		this._sync();
 		this._schedule();
 	}
 
@@ -58,6 +50,7 @@ export class RotatePanel {
 		this.viewport.setPreview(null);
 		this.previewImageData = null;
 		this.previewFrame = null;
+		announcePanelClosed(this);
 	}
 
 	// --- construction -----------------------------------------------------

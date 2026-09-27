@@ -1,3 +1,6 @@
+import { announceOpen, announceClosed } from '../lib/modalCoordination.js';
+import { closeAllPanels } from '../lib/panelCoordination.js';
+
 // Modal dialog for choosing output filenames before saving. Open with the
 // proposed defaults; returns { jsonFilename, imageFilename } or null.
 
@@ -9,6 +12,9 @@ export class SaveDialog {
 
 	open(defaults) {
 		return new Promise((resolve) => {
+			announceOpen(this);
+			closeAllPanels();
+
 			this._resolve = resolve;
 			this.jsonInput.value  = defaults.jsonFilename;
 			this.imageInput.value = defaults.imageFilename;
@@ -25,6 +31,7 @@ export class SaveDialog {
 		this.backdrop.classList.remove('visible');
 		const r = this._resolve;
 		this._resolve = null;
+		announceClosed(this);
 		r(result);
 	}
 

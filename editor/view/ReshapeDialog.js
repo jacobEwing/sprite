@@ -1,3 +1,6 @@
+import { announceOpen, announceClosed } from '../lib/modalCoordination.js';
+import { closeAllPanels } from '../lib/panelCoordination.js';
+
 // Dialog for reshaping the frame grid. Asks only for the column count; the
 // resulting canvas dimensions are shown live. Warns (soft, non-blocking)
 // when frames are larger than the cell and would be clipped.
@@ -11,6 +14,8 @@ export class ReshapeDialog {
 
 	open(sheet) {
 		return new Promise((resolve) => {
+			announceOpen(this);
+			closeAllPanels();
 			this._resolve = resolve;
 			this._sheet = sheet;
 
@@ -37,6 +42,7 @@ export class ReshapeDialog {
 		this.backdrop.classList.remove('visible');
 		const r = this._resolve;
 		this._resolve = null;
+		announceClosed(this);
 		r(result);
 	}
 

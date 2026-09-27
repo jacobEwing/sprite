@@ -75,20 +75,7 @@ export class SpritePreview {
 			return;
 		}
 
-		this._fitScale();
 		this._recompute();
-	}
-
-	_fitScale() {
-		if (!this.sprite) return;
-		const sheet = this.doc.sheet;
-		const fw = sheet.frameWidth || sheet.imageWidth || 1;
-		const fh = sheet.frameHeight || sheet.imageHeight || 1;
-		const avail = CANVAS_SIZE - 20;
-		let scale = Math.min(avail / fw, avail / fh);
-		if (scale >= 1) scale = Math.max(1, Math.floor(scale));
-		else scale = Math.max(0.25, scale);
-		this.sprite.setScale(scale);
 	}
 
 	// Central dispatch: decide what the preview should be showing, and
@@ -262,9 +249,18 @@ export class SpritePreview {
 		const frame = this.sprite.frame;
 		if (!frame) return;
 
+		// Fit to the current frame's dimensions, recomputed every draw.
+		// Recomputing here rather than caching in _fitScale() means a
+		// change to a frame's size, or a switch to a differently-sized
+		// frame, is reflected immediately.
+		const avail = CANVAS_SIZE - 20;
+		let scale = Math.min(avail / frame.width, avail / frame.height);
+		if (scale >= 1) scale = Math.max(1, Math.floor(scale));
+		else scale = Math.max(0.25, scale);
+		this.sprite.setScale(scale);
+
 		const cw = CANVAS_SIZE;
 		const ch = CANVAS_SIZE;
-		const scale = this.sprite.scale;
 		const fw = frame.width * scale;
 		const fh = frame.height * scale;
 

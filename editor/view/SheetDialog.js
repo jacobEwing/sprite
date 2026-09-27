@@ -1,3 +1,6 @@
+import { announceOpen, announceClosed } from '../lib/modalCoordination.js';
+import { closeAllPanels } from '../lib/panelCoordination.js';
+
 // Modal for creating a new sheet or editing an existing one's settings.
 //
 // New mode: image size, frame size, cell count, with a "Suggest dimensions"
@@ -53,6 +56,9 @@ export class SheetDialog {
 
 	_open(values) {
 		return new Promise((resolve) => {
+			announceOpen(this);
+			closeAllPanels();
+
 			this._resolve = resolve;
 			this.titleEl.textContent = values.title;
 			this._populate(values);
@@ -71,6 +77,7 @@ export class SheetDialog {
 		this.backdrop.classList.remove('visible');
 		const r = this._resolve;
 		this._resolve = null;
+		announceClosed(this);
 		r(result);
 	}
 

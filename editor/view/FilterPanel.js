@@ -1,4 +1,5 @@
 import { applyConvolution, matrixSum, PRESETS, defaultMatrix } from '../paint/filters.js';
+import { announcePanelOpen, announcePanelClosed } from '../lib/panelCoordination.js';
 import { PaintCommand } from '../history/PaintCommand.js';
 
 // Floating panel for the convolution filter. Shows a preset dropdown, a
@@ -37,6 +38,7 @@ export class FilterPanel {
 	get visible() { return this.root.style.display !== 'none'; }
 
 	show(anchor) {
+		announcePanelOpen(this);
 		this.root.style.display = 'block';
 		this._positionBelow(anchor);
 		this._sync();
@@ -48,6 +50,7 @@ export class FilterPanel {
 		this.viewport.setPreview(null);
 		this.previewImageData = null;
 		this.previewFrame = null;
+		announcePanelClosed(this);
 	}
 
 	// --- construction -----------------------------------------------------

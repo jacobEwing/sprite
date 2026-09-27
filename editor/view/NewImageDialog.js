@@ -1,3 +1,6 @@
+import { announceOpen, announceClosed } from '../lib/modalCoordination.js';
+import { closeAllPanels } from '../lib/panelCoordination.js';
+
 // Small dialog for creating a blank image. Two fields, no sprite data
 // involved: the frame layout, sequences, and settings of whatever sheet is
 // currently loaded are left untouched.
@@ -10,6 +13,8 @@ export class NewImageDialog {
 
 	open(defaults = {}) {
 		return new Promise((resolve) => {
+			announceOpen(this);
+			closeAllPanels();
 			this._resolve = resolve;
 			this.inputW.value = defaults.width  || 256;
 			this.inputH.value = defaults.height || 256;
@@ -26,6 +31,7 @@ export class NewImageDialog {
 		this.backdrop.classList.remove('visible');
 		const r = this._resolve;
 		this._resolve = null;
+		announceClosed(this);
 		r(result);
 	}
 

@@ -1,4 +1,5 @@
 import { ColorPicker } from './ColorPicker.js';
+import { announcePanelOpen, announcePanelClosed } from '../lib/panelCoordination.js';
 
 // Floating popover for choosing the viewport background: a texture
 // (checker, dots, stripes, none) and two colours — the A/B pair used by
@@ -34,6 +35,7 @@ export class BackgroundPicker {
 	get isOpen() { return this.root.style.display !== 'none'; }
 
 	show(anchor) {
+		announcePanelOpen(this);
 		this.root.style.display = 'block';
 		this._position(anchor);
 		this._sync();
@@ -42,6 +44,7 @@ export class BackgroundPicker {
 	hide() {
 		this.root.style.display = 'none';
 		this.picker.hide();
+		announcePanelClosed(this);
 	}
 
 	_build() {
