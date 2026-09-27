@@ -13,9 +13,9 @@
 //                 transparency through a blur.
 //
 // Pixels near the source rect's edge are clamped to the nearest in-bounds
-// pixel rather than reading beyond it. Sprite frames are treated as isolated
-// images; a filter on one frame never reads from a neighbouring frame in the
-// atlas.
+// pixel rather than reading beyond it. Sprite frames are treated as
+// isolated images; a filter on one frame never reads from a neighbouring
+// frame in the atlas.
 
 export function applyConvolution(src, kernel) {
 	const size = kernel.matrix.length;

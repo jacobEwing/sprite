@@ -217,7 +217,6 @@ export class FilterPanel {
 			divisor: this.divisor,
 			offset: this.offset,
 			convolveAlpha: this.convolveAlpha,
-			edge: 'clamp',
 		};
 	}
 
