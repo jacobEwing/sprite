@@ -477,8 +477,11 @@ body {
 	flex-direction: row;
 	gap: 3px;
 	justify-content: center;
-	flex-wrap: nowrap;
+	flex-wrap: wrap;
+	align-items: center;
+	align-content: center;
 }
+
 .brush-btn {
 	flex: 0 0 auto;
 	background: var(--panel-2);
@@ -1686,4 +1689,94 @@ body {
 	background: var(--accent-2);
 	border-color: var(--accent-2);
 	color: #fff;
+}
+
+/* --- sub-tabs inside a pane (Brush | Tool) --- */
+.sub-tabs {
+	display: flex;
+	gap: 2px;
+	margin-bottom: 8px;
+	border-bottom: 1px solid var(--rule);
+}
+.sub-tab {
+	flex: 1;
+	background: transparent;
+	border: none;
+	border-bottom: 2px solid transparent;
+	color: var(--muted);
+	padding: 4px 6px 6px;
+	cursor: pointer;
+	font: inherit;
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	font-weight: 600;
+	margin-bottom: -1px;
+}
+.sub-tab:hover { color: var(--ink); }
+.sub-tab.selected {
+	color: var(--ink);
+	border-bottom-color: var(--accent);
+}
+.sub-panel {
+	display: block;
+}
+.sub-panel.hidden { display: none; }
+
+/* --- tool settings --- */
+.tool-setting {
+	margin-bottom: 10px;
+}
+.tool-setting:last-child {
+	margin-bottom: 0;
+}
+.tool-setting-label {
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--muted);
+	margin-bottom: 3px;
+}
+.tool-setting-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.tool-setting-range {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	-webkit-appearance: none;
+	appearance: none;
+	height: 14px;
+	background: var(--panel-2);
+	border: 1px solid var(--rule);
+	border-radius: 3px;
+	cursor: pointer;
+}
+.tool-setting-range::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 8px;
+	height: 14px;
+	background: var(--ink);
+	border: none;
+	border-radius: 2px;
+	cursor: pointer;
+}
+.tool-setting-range::-moz-range-thumb {
+	width: 8px;
+	height: 14px;
+	background: var(--ink);
+	border: none;
+	border-radius: 2px;
+	cursor: pointer;
+}
+.tool-setting-value {
+	flex: 0 0 auto;
+	min-width: 32px;
+	text-align: right;
+	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-size: 11px;
+	color: var(--muted);
 }

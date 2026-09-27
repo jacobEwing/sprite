@@ -20,10 +20,10 @@ export async function pickFile({ description, accept, extensions }) {
 			if (err.name === 'AbortError') return null;
 		}
 	}
-	return _inputPickOne(extensions.join(','));
+	return inputPickOne(extensions.join(','));
 }
 
-function _inputPickOne(accept) {
+function inputPickOne(accept) {
 	return new Promise((resolve) => {
 		const input = document.createElement('input');
 		input.type = 'file';
@@ -71,7 +71,7 @@ export async function loadSpriteFile() {
 // a blank canvas sized from the frames themselves, so the frame rectangles
 // land where they would against the real image.
 export async function sheetFromSpriteJSON(json, imageSource = null) {
-	const image = imageSource || _placeholderCanvasFor(json);
+	const image = imageSource || placeholderCanvasFor(json);
 	const sheet = await window.SpriteSheet.fromJSON({ ...json, image });
 	return sheet;
 }
@@ -79,7 +79,7 @@ export async function sheetFromSpriteJSON(json, imageSource = null) {
 // Compute the tightest canvas that contains every frame, so the placeholder
 // matches what the eventual real image will look like. Handles both the
 // grid form (col/row) and pixel-offset aliases (x/y, xoffset/yoffset).
-function _placeholderCanvasFor(json) {
+function placeholderCanvasFor(json) {
 	const fw = Number(json.frameWidth)  || 16;
 	const fh = Number(json.frameHeight) || 16;
 	let maxX = fw;
@@ -146,7 +146,7 @@ export async function loadImageFile() {
 	});
 	if (!file) return null;
 
-	const img = await _loadImageFromFile(file);
+	const img = await loadImageFromFile(file);
 
 	const canvas = document.createElement('canvas');
 	canvas.width  = img.naturalWidth || img.width;
@@ -158,7 +158,7 @@ export async function loadImageFile() {
 	return { canvas, imageFilename: file.name };
 }
 
-async function _loadImageFromFile(file) {
+async function loadImageFromFile(file) {
 	const url = URL.createObjectURL(file);
 	try {
 		const img = new Image();

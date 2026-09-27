@@ -50,6 +50,7 @@ import {
 import { NewImageDialog } from './view/NewImageDialog.js';
 import { AirbrushTool }    from './tools/AirbrushTool.js';
 import { ReshapeDialog } from './view/ReshapeDialog.js';
+import { ToolSettingsPanel } from './view/ToolSettingsPanel.js';
 
 // --- wiring ---------------------------------------------------------------
 const viewOptions = { grid: false, snap: false };
@@ -60,22 +61,22 @@ const palette  = new Palette();
 const viewport = new Viewport(document.getElementById('viewport'));
 const backgroundPicker = new BackgroundPicker(viewport);
 const clipboard = new Clipboard();
-
-new FrameList(document.getElementById('frameList'), doc);
-new SequenceList(document.getElementById('sequenceList'), doc);
-
-new FrameInspector(document.getElementById('frameInspector'), doc);
-new SequenceInspector(document.getElementById('sequenceInspector'), doc);
-new Timeline(document.getElementById('timeline'), doc, viewport);
-new SpritePreview(document.getElementById('spritePreview'), doc);
-
 const newImageDialog = new NewImageDialog();
-const brushPicker = new BrushPicker(document.getElementById('brushPicker'));
-
 const collisionOverlay = new CollisionOverlay(doc, viewport);
 const selectionOverlay = new SelectionOverlay(doc, viewport);
 const toolLayer = new ToolLayer({ viewport, document: doc, palette, history });
 const reshapeDialog = new ReshapeDialog();
+
+new FrameList(document.getElementById('frameList'), doc);
+new SequenceList(document.getElementById('sequenceList'), doc);
+new FrameInspector(document.getElementById('frameInspector'), doc);
+new SequenceInspector(document.getElementById('sequenceInspector'), doc);
+new Timeline(document.getElementById('timeline'), doc, viewport);
+new SpritePreview(document.getElementById('spritePreview'), doc);
+const brushPicker = new BrushPicker(document.getElementById('brushPicker'));
+const toolSettingsPanel = new ToolSettingsPanel(document.getElementById('toolSettings'));
+
+
 
 const TOOLS = {
 	pan:       new PanTool(toolLayer.context),
@@ -136,10 +137,10 @@ function activateTool(name) {
 	}
 	viewport.canvas.style.cursor = name === 'pan' ? 'grab' : 'crosshair';
 
-	// Collision overlay is visible whenever the collision tool is active,
-	// or when the user has enabled "always show" in the Collision pane.
 	const showCollision = name === 'collision' || collisionInspector.showOverlay;
 	collisionOverlay.setEnabled(showCollision);
+
+	toolSettingsPanel.showFor(tool);
 }
 
 for (const btn of toolButtons) {
@@ -925,7 +926,21 @@ function setupTabs(sidebarEl) {
 		});
 	});
 }
+// --- sub-tabs (Brush | Tool) ---------------------------------------------
 
+(function setupBrushSubTabs() {
+	const section = document.getElementById('brushSection');
+	if (!section) return;
+	const tabs = section.querySelectorAll('.sub-tab');
+	const panels = section.querySelectorAll('.sub-panel');
+	tabs.forEach((tab) => {
+		tab.addEventListener('click', () => {
+			const name = tab.dataset.subtab;
+			tabs.forEach((t) => t.classList.toggle('selected', t === tab));
+			panels.forEach((p) => p.classList.toggle('hidden', p.dataset.subpanel !== name));
+		});
+	});
+})();
 setupTabs(document.getElementById('leftSidebar'));
 setupTabs(document.getElementById('rightSidebar'));
 

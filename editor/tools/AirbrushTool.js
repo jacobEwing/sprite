@@ -5,7 +5,6 @@ import { hexToRGBA, linePoints } from '../paint/pixelUtils.js';
 // animation frame while the button is held. Dwelling builds up; fast
 // strokes leave a light trail. Brush mask weights scale the deposit
 // per-cell, so soft brushes fade at the edges.
-const DEPOSIT_PER_TICK = 0.08;
 
 export class AirbrushTool extends Tool {
 	constructor(context) {
@@ -17,6 +16,7 @@ export class AirbrushTool extends Tool {
 		this.currentX = null;
 		this.currentY = null;
 		this.rafId = null;
+		this.flow = 8;
 	}
 
 	onPointerDown(ev) {
@@ -90,9 +90,10 @@ export class AirbrushTool extends Tool {
 		const color = this.color;
 		if (!color) return;
 		const colorAlpha = color[3] / 255;
+		const deposit = this.flow / 100;
 
 		brush.forEachPixel(x, y, (px, py, weight) => {
-			const a = colorAlpha * weight * DEPOSIT_PER_TICK;
+			const a = colorAlpha * weight * deposit;
 			if (a <= 0) return;
 			this._blendPixel(px, py, color, a);
 		});
@@ -119,5 +120,26 @@ export class AirbrushTool extends Tool {
 		const p = this.context.palette;
 		const color = button === 2 ? p.secondary : p.primary;
 		return hexToRGBA(color.hex, color.alpha) ?? [0, 0, 0, 255];
+	}
+
+	getSettings() {
+		return [{
+			key: 'flow',
+			label: 'Flow',
+			type: 'range',
+			min: 1,
+			max: 30,
+			step: 1,
+			format: (v) => `${v}%`,
+		}];
+	}
+
+	getSettingValue(key) {
+		if (key === 'flow') return this.flow;
+		return undefined;
+	}
+
+	setSettingValue(key, value) {
+		if (key === 'flow') this.flow = Math.max(1, Math.min(30, Number(value) || 1));
 	}
 }

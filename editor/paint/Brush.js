@@ -42,4 +42,20 @@ export const BRUSHES = {
 		[1, 1, 1, 1, 1],
 		[0, 1, 1, 1, 0],
 	]),
+	// Weighted brushes. The mask values become deposit weights in the
+	// airbrush and fade weights in the eraser, so edges feather rather
+	// than cutting off. Values are fractions of full strength.
+	soft3: new Brush([
+		[0.25, 0.5,  0.25],
+		[0.5,  1.0,  0.5 ],
+		[0.25, 0.5,  0.25],
+	]),
+
+	soft5: new Brush([
+		[0.1,  0.25, 0.4,  0.25, 0.1 ],
+		[0.25, 0.6,  0.8,  0.6,  0.25],
+		[0.4,  0.8,  1.0,  0.8,  0.4 ],
+		[0.25, 0.6,  0.8,  0.6,  0.25],
+		[0.1,  0.25, 0.4,  0.25, 0.1 ],
+	]),
 };

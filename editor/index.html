@@ -120,10 +120,17 @@
 						</label>
 					</div>
 				</section>
-
-				<section class="pane">
-					<h2>Brush</h2>
-					<div id="brushPicker" class="brush-picker"></div>
+				<section class="pane" id="brushSection">
+					<div class="sub-tabs">
+						<button class="sub-tab selected" data-subtab="brush">Brush</button>
+						<button class="sub-tab" data-subtab="tool">Tool</button>
+					</div>
+					<div class="sub-panel" data-subpanel="brush">
+						<div id="brushPicker" class="brush-picker"></div>
+					</div>
+					<div class="sub-panel hidden" data-subpanel="tool">
+						<div id="toolSettings"></div>
+					</div>
 				</section>
 			</div>
 

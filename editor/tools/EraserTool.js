@@ -10,6 +10,7 @@ export class EraserTool extends Tool {
 		this.transaction = null;
 		this.lastX = null;
 		this.lastY = null;
+		this.opacity = 100;
 	}
 
 	onPointerDown(ev) {
@@ -54,8 +55,40 @@ export class EraserTool extends Tool {
 
 	_stampAt(x, y) {
 		const brush = this.context.brush;
-		brush.forEachPixel(x, y, (px, py) => {
-			this.transaction.setPixel(px, py, [0, 0, 0, 0]);
+		const opacity = this.opacity / 100;
+
+		// Effective erase strength is opacity × mask weight. At full
+		// opacity and weight 1 the pixel's alpha goes to 0; at half and
+		// half it retains 75%; at any weight with opacity 0 it's unchanged.
+		// RGB is preserved so a later paint at partial alpha blends with
+		// the underlying colour rather than the erased residue.
+		brush.forEachPixel(x, y, (px, py, weight) => {
+			if (weight <= 0) return;
+			const existing = this.transaction.getPixel(px, py);
+			if (!existing) return;
+			const retain = 1 - opacity * weight;
+			const newA = Math.round(existing[3] * retain);
+			this.transaction.setPixel(px, py, [existing[0], existing[1], existing[2], newA]);
 		});
 	}
-}
+
+	getSettings() {
+		return [{
+			key: 'opacity',
+			label: 'Opacity',
+			type: 'range',
+			min: 0,
+			max: 100,
+			step: 1,
+			format: (v) => `${v}%`,
+		}];
+	}
+
+	getSettingValue(key) {
+		if (key === 'opacity') return this.opacity;
+		return undefined;
+	}
+
+	setSettingValue(key, value) {
+		if (key === 'opacity') this.opacity = Math.max(0, Math.min(100, Number(value) || 0));
+	}}
