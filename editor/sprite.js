@@ -1,1 +1,0 @@
-/var/www/weblibs/sprite/sprite.js
