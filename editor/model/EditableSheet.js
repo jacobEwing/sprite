@@ -5,6 +5,7 @@ import {
 	AddSequenceCommand, RemoveSequenceCommand, RenameSequenceCommand, SetSequenceCommand,
 	ResizeCanvasCommand, SetSheetSettingsCommand, SetCollisionCommand,
 	CompositeCommand, ReshapeCommand,
+	ReorderFramesCommand, ReorderSequencesCommand,
 } from './sheetCommands.js';
 
 // A facade over SpriteSheet that mediates all structural mutations through
@@ -561,6 +562,117 @@ export class EditableSheet {
 		}
 		return out;
 	}
+
+	// --- bulk operations --------------------------------------------------
+
+	// Duplicate each named frame. Names use the same "name_2" convention as
+	// the single-frame version. All copies are one undo step.
+	duplicateFrames(names) {
+		if (!names || names.length === 0) return [];
+
+		const commands = [];
+		const newNames = [];
+
+		for (const name of names) {
+			const src = this.sheet.frames[name];
+			if (!src) continue;
+
+			const newName = this.uniqueFrameName(name);
+			const slot = this._findFreeSlot(src.width, src.height);
+			const x = slot ? slot.x : src.x;
+			const y = slot ? slot.y : src.y;
+			const frame = { ...src, x, y };
+
+			// Apply immediately so subsequent slot searches in this batch
+			// see the frames we've already planned, then wrap everything
+			// in a composite so undo reverses the whole batch at once.
+			const cmd = new AddFrameCommand(this.sheet, newName, frame);
+			cmd.apply();
+			commands.push(cmd);
+			newNames.push(newName);
+		}
+
+		if (commands.length === 0) return [];
+		const composite = commands.length === 1
+			? commands[0]
+			: new CompositeCommand(commands);
+		this.history.push(composite, 'data');
+		for (const n of newNames) {
+			this.emit('changed', { type: 'frameAdded', name: n });
+		}
+		return newNames;
+	}
+
+	// Remove each named frame and drop it from any sequence that references
+	// it. One undo step.
+	removeFrames(names) {
+		if (!names || names.length === 0) return;
+
+		const commands = [];
+		const removed = [];
+
+		for (const name of names) {
+			if (!this.sheet.frames[name]) continue;
+			const cmd = new RemoveFrameCommand(this.sheet, name);
+			cmd.apply();
+			commands.push(cmd);
+			removed.push(name);
+		}
+
+		if (commands.length === 0) return;
+		const composite = commands.length === 1
+			? commands[0]
+			: new CompositeCommand(commands);
+		this.history.push(composite, 'data');
+		for (const name of removed) {
+			this.emit('changed', { type: 'frameRemoved', name });
+		}
+	}
+
+	// Remove each named sequence. One undo step.
+	removeSequences(names) {
+		if (!names || names.length === 0) return;
+
+		const commands = [];
+		const removed = [];
+
+		for (const name of names) {
+			if (!this.sheet.sequences[name]) continue;
+			const cmd = new RemoveSequenceCommand(this.sheet, name);
+			cmd.apply();
+			commands.push(cmd);
+			removed.push(name);
+		}
+
+		if (commands.length === 0) return;
+		const composite = commands.length === 1
+			? commands[0]
+			: new CompositeCommand(commands);
+		this.history.push(composite, 'data');
+		for (const name of removed) {
+			this.emit('changed', { type: 'sequenceRemoved', name });
+		}
+	}
+
+	// Move the named frames by one position in the given direction.
+	// direction: -1 (up) or +1 (down). Preserves relative order within
+	// the moved group; items that would collide with another selected
+	// item don't move past it.
+	moveFrames(names, direction) {
+		const current = this.sheet.frameNames;
+		const newOrder = moveInOrder(current, names, direction);
+		if (!newOrder) return;
+		this.history.execute(new ReorderFramesCommand(this.sheet, newOrder), 'data');
+		this.emit('changed', { type: 'framesReordered' });
+	}
+
+	moveSequences(names, direction) {
+		const current = this.sheet.sequenceNames;
+		const newOrder = moveInOrder(current, names, direction);
+		if (!newOrder) return;
+		this.history.execute(new ReorderSequencesCommand(this.sheet, newOrder), 'data');
+		this.emit('changed', { type: 'sequencesReordered' });
+	}
 }
 
 // Structural equality over plain objects and arrays. Used to short-circuit
@@ -576,4 +688,37 @@ function deepEqual(a, b) {
 		if (!deepEqual(a[k], b[k])) return false;
 	}
 	return true;
+}
+
+// Move every name in `selected` one step in `direction` (-1 up, +1 down).
+// Returns the new order, or null if nothing moved.
+function moveInOrder(order, selected, direction) {
+	const n = order.length;
+	const sel = new Set(selected);
+	const indices = order
+		.map((name, i) => sel.has(name) ? i : -1)
+		.filter(i => i >= 0);
+	if (indices.length === 0) return null;
+
+	const next = order.slice();
+	const stillSelected = new Set(sel);
+
+	// Move top-to-bottom for up, bottom-to-top for down, so items don't
+	// step on each other within the same move.
+	const seq = direction < 0
+		? indices.slice().sort((a, b) => a - b)
+		: indices.slice().sort((a, b) => b - a);
+
+	for (const i of seq) {
+		const j = i + direction;
+		if (j < 0 || j >= n) continue;
+		if (stillSelected.has(j)) continue;
+		[next[i], next[j]] = [next[j], next[i]];
+		stillSelected.delete(i);
+		stillSelected.add(j);
+	}
+
+	// Return null if the array is unchanged.
+	for (let i = 0; i < n; i++) if (next[i] !== order[i]) return next;
+	return null;
 }

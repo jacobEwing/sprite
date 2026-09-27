@@ -313,3 +313,45 @@ export class ReshapeCommand {
 		return c;
 	}
 }
+
+// --- reorder --------------------------------------------------------------
+
+// Rebuild the frames map with the given key order. Existing frame objects
+// are reused by reference, so this is O(n) and doesn't clone pixel data.
+export class ReorderFramesCommand {
+	constructor(sheet, newOrder) {
+		this.sheet = sheet;
+		this.oldOrder = sheet.frameNames;
+		this.newOrder = newOrder.slice();
+	}
+	apply()  { this._applyOrder(this.newOrder); }
+	revert() { this._applyOrder(this.oldOrder); }
+	_applyOrder(order) {
+		const frames = this.sheet.frames;
+		const rebuilt = {};
+		for (const name of order) {
+			if (frames[name]) rebuilt[name] = frames[name];
+		}
+		for (const key of Object.keys(frames)) delete frames[key];
+		Object.assign(frames, rebuilt);
+	}
+}
+
+export class ReorderSequencesCommand {
+	constructor(sheet, newOrder) {
+		this.sheet = sheet;
+		this.oldOrder = sheet.sequenceNames;
+		this.newOrder = newOrder.slice();
+	}
+	apply()  { this._applyOrder(this.newOrder); }
+	revert() { this._applyOrder(this.oldOrder); }
+	_applyOrder(order) {
+		const sequences = this.sheet.sequences;
+		const rebuilt = {};
+		for (const name of order) {
+			if (sequences[name]) rebuilt[name] = sequences[name];
+		}
+		for (const key of Object.keys(sequences)) delete sequences[key];
+		Object.assign(sequences, rebuilt);
+	}
+}

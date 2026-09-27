@@ -215,6 +215,42 @@ function _wireImageNoticeLink() {
 	}
 }
 
+function updateListActionState() {
+	const frameOrder = doc.sheet ? doc.sheet.frameNames : [];
+	const seqOrder = doc.sheet ? doc.sheet.sequenceNames : [];
+
+	const frames = doc.selectedFrameList;
+	if (frames.length === 0) {
+		$('btnDuplicateFrame').disabled = true;
+		$('btnDeleteFrames').disabled = true;
+		$('btnMoveFrameUp').disabled = true;
+		$('btnMoveFrameDown').disabled = true;
+	} else {
+		const minIdx = Math.min(...frames.map(n => frameOrder.indexOf(n)));
+		const maxIdx = Math.max(...frames.map(n => frameOrder.indexOf(n)));
+		$('btnDuplicateFrame').disabled = false;
+		$('btnDeleteFrames').disabled = false;
+		$('btnMoveFrameUp').disabled = minIdx === 0;
+		$('btnMoveFrameDown').disabled = maxIdx === frameOrder.length - 1;
+	}
+
+	const seqs = doc.selectedSequenceList;
+	if (seqs.length === 0) {
+		$('btnDeleteSequences').disabled = true;
+		$('btnMoveSequenceUp').disabled = true;
+		$('btnMoveSequenceDown').disabled = true;
+	} else {
+		const minIdx = Math.min(...seqs.map(n => seqOrder.indexOf(n)));
+		const maxIdx = Math.max(...seqs.map(n => seqOrder.indexOf(n)));
+		$('btnDeleteSequences').disabled = false;
+		$('btnMoveSequenceUp').disabled = minIdx === 0;
+		$('btnMoveSequenceDown').disabled = maxIdx === seqOrder.length - 1;
+	}
+}
+
+doc.on('sheetChanged',     updateListActionState);
+doc.on('selectionChanged', updateListActionState);
+doc.on('edit',             updateListActionState);
 doc.on('sheetChanged', () => {
 	viewport.setFrames(doc.sheet ? doc.sheet.frames : null);
 	viewport.setSource(doc.sheet ? doc.sheet.image : null);
@@ -322,6 +358,8 @@ document.getElementById('btnFilter').addEventListener('click', (e) => {
 
 // --- toolbar --------------------------------------------------------------
 
+// --- list actions --------------------------------------------------------
+
 $('btnNewFrame').addEventListener('click', () => {
 	if (!doc.editable) return;
 	try {
@@ -333,13 +371,31 @@ $('btnNewFrame').addEventListener('click', () => {
 });
 
 $('btnDuplicateFrame').addEventListener('click', () => {
-	if (!doc.selectedFrame || !doc.editable) return;
+	if (!doc.editable) return;
 	try {
-		const name = doc.editable.duplicateFrame(doc.selectedFrame);
-		doc.selectFrame(name, { focus: true });
+		const names = doc.selectedFrameList;
+		const created = doc.editable.duplicateFrames(names);
+		if (created.length > 0) {
+			doc.selectFrame(created[0], { focus: true });
+		}
 	} catch (err) {
 		console.warn(err.message);
 	}
+});
+
+$('btnDeleteFrames').addEventListener('click', () => {
+	if (!doc.editable) return;
+	doc.editable.removeFrames(doc.selectedFrameList);
+});
+
+$('btnMoveFrameUp').addEventListener('click', () => {
+	if (!doc.editable) return;
+	doc.editable.moveFrames(doc.selectedFrameList, -1);
+});
+
+$('btnMoveFrameDown').addEventListener('click', () => {
+	if (!doc.editable) return;
+	doc.editable.moveFrames(doc.selectedFrameList, +1);
 });
 
 $('btnNewSequence').addEventListener('click', () => {
@@ -350,6 +406,21 @@ $('btnNewSequence').addEventListener('click', () => {
 		frames: doc.selectedFrame ? [doc.selectedFrame] : [],
 	});
 	doc.selectSequence(name);
+});
+
+$('btnDeleteSequences').addEventListener('click', () => {
+	if (!doc.editable) return;
+	doc.editable.removeSequences(doc.selectedSequenceList);
+});
+
+$('btnMoveSequenceUp').addEventListener('click', () => {
+	if (!doc.editable) return;
+	doc.editable.moveSequences(doc.selectedSequenceList, -1);
+});
+
+$('btnMoveSequenceDown').addEventListener('click', () => {
+	if (!doc.editable) return;
+	doc.editable.moveSequences(doc.selectedSequenceList, +1);
 });
 
 // --- file operations -----------------------------------------------------

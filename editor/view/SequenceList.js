@@ -14,7 +14,7 @@ export class SequenceList {
 
 		doc.on('sheetChanged',     () => this.render());
 		doc.on('selectionChanged', () => this._sync());
-		doc.on('edit', () => this.render());
+		doc.on('edit',             () => this.render());
 
 		this.render();
 	}
@@ -33,10 +33,10 @@ export class SequenceList {
 				`<span class="name">${esc(name)}</span>` +
 				`<span class="meta">${seq.frames.length}f ${iters}</span>`;
 
-			li.addEventListener('click', () => this.doc.selectSequence(name));
-			li.addEventListener('contextmenu', (e) => {
-				e.preventDefault();
-				this._showContextMenu(name, e.clientX, e.clientY);
+			li.addEventListener('click', (e) => {
+				const additive = e.ctrlKey || e.metaKey;
+				const range    = e.shiftKey;
+				this.doc.selectSequence(name, { additive, range });
 			});
 			li.addEventListener('dblclick', (e) => {
 				e.preventDefault();
@@ -53,6 +53,10 @@ export class SequenceList {
 					}
 				});
 			});
+			li.addEventListener('contextmenu', (e) => {
+				e.preventDefault();
+				this._showContextMenu(name, e.clientX, e.clientY);
+			});
 
 			this.root.appendChild(li);
 		}
@@ -62,14 +66,21 @@ export class SequenceList {
 	_showContextMenu(name, x, y) {
 		const ed = this.doc.editable;
 		new Menu(null, [
-			{ label: 'Delete', action: () => ed.removeSequence(name) },
+			{
+				label: 'Delete',
+				action: () => ed.removeSequences([...this.doc.selectedSequences]),
+			},
 		]).showAt(x, y);
 	}
 
 	_sync() {
-		const cur = this.doc.selectedSequence;
+		const primary = this.doc.primarySequence;
+		const selected = this.doc.selectedSequences;
 		for (const li of this.root.children) {
-			li.classList.toggle('selected', li.dataset.sequence === cur);
+			const name = li.dataset.sequence;
+			li.classList.toggle('selected', name === primary);
+			li.classList.toggle('multi-selected',
+				name !== primary && selected.has(name));
 		}
 	}
 }

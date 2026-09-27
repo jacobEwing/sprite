@@ -14,7 +14,7 @@ export class FrameList {
 
 		doc.on('sheetChanged',     () => this.render());
 		doc.on('selectionChanged', () => this._sync());
-		doc.on('edit', () => this.render());
+		doc.on('edit',             () => this.render());
 
 		this.render();
 	}
@@ -32,10 +32,17 @@ export class FrameList {
 				`<span class="name">${esc(name)}</span>` +
 				`<span class="meta">${frame.width}×${frame.height}</span>`;
 
-			li.addEventListener('click', () => this.doc.selectFrame(name, { focus: true }));
-			li.addEventListener('contextmenu', (e) => {
-				e.preventDefault();
-				this._showContextMenu(name, e.clientX, e.clientY);
+			li.addEventListener('click', (e) => {
+				const additive = e.ctrlKey || e.metaKey;
+				const range    = e.shiftKey;
+				this.doc.selectFrame(name, {
+					// Focus only on plain clicks; modifiers mean the user
+					// is building a selection and doesn't want the camera
+					// jumping between items.
+					focus: !additive && !range,
+					additive,
+					range,
+				});
 			});
 			li.addEventListener('dblclick', (e) => {
 				e.preventDefault();
@@ -52,6 +59,11 @@ export class FrameList {
 					}
 				});
 			});
+			li.addEventListener('contextmenu', (e) => {
+				e.preventDefault();
+				this._showContextMenu(name, e.clientX, e.clientY);
+			});
+
 			this.root.appendChild(li);
 		}
 		this._sync();
@@ -73,20 +85,30 @@ export class FrameList {
 				label: 'Duplicate',
 				action: () => {
 					try {
-						const newName = ed.duplicateFrame(name);
-						this.doc.selectFrame(newName, { focus: true });
+						const names = [...this.doc.selectedFrames];
+						const created = ed.duplicateFrames(names);
+						if (created.length > 0) {
+							this.doc.selectFrame(created[0], { focus: true });
+						}
 					} catch (err) { console.warn(err.message); }
 				},
 			},
 			{ separator: true },
-			{ label: 'Delete', action: () => ed.removeFrame(name) },
+			{
+				label: 'Delete',
+				action: () => ed.removeFrames([...this.doc.selectedFrames]),
+			},
 		]).showAt(x, y);
 	}
 
 	_sync() {
-		const cur = this.doc.selectedFrame;
+		const primary = this.doc.primaryFrame;
+		const selected = this.doc.selectedFrames;
 		for (const li of this.root.children) {
-			li.classList.toggle('selected', li.dataset.frame === cur);
+			const name = li.dataset.frame;
+			li.classList.toggle('selected', name === primary);
+			li.classList.toggle('multi-selected',
+				name !== primary && selected.has(name));
 		}
 	}
 }

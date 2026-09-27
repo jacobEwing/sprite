@@ -162,6 +162,7 @@ body {
 	font-size: 12px;
 	white-space: nowrap;
 	overflow: hidden;
+	user-select: none;
 }
 .list li:hover { background: var(--panel-2); }
 .list li.selected {
@@ -1632,4 +1633,19 @@ body {
 }
 .list-rename-input:focus {
 	outline: none;
+}
+
+/* --- multi-selected list entries --- */
+.list li.multi-selected {
+	background: rgba(74, 128, 192, 0.25);
+}
+
+/* --- disabled pane actions --- */
+.pane-action:disabled {
+	opacity: 0.3;
+	cursor: default;
+}
+.pane-action:disabled:hover {
+	color: var(--muted);
+	background: transparent;
 }

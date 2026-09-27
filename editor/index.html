@@ -55,8 +55,11 @@
 				<div class="pane-action-row">
 					<span class="count" id="frameCount"></span>
 					<div class="pane-action-group">
-						<button class="pane-action" id="btnNewFrame" title="New blank frame">+</button>
-						<button class="pane-action" id="btnDuplicateFrame" title="Duplicate selected frame">⧉</button>
+						<button class="pane-action" id="btnNewFrame"       title="New blank frame">+</button>
+						<button class="pane-action" id="btnDuplicateFrame" title="Duplicate selected">⧉</button>
+						<button class="pane-action" id="btnDeleteFrames"   title="Delete selected">×</button>
+						<button class="pane-action" id="btnMoveFrameUp"    title="Move up">↑</button>
+						<button class="pane-action" id="btnMoveFrameDown"  title="Move down">↓</button>
 					</div>
 				</div>
 				<ul id="frameList" class="list"></ul>
@@ -65,10 +68,16 @@
 			<div class="tab-panel hidden" data-panel="sequences">
 				<div class="pane-action-row">
 					<span class="count" id="sequenceCount"></span>
-					<button class="pane-action" id="btnNewSequence" title="New sequence">+</button>
+					<div class="pane-action-group">
+						<button class="pane-action" id="btnNewSequence"      title="New sequence">+</button>
+						<button class="pane-action" id="btnDeleteSequences"  title="Delete selected">×</button>
+						<button class="pane-action" id="btnMoveSequenceUp"   title="Move up">↑</button>
+						<button class="pane-action" id="btnMoveSequenceDown" title="Move down">↓</button>
+					</div>
 				</div>
 				<ul id="sequenceList" class="list"></ul>
 			</div>
+
 			<section class="pane preview-pane">
 				<div id="spritePreview"></div>
 			</section>
