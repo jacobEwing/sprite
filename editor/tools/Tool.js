@@ -10,6 +10,13 @@
 export class Tool {
 	constructor(context) {
 		this.context = context;
+
+		// Tools that act on the currently-selected frame. When a click
+		// lands on a different frame, ToolLayer selects that frame and —
+		// if this flag is true and clipping is on — skips the tool's
+		// gesture for that click. Tools that work on the atlas as a whole
+		// override this to false.
+		this.cellScoped = true;
 	}
 	onPointerDown(ev) {}
 	onPointerMove(ev) {}

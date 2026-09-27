@@ -9,6 +9,11 @@ export class SelectionTool extends Tool {
 		this.anchorX = null;
 		this.anchorY = null;
 		this.moved = false;
+
+		// The marquee's gesture *is* the click-drag. Deferring it would
+		// mean the drag that started in a new cell did nothing, which is
+		// worse than the current behaviour.
+		this.cellScoped = false;
 	}
 
 	onPointerDown(ev) {

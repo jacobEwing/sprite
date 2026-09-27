@@ -7,6 +7,11 @@ export class FrameTool extends Tool {
 	constructor(context) {
 		super(context);
 		this.drag = null;
+
+		// The frame mover has its own hit-testing for "inside the selected
+		// frame's rect". Switching cells with this tool is not the same
+		// hazard as with the drawing tools.
+		this.cellScoped = false;
 	}
 
 	onPointerDown(ev) {

@@ -6,6 +6,13 @@ import { rgbaToHex } from '../paint/pixelUtils.js';
 // is part of the colour, so a sampled semi-transparent pixel lands in the
 // palette with its alpha intact.
 export class ColorPickerTool extends Tool {
+	constructor(context) {
+		super(context);
+		// Sampling reads from anywhere in the atlas, so a cell change is
+		// fine to happen in the same gesture.
+		this.cellScoped = false;
+	}
+
 	onPointerDown(ev) {
 		const sheet = this.context.document.sheet;
 		if (!sheet) return;

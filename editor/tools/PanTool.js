@@ -6,6 +6,10 @@ export class PanTool extends Tool {
 	constructor(context) {
 		super(context);
 		this.start = null;
+
+		// Panning is global — it doesn't act on a frame, so the cell-change
+		// guard doesn't apply.
+		this.cellScoped = false;
 	}
 
 	onPointerDown(ev) {

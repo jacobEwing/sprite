@@ -62,19 +62,39 @@ export class ToolLayer {
 			return;
 		}
 
+		const tool = (e.button === 1 && this.panTool)
+			? this.panTool
+			: this._current();
+		if (!tool) return;
+
+		// A left- or right-click inside a different frame selects it.
+		let selectionChanged = false;
 		if (e.button === 0 || e.button === 2) {
 			const name = this.viewport.getFrameAt(
 				Math.floor(e.imageX), Math.floor(e.imageY)
 			);
 			if (name && name !== this.document.selectedFrame) {
 				this.document.selectFrame(name);
+				selectionChanged = true;
 			}
 		}
 
-		const tool = (e.button === 1 && this.panTool)
-			? this.panTool
-			: this._current();
-		if (!tool) return;
+		// With clipping on, a click that also changed the selected frame
+		// is treated as a selection click, and the tool's gesture is
+		// deferred — the user re-clicks to act. Tools that operate on the
+		// atlas as a whole (cellScoped === false) act on every click, and
+		// with clipping off the user has explicitly opted into drawing
+		// across frame boundaries, so the guard doesn't apply either way.
+		const deferGesture =
+			selectionChanged
+			&& this.clipToFrame
+			&& tool.cellScoped !== false;
+
+		if (deferGesture) {
+			this.notifyPixelsChanged();
+			return;
+		}
+
 		this._active  = tool;
 		this._pressed = e.button;
 		tool.onPointerDown(e);
