@@ -1,3 +1,9 @@
-#some testing crap
+# some testing crap
 assets/knight.json
 assets/knight.png
+
+# some dev note crap
+TODO
+
+# swap files when using vim
+.*.sw?
