@@ -1,0 +1,156 @@
+// Edits the selected sequence: rename, frameRate, iterations, and the
+// ordered list of frames with add/remove/reorder controls.
+
+export class SequenceInspector {
+	constructor(root, doc) {
+		this.root = root;
+		this.doc = doc;
+		this.currentName = null;
+		this.fields = {};
+		this.renderedFrames = null;
+
+		doc.on('selectionChanged', () => this.rebuild());
+		doc.on('sheetChanged',     () => this.rebuild());
+		doc.on('edit',             () => this._onEdit());
+	}
+
+	_onEdit() {
+		const seq = this.doc.getSelectedSequence();
+		const nameChanged = this.doc.selectedSequence !== this.currentName;
+		if (!seq || nameChanged || !this._sameFrames(seq.frames, this.renderedFrames)) {
+			this.rebuild();
+		} else {
+			this.refresh();
+		}
+	}
+
+	_sameFrames(a, b) {
+		if (!a || !b || a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+		return true;
+	}
+
+	rebuild() {
+		this.root.innerHTML = '';
+		this.fields = {};
+		const seq = this.doc.getSelectedSequence();
+		this.currentName = this.doc.selectedSequence;
+
+		if (!seq) {
+			this.renderedFrames = null;
+			this.root.innerHTML = '<div class="info">No sequence selected.</div>';
+			return;
+		}
+		this.renderedFrames = seq.frames.slice();
+
+		const nameRow = document.createElement('label');
+		nameRow.className = 'insp-row';
+		nameRow.innerHTML = '<span class="insp-label">Name</span>';
+		const nameInput = document.createElement('input');
+		nameInput.type = 'text';
+		nameInput.className = 'insp-input wide';
+		nameInput.value = this.currentName;
+		nameInput.spellcheck = false;
+		nameInput.addEventListener('change', () => {
+			const v = nameInput.value.trim();
+			if (!v || v === this.currentName) { nameInput.value = this.currentName; return; }
+			try {
+				this.doc.editable.renameSequence(this.currentName, v);
+			} catch (err) {
+				console.warn(err.message);
+				nameInput.value = this.currentName;
+			}
+		});
+		nameRow.appendChild(nameInput);
+		this.root.appendChild(nameRow);
+
+		const grid = document.createElement('div');
+		grid.className = 'insp-grid two';
+
+		this._numberCell(grid, 'frameRate', seq.frameRate, (v) =>
+			this.doc.editable.setSequence(this.currentName, { frameRate: v }));
+		this._numberCell(grid, 'iterations', seq.iterations, (v) =>
+			this.doc.editable.setSequence(this.currentName, { iterations: v }));
+
+		this.root.appendChild(grid);
+
+		const framesHeader = document.createElement('div');
+		framesHeader.className = 'insp-section-label';
+		framesHeader.textContent = `Frames (${seq.frames.length})`;
+		this.root.appendChild(framesHeader);
+
+		const list = document.createElement('ol');
+		list.className = 'insp-frames';
+		seq.frames.forEach((frameName, i) => {
+			const li = document.createElement('li');
+
+			const idx = document.createElement('span');
+			idx.className = 'insp-frame-index';
+			idx.textContent = i;
+
+			const label = document.createElement('span');
+			label.className = 'insp-frame-name';
+			label.textContent = frameName;
+			label.title = frameName;
+			label.addEventListener('click', () => this.doc.selectFrame(frameName, { focus: true }));
+
+
+			const up = this._miniButton('↑', i === 0, () =>
+				this.doc.editable.moveSequenceFrame(this.currentName, i, i - 1));
+			const down = this._miniButton('↓', i === seq.frames.length - 1, () =>
+				this.doc.editable.moveSequenceFrame(this.currentName, i, i + 1));
+			const del = this._miniButton('×', false, () =>
+				this.doc.editable.removeFrameFromSequence(this.currentName, i));
+
+			li.append(idx, label, up, down, del);
+			list.appendChild(li);
+		});
+		this.root.appendChild(list);
+
+		const add = document.createElement('button');
+		add.className = 'insp-add-btn';
+		add.textContent = '+ Add current frame';
+		add.disabled = !this.doc.selectedFrame;
+		add.addEventListener('click', () => {
+			if (this.doc.selectedFrame) {
+				this.doc.editable.addFrameToSequence(this.currentName, this.doc.selectedFrame);
+			}
+		});
+		this.root.appendChild(add);
+	}
+
+	refresh() {
+		const seq = this.doc.getSelectedSequence();
+		if (!seq) return;
+		if (this.fields.frameRate && document.activeElement !== this.fields.frameRate) {
+			this.fields.frameRate.value = seq.frameRate;
+		}
+		if (this.fields.iterations && document.activeElement !== this.fields.iterations) {
+			this.fields.iterations.value = seq.iterations;
+		}
+	}
+
+	_numberCell(parent, key, value, onChange) {
+		const cell = document.createElement('label');
+		cell.className = 'insp-cell';
+		cell.innerHTML = `<span class="insp-label">${key}</span>`;
+		const input = document.createElement('input');
+		input.type = 'number';
+		input.className = 'insp-input';
+		input.value = value;
+		input.min = '0';
+		input.addEventListener('change', () => onChange(input.value));
+		cell.appendChild(input);
+		parent.appendChild(cell);
+		this.fields[key] = input;
+	}
+
+	_miniButton(text, disabled, action) {
+		const b = document.createElement('button');
+		b.className = 'insp-mini';
+		b.textContent = text;
+		b.disabled = !!disabled;
+		b.addEventListener('click', (e) => { e.stopPropagation(); action(); });
+		return b;
+	}
+}

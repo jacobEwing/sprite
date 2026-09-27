@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Sprite Editor</title>
+	<link rel="stylesheet" href="style.css">
+</head>
+<body>
+	<header id="toolbar">
+		<button id="fileMenuBtn" class="menu-trigger" title="File">
+			File <span class="chevron">▾</span>
+		</button>
+		<button id="editMenuBtn" class="menu-trigger" title="Edit">
+			Edit <span class="chevron">▾</span>
+		</button>
+		<button id="sheetMenuBtn" class="menu-trigger" title="Sheet">
+			Sheet <span class="chevron">▾</span>
+		</button>
+		<button id="viewMenuBtn" class="menu-trigger" title="View">
+			View <span class="chevron">▾</span>
+		</button>
+
+		<span class="sep"></span>
+
+		<button id="btnUndo" title="Undo (Ctrl+Z)">↶</button>
+		<button id="btnRedo" title="Redo (Ctrl+Shift+Z)">↷</button>
+
+		<span class="sep"></span>
+
+		<button id="btnFilter" class="menu-trigger" title="Convolution filter">
+			Filter…
+		</button>
+		<button id="transformMenuBtn" class="menu-trigger" title="Transform">
+			Transform <span class="chevron">▾</span>
+		</button>
+
+		<span class="toolbar-spacer"></span>
+
+		<button id="btnFit" title="Fit sheet to view">Fit</button>
+		<button id="btnZoomOut" title="Zoom out">−</button>
+		<button id="btnZoomIn"  title="Zoom in">+</button>
+		<span id="zoomLabel" class="readout">100%</span>
+	</header>
+
+	<main id="layout">
+
+		<aside id="leftSidebar">
+			<div class="sidebar-tabs">
+				<button class="sidebar-tab selected" data-tab="frames">Frames</button>
+				<button class="sidebar-tab" data-tab="sequences">Sequences</button>
+			</div>
+
+			<div class="tab-panel" data-panel="frames">
+				<div class="pane-action-row">
+					<span class="count" id="frameCount"></span>
+					<div class="pane-action-group">
+						<button class="pane-action" id="btnNewFrame"       title="New blank frame">+</button>
+						<button class="pane-action" id="btnDuplicateFrame" title="Duplicate selected">⧉</button>
+						<button class="pane-action" id="btnDeleteFrames"   title="Delete selected">×</button>
+						<button class="pane-action" id="btnMoveFrameUp"    title="Move up">↑</button>
+						<button class="pane-action" id="btnMoveFrameDown"  title="Move down">↓</button>
+					</div>
+				</div>
+				<ul id="frameList" class="list"></ul>
+			</div>
+
+			<div class="tab-panel hidden" data-panel="sequences">
+				<div class="pane-action-row">
+					<span class="count" id="sequenceCount"></span>
+					<div class="pane-action-group">
+						<button class="pane-action" id="btnNewSequence"      title="New sequence">+</button>
+						<button class="pane-action" id="btnDeleteSequences"  title="Delete selected">×</button>
+						<button class="pane-action" id="btnMoveSequenceUp"   title="Move up">↑</button>
+						<button class="pane-action" id="btnMoveSequenceDown" title="Move down">↓</button>
+					</div>
+				</div>
+				<ul id="sequenceList" class="list"></ul>
+			</div>
+
+			<section class="pane preview-pane">
+				<div id="spritePreview"></div>
+			</section>
+		</aside>
+
+		<section id="center">
+			<div id="viewportWrap">
+				<canvas id="viewport"></canvas>
+				<div id="emptyMessage">Load a sprite or image to begin.</div>
+			</div>
+			<div id="timeline"></div>
+		</section>
+
+		<aside id="rightSidebar">
+
+			<div class="sidebar-tabs">
+				<button class="sidebar-tab selected" data-tab="image">Image</button>
+				<button class="sidebar-tab" data-tab="sprite">Sprite</button>
+			</div>
+
+			<div class="tab-panel" data-panel="image">
+				<section class="pane">
+					<h2>Colours</h2>
+					<div id="palettePanel"></div>
+				</section>
+
+				<section class="pane">
+					<h2>Tools</h2>
+					<div id="toolGrid" class="tool-grid">
+						<button class="tool-btn" data-tool="select"    title="Select (S)">Select</button>
+						<button class="tool-btn" data-tool="pan"       title="Pan (P)">Pan</button>
+						<button class="tool-btn" data-tool="pencil"    title="Pencil (N)">Pencil</button>
+						<button class="tool-btn" data-tool="airbrush"  title="Airbrush (A)">Air</button>
+						<button class="tool-btn" data-tool="eraser"    title="Eraser (E)">Eraser</button>
+						<button class="tool-btn" data-tool="line"      title="Line (L)">Line</button>
+						<button class="tool-btn" data-tool="box"       title="Box (B)">Box</button>
+						<button class="tool-btn" data-tool="ellipse"   title="Ellipse (O)">Oval</button>
+						<button class="tool-btn" data-tool="fill"      title="Flood fill (G)">Fill</button>
+						<button class="tool-btn" data-tool="picker"    title="Eyedropper (I)">Pick</button>
+						<button class="tool-btn" data-tool="frame"     title="Move frame (M)">Frame</button>
+						<button class="tool-btn" data-tool="collision" title="Collision (K)">Hit</button>
+					</div>
+					<div class="tool-options">
+						<label class="checkbox" title="Fill new boxes and ellipses">
+							<input type="checkbox" id="fillShapes"> Fill
+						</label>
+						<label class="checkbox" title="Confine strokes to the selected frame">
+							<input type="checkbox" id="clipToFrame" checked> Clip
+						</label>
+					</div>
+				</section>
+				<section class="pane" id="brushSection">
+					<div class="sub-tabs">
+						<button class="sub-tab selected" data-subtab="brush">Brush</button>
+						<button class="sub-tab" data-subtab="tool">Tool</button>
+					</div>
+					<div class="sub-panel" data-subpanel="brush">
+						<div id="brushPicker" class="brush-picker"></div>
+					</div>
+					<div class="sub-panel hidden" data-subpanel="tool">
+						<div id="toolSettings"></div>
+					</div>
+				</section>
+			</div>
+
+			<div class="tab-panel hidden" data-panel="sprite">
+				<section class="pane">
+					<h2>Frame</h2>
+					<div id="frameInspector"></div>
+				</section>
+				<section class="pane">
+					<h2>Sequence</h2>
+					<div id="sequenceInspector"></div>
+				</section>
+				<section class="pane">
+					<h2>Collision</h2>
+					<div id="collisionInspector"></div>
+				</section>
+			</div>
+		</aside>
+
+	</main>
+
+	<footer id="statusBar">
+		<span id="dirtyIndicator" class="readout" hidden>●</span>
+		<span id="statusMessage">Ready.</span>
+		<span id="imageNotice" class="readout" hidden></span>
+		<span id="coordReadout" class="readout"></span>
+	</footer>
+
+	<script src="sprite.js"></script>
+	<script type="module" src="main.js"></script>
+</body>
+</html>

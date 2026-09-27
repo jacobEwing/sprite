@@ -1,0 +1,107 @@
+{
+	"image": "toolIcons.png",
+	"frameWidth": 13,
+	"frameHeight": 13,
+	"centerx": 0,
+	"centery": 0,
+	"frameRate": 25,
+	"frames": {
+		"pan": {
+			"x": 0,
+			"y": 0,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
+		},
+		"pencil": {
+			"x": 13,
+			"y": 0,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
+		},
+		"eraser": {
+			"x": 26,
+			"y": 0,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
+		},
+		"line": {
+			"x": 39,
+			"y": 0,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
+		},
+		"box": {
+			"x": 52,
+			"y": 0,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
+		},
+		"oval": {
+			"x": 0,
+			"y": 13,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
+		},
+		"fill": {
+			"x": 13,
+			"y": 13,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
+		},
+		"pick": {
+			"x": 26,
+			"y": 13,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
+		},
+		"frame": {
+			"x": 39,
+			"y": 13,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
+		},
+		"collision": {
+			"x": 52,
+			"y": 13,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
+		},
+		"select": {
+			"x": 65,
+			"y": 0,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
+		},
+		"airbrush": {
+			"x": 78,
+			"y": 0,
+			"width": 13,
+			"height": 13,
+			"centerx": 0,
+			"centery": 0
+		}
+	},
+	"sequences": {}
+}
