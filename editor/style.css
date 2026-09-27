@@ -471,21 +471,27 @@ body {
 }
 
 /* --- brush picker --- */
+
 .brush-picker {
-	display: grid;
-	grid-template-columns: repeat(4, 1fr);
-	gap: 4px;
+	display: flex;
+	flex-direction: row;
+	gap: 3px;
+	justify-content: center;
+	flex-wrap: nowrap;
 }
 .brush-btn {
+	flex: 0 0 auto;
 	background: var(--panel-2);
 	border: 1px solid var(--rule);
 	border-radius: 4px;
-	padding: 2px;
 	cursor: pointer;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	aspect-ratio: 1;
+	padding: 3px;
+	min-width: 26px;
+	min-height: 26px;
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
 }
 .brush-btn canvas {
 	display: block;

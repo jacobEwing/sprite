@@ -48,6 +48,7 @@ import {
 	translateWrapped,
 } from './model/transforms.js';
 import { NewImageDialog } from './view/NewImageDialog.js';
+import { AirbrushTool }    from './tools/AirbrushTool.js';
 
 // --- wiring ---------------------------------------------------------------
 const viewOptions = { grid: false, snap: false };
@@ -86,6 +87,7 @@ const TOOLS = {
 	picker:    new ColorPickerTool(toolLayer.context),
 	frame:     new FrameTool(toolLayer.context),
 	collision: new CollisionTool(toolLayer.context),
+	airbrush: new AirbrushTool(toolLayer.context),
 
 };
 toolLayer.setCollisionOverlay(collisionOverlay);
@@ -145,7 +147,7 @@ activateTool('pan');
 
 // Keyboard shortcuts: single letter per tool, ignored while typing in a field.
 const TOOL_KEYS = {
-	s: 'select',
+	a: 'airbrush', s: 'select',
 	p: 'pan', n: 'pencil', e: 'eraser', l: 'line', b: 'box',
 	o: 'ellipse', g: 'fill', i: 'picker', m: 'frame', k: 'collision',
 };
@@ -244,6 +246,7 @@ doc.on('edit', () => {
 });
 
 doc.on('dirtyChanged', ({ anyDirty, dirtyImage, dirtyData }) => {
+	updateFileMenuState();
 	const el = $('dirtyIndicator');
 	el.hidden = !anyDirty;
 	if (!anyDirty) return;
@@ -685,10 +688,14 @@ function updateFileMenuState() {
 		const item = fileMenu.items.find(i => i.label === label);
 		if (item) item.disabled = !on;
 	};
-	setEnabled('Save Image',          hasImage);
+	// Save Image is available whenever there's a sheet, because a sheet
+	// always has an image (the placeholder counts once you've painted into
+	// it). Save Sprite Data needs actual sprite data — the same rule the
+	// load side already uses.
+	setEnabled('Save Image',          hasSheet);
 	setEnabled('Save Sprite Data',    hasSheet);
-	setEnabled('Save All',            hasSheet && hasImage);
-	setEnabled('Save Image As…',      hasImage);
+	setEnabled('Save All',            hasSheet);
+	setEnabled('Save Image As…',      hasSheet);
 	setEnabled('Save Sprite Data As…', hasSheet);
 }
 

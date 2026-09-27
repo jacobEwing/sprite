@@ -25,25 +25,29 @@ export class BrushPicker {
 	}
 
 	_renderPreview(brush) {
-		const size = 36;
+		// Fixed pixels-per-cell, so a 5×5 brush previews visibly larger
+		// than a 1×1. The whole point of the picker is showing the size.
+		const CELL_PX = 6;
+		const cw = brush.width  * CELL_PX;
+		const ch = brush.height * CELL_PX;
+
 		const c = document.createElement('canvas');
-		c.width = size;
-		c.height = size;
+		c.width = cw;
+		c.height = ch;
 		const ctx = c.getContext('2d');
 		ctx.imageSmoothingEnabled = false;
-
-		const span = Math.max(brush.width, brush.height);
-		const cell = Math.max(2, Math.floor((size - 4) / span));
-		const ox = Math.floor((size - brush.width  * cell) / 2);
-		const oy = Math.floor((size - brush.height * cell) / 2);
 
 		ctx.fillStyle = '#e8e6e0';
 		for (let y = 0; y < brush.height; y++) {
 			for (let x = 0; x < brush.width; x++) {
-				if (!brush.mask[y][x]) continue;
-				ctx.fillRect(ox + x * cell, oy + y * cell, cell, cell);
+				const w = brush.mask[y][x];
+				if (!w) continue;
+				// Honour weights so soft brushes read correctly.
+				ctx.globalAlpha = w;
+				ctx.fillRect(x * CELL_PX, y * CELL_PX, CELL_PX, CELL_PX);
 			}
 		}
+		ctx.globalAlpha = 1;
 		return c;
 	}
 
