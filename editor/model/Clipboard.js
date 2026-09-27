@@ -1,7 +1,9 @@
 // Editor-wide clipboard for frame content. Not persisted; wipes on reload.
 //
-// Holds an ImageData plus the name of the source frame, purely so the UI
-// can show "clipboard: front_idle (24×24)" if we ever want that.
+// `imageData` holds the copied pixels; `sourceFrame` is a display label the
+// caller provides for the status bar (typically the frame name, or a
+// descriptive string for a selection copy). The rect passed to captureFrom
+// is in image coordinates, matching currentOpRect().
 
 export class Clipboard {
 	constructor() {
@@ -9,9 +11,7 @@ export class Clipboard {
 		this.sourceFrame = null;
 	}
 
-	get isEmpty()  { return this.imageData === null; }
-	get width()    { return this.imageData ? this.imageData.width  : 0; }
-	get height()   { return this.imageData ? this.imageData.height : 0; }
+	get isEmpty() { return this.imageData === null; }
 
 	captureFrom(sheet, rect, sourceLabel) {
 		if (!sheet || !rect || rect.w <= 0 || rect.h <= 0) return false;
@@ -19,10 +19,5 @@ export class Clipboard {
 		this.imageData = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
 		this.sourceFrame = sourceLabel;
 		return true;
-	}
-
-	clear() {
-		this.imageData = null;
-		this.sourceFrame = null;
 	}
 }

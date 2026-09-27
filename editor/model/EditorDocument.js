@@ -1,18 +1,25 @@
 import { makeEmitter } from '../lib/emitter.js';
 import { EditableSheet } from './EditableSheet.js';
 import { Selection } from './Selection.js';
+import { makeSheetFromImage } from '../io/loadSheet.js';
 
 // Holds the loaded sheet, the current selection, and the current frame /
 // sequence selections. The sheet and its image can be loaded, replaced, or
-// absent independently.
+// absent independently, so the editor supports sprite-only, image-only,
+// and complete states.
 //
 // Events:
-//   sheetChanged      — a new sheet has been set (full replace)
-//   imageChanged      — the sheet's image was swapped
-//   selectionChanged  — frame or sequence selection changed
-//   selectionModified — the pixel selection rect changed
-//   edit              — a mutation occurred
-//   dirtyChanged      — dirty flags changed
+//   sheetChanged      — a new sheet has been set (full replace). Payload:
+//                       { sheet }, where sheet may be null.
+//   imageChanged      — the sheet's image was swapped in place. Payload: {}.
+//   selectionChanged  — frame or sequence selection changed. Payload:
+//                       { frame?, sequence?, changed?, focus? }.
+//   selectionModified — the pixel selection rect changed. Payload: {}.
+//   edit              — a mutation occurred. Payload: the EditableSheet
+//                       'changed' payload, or { type: 'history' } for
+//                       undo/redo, or { type: 'imageLoaded' } for setImage.
+//   dirtyChanged      — dirty flags changed. Payload:
+//                       { dirtyImage, dirtyData, anyDirty }.
 export class EditorDocument {
 	constructor(history) {
 		makeEmitter(this);
@@ -45,16 +52,20 @@ export class EditorDocument {
 
 	// --- loading ----------------------------------------------------------
 
-	// Full replace. Keeps the currently loaded image if `keepImage` is
-	// true; otherwise the sheet's own image is used, or a placeholder is
-	// installed.
+	// Full replace. `keepImage` carries the current image over to the new
+	// sheet — used when loading sprite data without touching pixels.
+	// `imageLoaded` defaults to the inverse of keepImage: if we're not
+	// keeping an image, the incoming sheet's own image counts as loaded.
 	setSheet(sheet, { keepImage = false, imageLoaded = null } = {}) {
 		if (keepImage && this.sheet && this.sheet.image && this.imageLoaded) {
 			sheet.image = this.sheet.image;
-			sheet.imageSrc = this.sheet.imageSrc;
+			// Intentionally not copying imageSrc: the incoming sheet may
+			// carry its own declared name (from the JSON), and that's more
+			// authoritative than whatever filename the currently-loaded
+			// image happens to have. Callers that need to fall back set it
+			// themselves before calling setSheet.
 		}
 		if (!sheet.image) {
-			// Shouldn't happen with the load helpers, but guard anyway.
 			const c = document.createElement('canvas');
 			c.width = 256; c.height = 256;
 			sheet.image = c;
@@ -75,11 +86,10 @@ export class EditorDocument {
 	}
 
 	// Swap just the image. Creates a minimal sheet if none is loaded.
-	// Does not clear history if a sheet already exists (the sprite data is
-	// untouched, so prior edits are still meaningful).
+	// Does not clear history if a sheet already exists — the sprite data is
+	// untouched, so prior edits are still meaningful.
 	async setImage(canvas, imageFilename) {
 		if (!this.sheet) {
-			const { makeSheetFromImage } = await import('../io/loadSheet.js');
 			const sheet = await makeSheetFromImage(canvas);
 			sheet.imageSrc = imageFilename;
 			this.setSheet(sheet, { imageLoaded: true });
@@ -106,6 +116,9 @@ export class EditorDocument {
 
 	// --- edits ------------------------------------------------------------
 
+	// EditorDocument watches the EditableSheet's 'changed' event and
+	// reconciles its own selection if the change invalidated it. The
+	// payload is forwarded to 'edit' listeners unchanged.
 	_onEdit(info) {
 		let selectionChanged = false;
 
@@ -127,6 +140,8 @@ export class EditorDocument {
 		this.emit('edit', info);
 	}
 
+	// After undo/redo, the selection may point at something that no longer
+	// exists. Fall back to the first available item.
 	_reconcileSelection() {
 		if (!this.sheet) return;
 		if (this.selectedFrame && !this.sheet.frames[this.selectedFrame]) {
@@ -156,9 +171,13 @@ export class EditorDocument {
 		if (!f) return;
 		this.setSelection({ x: f.x, y: f.y, w: f.width, h: f.height });
 	}
+	// Called by SelectionTool during a live drag, which mutates
+	// .selection directly for performance and then pings this.
 	_emitSelectionModified() {
 		this.emit('selectionModified', {});
 	}
+	// The rect a pixel-content operation should act on: the current
+	// selection if there is one, otherwise the selected frame's bounds.
 	currentOpRect() {
 		if (this.selection.rect) return { ...this.selection.rect };
 		const f = this.getSelectedFrame();
@@ -168,9 +187,14 @@ export class EditorDocument {
 
 	// --- frame / sequence selection --------------------------------------
 
+	// `focus` is a hint for the viewport: true means "move the camera to
+	// this frame", false means "just select it". List clicks pass focus;
+	// canvas clicks don't.
 	selectFrame(name, { focus = false } = {}) {
 		const changed = this.selectedFrame !== name;
 		this.selectedFrame = name;
+		// Frame changes clear any pixel selection: a rect anchored in the
+		// previous frame's neighbourhood is meaningless here.
 		if (changed && !this.selection.isEmpty) {
 			this.selection.clear();
 			this.emit('selectionModified', {});

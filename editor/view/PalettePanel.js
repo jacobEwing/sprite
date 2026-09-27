@@ -84,8 +84,7 @@ export class PalettePanel {
 
 		for (const input of [this.hexPrimary, this.hexSecondary]) {
 			const slot = input.dataset.slot;
-			input.addEventListener('change', () => this._commitHex(slot, input.value));
-			input.addEventListener('blur',   () => this._commitHex(slot, input.value));
+			input.addEventListener('blur', () => this._commitHex(slot, input.value));
 			input.addEventListener('keydown', (e) => {
 				if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
 				else if (e.key === 'Escape') {
@@ -126,7 +125,7 @@ export class PalettePanel {
 		btn.title = color.alpha === 255
 			? color.hex
 			: `${color.hex} α${color.alpha}`;
-		btn.style.setProperty('--cell-color', _cssFor(color));
+		btn.style.setProperty('--cell-color', cssFor(color));
 
 		// Use mousedown rather than click so right-click registers before
 		// the browser's contextmenu fires.
@@ -162,11 +161,11 @@ export class PalettePanel {
 
 	_paintSwatch(swatchEl, color) {
 		const inner = swatchEl.querySelector('.pal-swatch-color');
-		if (inner) inner.style.background = _cssFor(color);
+		if (inner) inner.style.background = cssFor(color);
 	}
 }
 
-function _cssFor(color) {
+function cssFor(color) {
 	const [r, g, b] = hexToRGBA(color.hex) ?? [0, 0, 0];
 	return `rgba(${r}, ${g}, ${b}, ${color.alpha / 255})`;
 }

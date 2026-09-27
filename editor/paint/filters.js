@@ -1,11 +1,21 @@
 // Convolution engine. Given an ImageData and a kernel definition, produce a
-// new ImageData with the kernel applied. Pixels outside the source rect are
-// handled by the `edge` mode: 'clamp' repeats the nearest edge pixel.
+// new ImageData with the kernel applied.
 //
 // Kernel:
-//   { matrix: number[][], divisor, offset, convolveAlpha, edge }
-// `matrix` is square and odd-sized. `divisor` defaults to the sum of the
-// matrix if not provided. `offset` is added to each channel after division.
+//   { matrix: number[][], divisor, offset, convolveAlpha }
+//
+//   matrix        square, odd-sized (3×3, 5×5)
+//   divisor       if omitted or 0, treated as 1
+//   offset        added to each channel after division
+//   convolveAlpha if true, the alpha channel is convolved like the others;
+//                 if false, alpha passes through unchanged. Keeping it off
+//                 for hard-edged sprites (the default) preserves crisp
+//                 transparency through a blur.
+//
+// Pixels near the source rect's edge are clamped to the nearest in-bounds
+// pixel rather than reading beyond it. Sprite frames are treated as isolated
+// images; a filter on one frame never reads from a neighbouring frame in the
+// atlas.
 
 export function applyConvolution(src, kernel) {
 	const size = kernel.matrix.length;
@@ -119,6 +129,7 @@ export const PRESETS = [
 	{ name: 'Neighbour mix',
 	  matrix: [[0,.1,0],[.1,.6,.1],[0,.1,0]],
 	  divisor: 1 },
+
 	{ name: 'Blur (gaussian 5×5)',
 	  matrix: [
 		[ 1,  4,  6,  4, 1],

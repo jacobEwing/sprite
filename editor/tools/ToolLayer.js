@@ -161,6 +161,5 @@ export class ToolLayer {
 
 		if (e.button === 2) this.palette.setSecondary(hex, alpha);
 		else                this.palette.setPrimary(hex, alpha);
-
 	}
 }

@@ -55,8 +55,6 @@ export class SpritePreview {
 		this.canvas.height = CANVAS_SIZE * dpr;
 		this.canvas.style.width = CANVAS_SIZE + 'px';
 		this.canvas.style.height = CANVAS_SIZE + 'px';
-		this.dpr = dpr;
-
 	}
 
 	// --- lifecycle --------------------------------------------------------
@@ -151,15 +149,18 @@ export class SpritePreview {
 	_onSelectionChange(info = {}) {
 		if (!this.sprite) return;
 
-		if (!this.playing) {
-			if (info.sequence !== undefined) {
-				const seq = this.doc.sheet.sequences[info.sequence];
-				this.staticFrameName = (seq && seq.frames[0]) || null;
-				this.staticFrameFollowsSequence = true;
-			} else if (info.frame !== undefined) {
-				this.staticFrameName = info.frame;
-				this.staticFrameFollowsSequence = false;
-			}
+		// Selecting a sequence always starts playing. Without this, a
+		// finite sequence that has run to completion leaves the preview
+		// paused, and a subsequently-selected sequence wouldn't animate.
+		if (info.sequence !== undefined) {
+			this.playing = true;
+			this.toggleBtn.textContent = '⏸';
+			this.staticFrameName = null;
+			this.staticFrameFollowsSequence = false;
+		} else if (!this.playing && info.frame !== undefined) {
+			// Paused: track the explicitly-selected frame.
+			this.staticFrameName = info.frame;
+			this.staticFrameFollowsSequence = false;
 		}
 
 		this._recompute();
@@ -246,6 +247,7 @@ export class SpritePreview {
 
 		this.rafId = requestAnimationFrame((t) => this._loop(t));
 	}
+
 	// --- drawing ----------------------------------------------------------
 
 	_draw() {

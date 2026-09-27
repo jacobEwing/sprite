@@ -59,14 +59,6 @@ export class Palette {
 		return this;
 	}
 
-	// Convenience methods for the alpha slider. Preserve the hex.
-	setPrimaryAlpha(alpha) {
-		return this.setPrimary(this.primary.hex, alpha, { pushRecent: false });
-	}
-	setSecondaryAlpha(alpha) {
-		return this.setSecondary(this.secondary.hex, alpha, { pushRecent: false });
-	}
-
 	swap() {
 		[this.primary, this.secondary] = [this.secondary, this.primary];
 		this.emit('change', this);

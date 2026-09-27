@@ -1,6 +1,5 @@
 import {
 	collisionMode,
-	emptyCollision,
 	resolvedCollision,
 } from '../model/collisionUtils.js';
 
@@ -154,18 +153,14 @@ export class CollisionInspector {
 	_addCircle(frame) {
 		const ed = this.doc.editable;
 		const name = this.doc.selectedFrame;
-		const mode = collisionMode(frame);
 
-		// Promote to override first if needed, then append.
-		if (mode !== 'override') {
-			this._setMode('override', frame);
-		}
-
-		const after = this.doc.sheet.frames[name];
-		if (!after || !after.collision) return;
+		// Only reachable in Override mode: every other mode returns before
+		// the Add button is rendered. Append to whatever's there.
+		const current = this.doc.sheet.frames[name];
+		if (!current || !current.collision) return;
 		const next = {
 			circles: [
-				...after.collision.circles.map(c => ({ ...c })),
+				...current.collision.circles.map(c => ({ ...c })),
 				{ offsetX: 0, offsetY: 0, radius: this._defaultRadius() },
 			],
 		};

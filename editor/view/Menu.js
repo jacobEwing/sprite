@@ -23,16 +23,17 @@ export class Menu {
 			});
 		}
 
-		document.addEventListener('mousedown', (e) => {
+		this._onDocumentMouseDown = (e) => {
 			if (!this.open) return;
 			if (this._panel && this._panel.contains(e.target)) return;
 			if (this.trigger && this.trigger.contains(e.target)) return;
 			this.close();
-		});
-
-		document.addEventListener('keydown', (e) => {
+		};
+		this._onDocumentKeyDown = (e) => {
 			if (e.key === 'Escape' && this.open) this.close();
-		});
+		};
+		document.addEventListener('mousedown', this._onDocumentMouseDown);
+		document.addEventListener('keydown',   this._onDocumentKeyDown);
 	}
 
 	toggle() { this.open ? this.close() : (this.trigger && this.showBelow(this.trigger)); }
@@ -113,6 +114,14 @@ export class Menu {
 		if (this._panel) {
 			this._panel.remove();
 			this._panel = null;
+		}
+		// Context menus (no trigger) are single-use. Remove their global
+		// listeners so repeated right-clicks don't accumulate them.
+		if (!this.trigger && this._onDocumentMouseDown) {
+			document.removeEventListener('mousedown', this._onDocumentMouseDown);
+			document.removeEventListener('keydown',   this._onDocumentKeyDown);
+			this._onDocumentMouseDown = null;
+			this._onDocumentKeyDown = null;
 		}
 	}
 }

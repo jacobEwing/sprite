@@ -16,15 +16,25 @@ import {
 // Views call these methods and subscribe to 'changed'. They never touch
 // history or the raw sheet data directly.
 //
+// Pixel-content methods (clearRegion, pasteIntoRegion, transformRegion)
+// mutate the canvas directly and then push an already-applied PaintCommand;
+// every other method uses history.execute() with a command whose apply()
+// performs the mutation.
+//
 // 'changed' payloads:
-//   { type: 'frameAdded',    name }
-//   { type: 'frameRemoved',  name }
-//   { type: 'frameRenamed',  from, to }
-//   { type: 'frameUpdated',  name }         — rect/origin changed
+//   { type: 'frameAdded',      name }
+//   { type: 'frameRemoved',    name }
+//   { type: 'frameRenamed',    from, to }
+//   { type: 'frameUpdated',    name }         — rect, origin, or collision
 //   { type: 'sequenceAdded',   name }
 //   { type: 'sequenceRemoved', name }
 //   { type: 'sequenceRenamed', from, to }
-//   { type: 'sequenceUpdated', name }       — frames list or properties
+//   { type: 'sequenceUpdated', name }         — frames list or properties
+//   { type: 'regionUpdated' }                 — pixels changed in place
+//   { type: 'canvasResized',   width, height }
+//   { type: 'settingsUpdated', resized }      — sheet defaults changed
+//   { type: 'collisionUpdated' }              — sheet-level collision changed
+//   { type: 'reshaped',        cols, rows, width, height }
 export class EditableSheet {
 	constructor(sheet, history) {
 		makeEmitter(this);
@@ -93,7 +103,7 @@ export class EditableSheet {
 		};
 
 		this.history.execute(new AddFrameCommand(sheet, name, frame), 'data');
-		this.emit('changed', { type: 'frameAdded', name });
+		this.emit('changed', { typ: 'frameAdded', name });
 		return name;
 	}
 
@@ -149,7 +159,7 @@ export class EditableSheet {
 		for (const key of ['x', 'y', 'width', 'height', 'centerx', 'centery']) {
 			if (patch[key] !== undefined) after[key] = Number(patch[key]);
 		}
-		if (JSON.stringify(before) === JSON.stringify(after)) return;
+		if (deepEqual(before, after)) return;
 		this.history.execute(new SetFrameCommand(this.sheet, name, before, after), 'data');
 		this.emit('changed', { type: 'frameUpdated', name });
 	}
@@ -196,7 +206,7 @@ export class EditableSheet {
 		if (patch.iterations !== undefined) after.iterations = Number(patch.iterations);
 		if (patch.method     !== undefined) after.method     = String(patch.method);
 		if (patch.frameTimes !== undefined) after.frameTimes = patch.frameTimes.slice();
-		if (JSON.stringify(before) === JSON.stringify(after)) return;
+		if (deepEqual(before, after)) return;
 		this.history.execute(new SetSequenceCommand(this.sheet, name, before, after), 'data');
 		this.emit('changed', { type: 'sequenceUpdated', name });
 	}
@@ -256,6 +266,10 @@ export class EditableSheet {
 	// Updates the sheet's default frame size, origin, and default frame
 	// rate. All of these are values consulted only when new frames and
 	// sequences are added; changing them never alters existing data.
+	//
+	// Image width/height, if present in `patch`, trigger a canvas resize in
+	// the same command so a single Ctrl+Z reverses the whole dialog
+	// interaction.
 	setSheetSettings(patch) {
 		const numericFields = [
 			'frameWidth', 'frameHeight', 'centerx', 'centery', 'defaultFrameRate',
@@ -315,7 +329,7 @@ export class EditableSheet {
 	setCollision(newCollision) {
 		const before = this.sheet.collision;
 		const after  = newCollision;
-		if (_deepEqual(before, after)) return;
+		if (deepEqual(before, after)) return;
 		this.history.execute(new SetCollisionCommand(this.sheet, before, after), 'data');
 		this.emit('changed', { type: 'collisionUpdated' });
 	}
@@ -355,6 +369,7 @@ export class EditableSheet {
 		});
 		this.setCollision({ circles: next });
 	}
+
 	// --- frame content ----------------------------------------------------
 
 	// Clear a specific region to transparent. `rect` is in image coords.
@@ -424,7 +439,7 @@ export class EditableSheet {
 					wd[ti]     = sd[si];
 					wd[ti + 1] = sd[si + 1];
 					wd[ti + 2] = sd[si + 2];
-					wd[ti + 3] = 255;
+				wd[ti + 3] = 255;
 				} else {
 					const da = wd[ti + 3] / 255;
 					const outA = sa + da * (1 - sa);
@@ -494,7 +509,7 @@ export class EditableSheet {
 			after.collision = JSON.parse(JSON.stringify(value));
 		}
 
-		if (_deepEqual(before, after)) return;
+		if (deepEqual(before, after)) return;
 
 		this.history.execute(new SetFrameCommand(this.sheet, frameName, before, after), 'data');
 		this.emit('changed', { type: 'frameUpdated', name: frameName });
@@ -548,14 +563,17 @@ export class EditableSheet {
 	}
 }
 
-function _deepEqual(a, b) {
+// Structural equality over plain objects and arrays. Used to short-circuit
+// commands that wouldn't change anything — the history layer treats them
+// as separate entries otherwise, which pollutes the undo stack.
+function deepEqual(a, b) {
 	if (a === b) return true;
 	if (a == null || b == null) return false;
 	if (typeof a !== 'object' || typeof b !== 'object') return false;
 	const ka = Object.keys(a), kb = Object.keys(b);
 	if (ka.length !== kb.length) return false;
 	for (const k of ka) {
-		if (!_deepEqual(a[k], b[k])) return false;
+		if (!deepEqual(a[k], b[k])) return false;
 	}
 	return true;
 }

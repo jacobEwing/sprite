@@ -15,18 +15,15 @@ import { BoxTool }        from './tools/BoxTool.js';
 import { EllipseTool }    from './tools/EllipseTool.js';
 import { FloodFillTool }  from './tools/FloodFillTool.js';
 import { ColorPickerTool } from './tools/ColorPickerTool.js';
-import { BRUSHES }        from './paint/Brush.js';
 import { Menu }           from './view/Menu.js';
 import {
-	pickFile,
 	loadSpriteFile, sheetFromSpriteJSON, makeEditable,
 	loadImageFile,
-	makeBlankSheet, makeSheetFromImage,
+	makeBlankSheet,
 } from './io/loadSheet.js';
 import { FrameInspector }    from './view/FrameInspector.js';
 import { SequenceInspector } from './view/SequenceInspector.js';
 import { Timeline }        from './view/Timeline.js';
-import { SheetSizeDialog } from './view/SheetSizeDialog.js';
 import { FrameTool }       from './tools/FrameTool.js';
 import { SpritePreview }   from './view/SpritePreview.js';
 import { saveSheetImage, saveSheetData, saveSheetBoth, proposeFilenames } from './io/saveSheet.js';
@@ -76,8 +73,6 @@ new SpritePreview(document.getElementById('spritePreview'), doc);
 const brushPicker = new BrushPicker(document.getElementById('brushPicker'));
 const toolSettingsPanel = new ToolSettingsPanel(document.getElementById('toolSettings'));
 
-
-
 const TOOLS = {
 	pan:       new PanTool(toolLayer.context),
 	select:    new SelectionTool(toolLayer.context),
@@ -90,9 +85,9 @@ const TOOLS = {
 	picker:    new ColorPickerTool(toolLayer.context),
 	frame:     new FrameTool(toolLayer.context),
 	collision: new CollisionTool(toolLayer.context),
-	airbrush: new AirbrushTool(toolLayer.context),
-
+	airbrush:  new AirbrushTool(toolLayer.context),
 };
+
 toolLayer.setCollisionOverlay(collisionOverlay);
 toolLayer.setPanTool(TOOLS.pan);
 toolLayer.setDefaultTool(TOOLS.pan);
@@ -154,6 +149,7 @@ const TOOL_KEYS = {
 	p: 'pan', n: 'pencil', e: 'eraser', l: 'line', b: 'box',
 	o: 'ellipse', g: 'fill', i: 'picker', m: 'frame', k: 'collision',
 };
+
 // --- shape-fill toggle ----------------------------------------------------
 
 $('fillShapes').addEventListener('change', (e) => {
@@ -165,21 +161,45 @@ $('clipToFrame').addEventListener('change', (e) => {
 });
 
 // --- document events ------------------------------------------------------
-// Update the footer's image notice. Called on sheet and image changes.
-// Shows nothing when an image is loaded (or when no sheet is loaded —
-// the canvas overlay covers that case).
+
+// Update the footer's image notice. Handles two cases, in priority order:
+//   1. No image loaded — sprite references a filename we haven't got.
+//   2. Sprite and image filenames disagree.
+// Both offer a "Load…" link that opens the image picker.
 function updateImageNotice() {
 	const notice = $('imageNotice');
-	if (!doc.sheet || doc.hasImage) {
+
+	if (!doc.sheet) {
 		notice.hidden = true;
 		notice.innerHTML = '';
 		return;
 	}
-	const imgSrc = doc.sheet.imageSrc || '(unnamed)';
-	notice.innerHTML =
-		`No image loaded — sprite uses <code>${imgSrc}</code>.` +
-		` <a href="#" id="imageNoticeLoad">Load…</a>`;
-	notice.hidden = false;
+
+	if (!doc.hasImage) {
+		const imgSrc = doc.sheet.imageSrc || '(unnamed)';
+		notice.innerHTML =
+			`No image loaded — sprite uses <code>${imgSrc}</code>.` +
+			` <a href="#" id="imageNoticeLoad">Load…</a>`;
+		notice.hidden = false;
+		_wireImageNoticeLink();
+		return;
+	}
+
+	if (imageMismatch) {
+		notice.innerHTML =
+			`Sprite expects <code>${imageMismatch.expected}</code>, ` +
+			`loaded <code>${imageMismatch.loaded}</code>.` +
+			` <a href="#" id="imageNoticeLoad">Load…</a>`;
+		notice.hidden = false;
+		_wireImageNoticeLink();
+		return;
+	}
+
+	notice.hidden = true;
+	notice.innerHTML = '';
+}
+
+function _wireImageNoticeLink() {
 	const link = $('imageNoticeLoad');
 	if (link) {
 		link.addEventListener('click', (e) => {
@@ -238,7 +258,7 @@ doc.on('selectionChanged', ({ focus, changed }) => {
 });
 
 doc.on('edit', () => {
-	// Canvas expansion swaps the sheet image; the viewport caches a
+	// Canvas resize replaces the sheet image; the viewport caches a
 	// reference to it, so detect the change and re-source it.
 	if (doc.sheet && viewport.source !== doc.sheet.image) {
 		viewport.setSource(doc.sheet.image);
@@ -295,6 +315,7 @@ document.getElementById('btnFilter').addEventListener('click', (e) => {
 });
 
 // --- toolbar --------------------------------------------------------------
+
 $('btnNewFrame').addEventListener('click', () => {
 	if (!doc.editable) return;
 	try {
@@ -325,8 +346,21 @@ $('btnNewSequence').addEventListener('click', () => {
 	doc.selectSequence(name);
 });
 
-
 // --- file operations -----------------------------------------------------
+
+const errorDialog = new ErrorDialog();
+const saveDialog = new SaveDialog();
+const sheetDialog = new SheetDialog();
+
+// Cached between saves within a session. Lost on reload — that's fine.
+let savedFilenames = null;
+let savedDirectory = null;
+let saveMode = null;  // 'directory' | 'download' | null
+
+// Set when a sprite is loaded whose JSON names an image different from the
+// one currently loaded. Cleared on image load, new sprite, new image, or
+// when Sheet Settings brings imageSrc in line. Purely UI state.
+let imageMismatch = null;  // { expected, loaded } or nulla
 
 async function doLoadSprite() {
 	$('statusMessage').textContent = 'Choose a sprite JSON…';
@@ -342,14 +376,26 @@ async function doLoadSprite() {
 
 	$('statusMessage').textContent = 'Building sprite…';
 	try {
-		// Keep the currently-loaded image if there is one; otherwise a
-		// placeholder is installed so the frame outlines render.
 		const keepImage = doc.hasImage;
+		// Capture the currently-loaded image's name before setSheet
+		// overwrites it. Also capture the JSON's expectation.
+		const previousImageSrc = doc.imageSrc;
+		const spriteExpects = file.imageFilename;
+
 		const sheet = await sheetFromSpriteJSON(file.json, null);
 		makeEditable(sheet);
-		if (!keepImage) {
-			sheet.imageSrc = file.imageFilename;
-		}
+		// The sheet's imageSrc is what the JSON declares as its image
+		// filename. Fall back to the loaded image's name only when the
+		// JSON didn't declare one.
+		sheet.imageSrc = file.imageFilename || previousImageSrc || null;
+
+		// Set the mismatch before setSheet so the sheetChanged handler
+		// picks it up when it calls updateImageNotice.
+		imageMismatch = (keepImage && spriteExpects && previousImageSrc &&
+		                 spriteExpects !== previousImageSrc)
+			? { expected: spriteExpects, loaded: previousImageSrc }
+			: null;
+
 		doc.setSheet(sheet, { keepImage, imageLoaded: keepImage });
 		savedFilenames = {
 			jsonFilename: file.jsonFilename,
@@ -382,7 +428,10 @@ async function doLoadImage() {
 	await doc.setImage(file.canvas, file.imageFilename);
 	savedFilenames = savedFilenames || {};
 	savedFilenames.imageFilename = file.imageFilename;
-	$('statusMessage').textContent = `Loaded image ${file.imageFilename}`;
+	imageMismatch = null;
+	updateImageNotice();
+	$('statusMessage').textContent =
+		`Loaded image ${file.imageFilename} — sprite filename updated to match.`;
 }
 
 async function doNewSprite() {
@@ -405,6 +454,8 @@ async function doNewSprite() {
 			cellCount: values.cellCount,
 		});
 		doc.setSheet(sheet, { imageLoaded: true });
+		imageMismatch = null;
+		updateImageNotice();
 		savedFilenames = null;
 		savedDirectory = null;
 		saveMode = null;
@@ -436,7 +487,10 @@ async function doNewImage() {
 	canvas.getContext('2d', { willReadFrequently: true });
 
 	await doc.setImage(canvas, null);
-	$('statusMessage').textContent = `New image: ${values.width}×${values.height}`;
+	imageMismatch = null;
+	updateImageNotice();
+
+	$('statusMessage').textContent = `New image: ${values.width}×${values.heht}`;
 }
 
 async function doEditSheet() {
@@ -454,6 +508,12 @@ async function doEditSheet() {
 		imageWidth: values.imageWidth,
 		imageHeight: values.imageHeight,
 	});
+	// If the user brought the sheet's imageSrc in line with what's actually
+	// loaded, the mismatch is resolved.
+	if (imageMismatch && doc.sheet.imageSrc === imageMismatch.loaded) {
+		imageMismatch = null;
+		updateImageNotice();
+	}
 	$('statusMessage').textContent = 'Sheet settings updated.';
 }
 
@@ -471,32 +531,6 @@ async function doReshape() {
 	$('statusMessage').textContent =
 		`Reshaped to ${values.cols} column${values.cols === 1 ? '' : 's'}`;
 }
-
-async function doOpenFromDisk() {
-	$('statusMessage').textContent = 'Choose files…';
-	const result = await diskLoadDialog.open();
-	if (!result) {
-		$('statusMessage').textContent = 'Open cancelled.';
-		return;
-	}
-
-	doc.setSheet(result.sheet);
-	savedFilenames = {
-		jsonFilename: result.jsonFilename,
-		imageFilename: result.imageFilename,
-	};
-	savedDirectory = null;
-	saveMode = null;
-	$('statusMessage').textContent = `Loaded ${result.jsonFilename} from disk`;
-}
-
-const errorDialog = new ErrorDialog();
-const saveDialog = new SaveDialog();
-
-// Cached between saves within a session. Lost on reload — that's fine.
-let savedFilenames = null;
-let savedDirectory = null;
-let saveMode = null;  // 'directory' | 'download' | null
 
 async function _ensureFilenames({ force = false } = {}) {
 	if (savedFilenames && !force) return savedFilenames;
@@ -566,8 +600,8 @@ async function _doSaveData({ forcePrompt = false } = {}) {
 	}
 }
 
-// Ctrl+S: write whichever side is dirty, both if both. Never prompts for
-// filenames if they're already known.
+// Write whichever side is dirty, both if both. Never prompts for filenames
+// if they're already known.
 async function doSave() {
 	if (!doc.sheet) return;
 	const needImage = doc.dirtyImage;
@@ -585,36 +619,6 @@ const doSaveImage    = () => _doSaveImage();
 const doSaveData     = () => _doSaveData();
 const doSaveImageAs  = () => _doSaveImage({ forcePrompt: true });
 const doSaveDataAs   = () => _doSaveData({ forcePrompt: true });
-
-// Save both halves at once — used by Ctrl+Alt+S and the File menu's
-// "Save all" item, if you want it. Keeps the old one-prompt behaviour.
-async function doSaveAll() {
-	if (!doc.sheet) return;
-
-	const names = await _ensureFilenames();
-	if (!names) return;
-
-	$('statusMessage').textContent = 'Saving…';
-	try {
-		const result = await saveSheetBoth({
-			sheet: doc.sheet,
-			jsonFilename: names.jsonFilename,
-			imageFilename: names.imageFilename,
-			directoryHandle: savedDirectory,
-			forceDownload: saveMode === 'download',
-		});
-		savedDirectory = result.directoryHandle;
-		saveMode = result.mode;
-		doc.markSaved('all');
-		doc.sheet.imageSrc = names.imageFilename;
-		$('statusMessage').textContent = result.mode === 'directory'
-			? `Saved ${names.jsonFilename} + ${names.imageFilename}`
-			: `Downloaded ${names.jsonFilename} + ${names.imageFilename}`;
-	} catch (err) {
-		console.error(err);
-		$('statusMessage').textContent = 'Save failed: ' + err.message;
-	}
-}
 
 // --- edit operations -----------------------------------------------------
 
@@ -684,6 +688,8 @@ const doMoveDown  = () => _transformOp('Moved down',  (d) => translateWrapped(d,
 const doMoveLeft  = () => _transformOp('Moved left',  (d) => translateWrapped(d, -1,  0));
 const doMoveRight = () => _transformOp('Moved right', (d) => translateWrapped(d,  1,  0));
 
+// --- menus ----------------------------------------------------------------
+
 const fileMenu = new Menu(document.getElementById('fileMenuBtn'), [
 	{ label: 'New Sprite',   action: doNewSprite },
 	{ label: 'New Image',    action: doNewImage },
@@ -701,7 +707,6 @@ const fileMenu = new Menu(document.getElementById('fileMenuBtn'), [
 
 function updateFileMenuState() {
 	const hasSheet = doc.hasSheet;
-	const hasImage = doc.hasImage;
 	const setEnabled = (label, on) => {
 		const item = fileMenu.items.find(i => i.label === label);
 		if (item) item.disabled = !on;
@@ -736,7 +741,7 @@ new Menu(document.getElementById('sheetMenuBtn'), [
 new Menu(document.getElementById('viewMenuBtn'), [
 	{
 		label: 'Background…',
-		action: (e) => {
+		action: () => {
 			backgroundPicker.toggle(document.getElementById('viewMenuBtn'));
 		},
 	},
@@ -803,10 +808,8 @@ new Menu(document.getElementById('transformMenuBtn'), [
 	},
 });
 
-const sheetSizeDialog = new SheetSizeDialog();
-const sheetDialog = new SheetDialog();
+// --- keyboard events -----------------------------------------------------
 
-// --- keyboard events ---------------------------------------------------------
 window.addEventListener('keydown', (e) => {
 	const tag = (e.target.tagName || '').toLowerCase();
 	const inField = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
@@ -814,15 +817,18 @@ window.addEventListener('keydown', (e) => {
 	const key = e.key.toLowerCase();
 
 	if (mod) {
-		// using alt on keys where ctrl-* is hijacked by the browser.
+		// Ctrl+Alt+letter is used where Ctrl+letter is hijacked by the
+		// browser (new tab / new window / etc.).
 		if (key === 'n' && e.altKey) {
 			e.preventDefault();
 			doNewSprite();
 			return;
 		}
-		if (key === 's' && e.altKey && !e.shiftKey) {
+		if (key === 's') {
 			e.preventDefault();
-			doSave();
+			if (e.altKey)        doSave();       // Ctrl+Alt+S  — save dirty halves
+			else if (e.shiftKey) doSaveData();   // Ctrl+Shift+S — save sprite data
+			else                 doSaveImage();  // Ctrl+S      — save image
 			return;
 		}
 		if (e.altKey) return;
@@ -875,7 +881,7 @@ window.addEventListener('keydown', (e) => {
 		if (e.shiftKey) doFlipH();
 		else            doFlipV();
 		return;
-	}	
+	}
 	if (key === 'x') {
 		e.preventDefault();
 		palette.swap();
@@ -926,6 +932,10 @@ function setupTabs(sidebarEl) {
 		});
 	});
 }
+
+setupTabs(document.getElementById('leftSidebar'));
+setupTabs(document.getElementById('rightSidebar'));
+
 // --- sub-tabs (Brush | Tool) ---------------------------------------------
 
 (function setupBrushSubTabs() {
@@ -941,8 +951,6 @@ function setupTabs(sidebarEl) {
 		});
 	});
 })();
-setupTabs(document.getElementById('leftSidebar'));
-setupTabs(document.getElementById('rightSidebar'));
 
 // --- clipboard events ----------------------------------------------------
 //
@@ -951,28 +959,28 @@ setupTabs(document.getElementById('rightSidebar'));
 // here genuinely stops the browser from doing anything with the system
 // clipboard. The inField check lets text inputs behave normally.
 
-function _isFormField(el) {
+function isFormField(el) {
 	if (!el) return false;
 	const tag = (el.tagName || '').toLowerCase();
 	return tag === 'input' || tag === 'textarea' || el.isContentEditable;
 }
 
 document.addEventListener('copy', (e) => {
-	if (_isFormField(e.target)) return;
+	if (isFormField(e.target)) return;
 	if (!doc.sheet || !doc.selectedFrame) return;
 	e.preventDefault();
 	doCopyFrame();
 });
 
 document.addEventListener('cut', (e) => {
-	if (_isFormField(e.target)) return;
+	if (isFormField(e.target)) return;
 	if (!doc.sheet || !doc.selectedFrame) return;
 	e.preventDefault();
 	doCutFrame();
 });
 
 document.addEventListener('paste', (e) => {
-	if (_isFormField(e.target)) return;
+	if (isFormField(e.target)) return;
 	if (!doc.sheet || !doc.selectedFrame || clipboard.isEmpty) return;
 	e.preventDefault();
 	doPasteIntoFrame();
@@ -985,6 +993,7 @@ $('btnZoomIn').addEventListener('click', () => viewport.zoomBy(1.25));
 $('btnZoomOut').addEventListener('click',() => viewport.zoomBy(1 / 1.25));
 
 // --- unsaved-changes warning ---------------------------------------------
+
 window.addEventListener('beforeunload', (e) => {
 	if (!doc.anyDirty) return;
 	e.preventDefault();

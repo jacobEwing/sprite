@@ -1,7 +1,15 @@
 // A brush is a 2D mask of numbers plus an anchor point. Values are weights
 // in 0..1; nonzero means "paint this cell". The anchor specifies which mask
-// cell sits under the cursor. Weights are currently unused by the pencil
-// but reserved for soft brushes and anti-aliased edges later.
+// cell sits under the cursor.
+//
+// Weight is used differently per tool:
+//   • Pencil, Line, Box, Ellipse  — weight ignored; any nonzero cell paints
+//                                    at full opacity (hard stamp)
+//   • Airbrush                    — weight scales the per-tick deposit, so
+//                                    edges feather in gradually
+//   • Eraser                      — weight scales the fade amount, so edges
+//                                    clear more slowly than the centre
+
 export class Brush {
 	constructor(mask, anchorX, anchorY) {
 		this.mask = mask;

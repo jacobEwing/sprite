@@ -30,13 +30,13 @@ export async function applyToolIcons(path) {
 		const frame     = sheet.frames[frameName];
 		if (!frame) continue;   // keep the text label
 
-		const canvas = _makeIconCanvas(sheet, frame);
+		const canvas = makeIconCanvas(sheet, frame);
 		btn.replaceChildren(canvas);
 	}
 	return sheet;
 }
 
-function _makeIconCanvas(sheet, frame) {
+function makeIconCanvas(sheet, frame) {
 	const dpr = window.devicePixelRatio || 1;
 	const cssW = frame.width  * ICON_SCALE;
 	const cssH = frame.height * ICON_SCALE;

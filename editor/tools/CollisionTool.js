@@ -1,5 +1,5 @@
 import { Tool } from './Tool.js';
-import { circleAt } from '../model/collisionUtils.js';
+import { circleAt, collisionMode } from '../model/collisionUtils.js';
 
 // Drag existing circles; drag on empty space to create a new one; right-
 // click a circle to delete it.
@@ -23,11 +23,15 @@ export class CollisionTool extends Tool {
 		const frame = this.context.document.getSelectedFrame();
 		if (!frame) return;
 
-		// Promote to Override so the gesture lands on the frame, not the
-		// sheet. Any subsequent write goes through setFrameCollision.
-		if (!Object.prototype.hasOwnProperty.call(frame, 'collision')
-		    || frame.collision.circles.length === 0) {
-			this._promoteToOverride(frame);
+		// An Inherit frame has no collision key of its own. Editing it
+		// seeds a fresh override from the sheet's shape, so the circles
+		// the user was seeing are the ones they start editing.
+		//
+		// A None frame already has an explicit empty override; editing
+		// it just adds the first circle to that, leaving the sheet's
+		// shape out of it entirely.
+		if (collisionMode(frame) === 'inherit') {
+			this._seedFromSheet();
 		}
 
 		const circles = overlay.currentCircles();
@@ -117,7 +121,10 @@ export class CollisionTool extends Tool {
 
 	onCancel() { this._reset(); }
 
-	_promoteToOverride(frame) {
+	// Promote an Inherit frame to Override by copying the sheet's current
+	// shape into the frame. Called before the gesture's write, so the
+	// write lands on the frame, not the sheet.
+	_seedFromSheet() {
 		const inherited = this.context.document.sheet.collision;
 		const seed = inherited && inherited.circles && inherited.circles.length
 			? { circles: inherited.circles.map(c => ({ ...c })) }

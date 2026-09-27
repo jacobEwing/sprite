@@ -45,11 +45,6 @@ export class Viewport {
 		};
 		this._bgCache = { signature: null, pattern: null, tile: null };
 
-
-		// Optional draw function invoked between the source image and the
-		// frame overlays, with the transform already set to image space.
-		this.previewFn = null;
-
 		this._renderPending = false;
 
 		this._bindEvents();
@@ -106,8 +101,14 @@ export class Viewport {
 		if (this.overlays.delete(token)) this.invalidate();
 	}
 
-	// Legacy single-slot API. Kept so tools that just need "one preview
-	// at a time" don't have to manage tokens themselves.
+	// Single-slot preview. Tools that only ever show one overlay at a time
+	// (FilterPanel, FrameTool, ShapeTool) call this and don't have to
+	// manage tokens. The overlays registered here render alongside any
+	// registered via addOverlay, in insertion order.
+	//
+	// setPreview(null) clears the slot. Calling setPreview again replaces
+	// the previous single-slot overlay.
+
 	setPreview(fn) {
 		if (this._singlePreviewToken) {
 			this.removeOverlay(this._singlePreviewToken);
@@ -321,7 +322,7 @@ export class Viewport {
 		const signature = `${texture}|${colorA}|${colorB}`;
 		if (this._bgCache.signature === signature) return this._bgCache.pattern;
 
-		const tile = _buildTextureTile(texture, colorA, colorB);
+		const tile = buildTextureTile(texture, colorA, colorB);
 		if (!tile) {
 			this._bgCache.signature = signature;
 			this._bgCache.pattern   = null;
@@ -530,7 +531,7 @@ export class Viewport {
 // Build a small tile canvas for the given texture. Returned as a canvas
 // suitable for createPattern. Tile dimensions are chosen so the pattern
 // repeats seamlessly in both axes.
-function _buildTextureTile(texture, colorA, colorB) {
+function buildTextureTile(texture, colorA, colorB) {
 	const S = 8;
 	let tw, th;
 

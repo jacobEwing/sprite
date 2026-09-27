@@ -2,12 +2,22 @@
 //   • Sprite data — frames, sequences, settings, collision
 //   • Image       — the pixel atlas
 //
-// Each can be loaded, replaced, or absent independently.
+// Each can be loaded, replaced, or absent independently, so the editor
+// supports sprite-only and image-only states.
 
 /* ==========================================================================
  *  File pickers
  * ========================================================================== */
 
+// Single-file picker. Prefers the File System Access API when available
+// (Chromium), because it gives the caller a real File object even after
+// the picker closes. Falls back to a hidden <input type="file"> elsewhere.
+//
+// Cancellation: on the FSA path, the picker rejects with AbortError and we
+// return null cleanly. On the <input> fallback, no cancel event fires
+// across browsers, so the returned promise stays pending until the user
+// picks something or navigates away. Callers should treat a hanging
+// promise as "still waiting" rather than "cancelled".
 export async function pickFile({ description, accept, extensions }) {
 	if (typeof window.showOpenFilePicker === 'function') {
 		try {
@@ -18,6 +28,9 @@ export async function pickFile({ description, accept, extensions }) {
 			return await handle.getFile();
 		} catch (err) {
 			if (err.name === 'AbortError') return null;
+			// Some Chromium variants (Brave with shields, embedded
+			// webviews) reject for reasons other than user cancel. Fall
+			// through to the input path rather than propagating.
 		}
 	}
 	return inputPickOne(extensions.join(','));
@@ -44,7 +57,8 @@ function inputPickOne(accept) {
 
 // Load a sprite JSON from disk. Returns:
 //   { json, jsonFilename, imageFilename } — parsed JSON and the filenames
-// The caller decides whether to also load an image.
+// `imageFilename` is the basename of the JSON's own "image" field, or null
+// if the field is absent. The caller decides whether to also load an image.
 export async function loadSpriteFile() {
 	const file = await pickFile({
 		description: 'Sprite sheet JSON',
@@ -70,6 +84,11 @@ export async function loadSpriteFile() {
 // Build a SpriteSheet from raw sprite JSON. If no image is supplied, uses
 // a blank canvas sized from the frames themselves, so the frame rectangles
 // land where they would against the real image.
+//
+// The spread of `json` is deliberate: an explicit `image` value overrides
+// whatever the JSON specified, so the caller can supply a pre-loaded image
+// (a canvas, an HTMLImageElement, or an ImageBitmap) without the runtime
+// trying to fetch a URL.
 export async function sheetFromSpriteJSON(json, imageSource = null) {
 	const image = imageSource || placeholderCanvasFor(json);
 	const sheet = await window.SpriteSheet.fromJSON({ ...json, image });
@@ -94,8 +113,8 @@ function placeholderCanvasFor(json) {
 		if (data.col !== undefined) fx += Number(data.col) * fw;
 		if (data.row !== undefined) fy += Number(data.row) * fh;
 
-		// Apply the first pixel-offset alias that appears; JSON authors
-		// use one or the other, not both.
+		// JSON authors use one of the pixel-offset aliases or the other,
+		// not both. First match wins.
 		const xAlias = data.x !== undefined      ? data.x
 		             : data.left !== undefined   ? data.left
 		             : data.xoffset;
@@ -119,9 +138,16 @@ function placeholderCanvasFor(json) {
 	return c;
 }
 
-// Swap the sheet's image for an editable canvas. Pixels editing tools need
+// Swap the sheet's image for an editable canvas. Pixel editing tools need
 // a real 2D context, which an HTMLImageElement doesn't provide.
+//
+// Idempotent for images that are already canvases: in that case the copy
+// is skipped and the input is returned as-is.
 export function makeEditable(sheet) {
+	if (sheet.image && typeof sheet.image.getContext === 'function') {
+		return sheet;
+	}
+
 	const canvas = document.createElement('canvas');
 	canvas.width  = sheet.imageWidth;
 	canvas.height = sheet.imageHeight;
@@ -194,8 +220,9 @@ export async function makeBlankSheet({
 	const canvas = document.createElement('canvas');
 	canvas.width  = imageWidth;
 	canvas.height = imageHeight;
-	const ctx = canvas.getContext('2d', { willReadFrequently: true });
-	ctx.imageSmoothingEnabled = false;
+	// Force the CPU-backed pixel store, which later getImageData calls
+	// depend on. We don't draw anything yet — the canvas is transparent.
+	canvas.getContext('2d', { willReadFrequently: true });
 
 	const cols = Math.max(1, Math.floor(imageWidth  / frameWidth));
 	const rows = Math.max(1, Math.floor(imageHeight / frameHeight));

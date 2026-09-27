@@ -1,6 +1,16 @@
-// Commands that mutate a SpriteSheet's data. Each has apply() and revert()
-// and touches only plain objects (frames, sequences, image). ImageData
-// operations for canvas resize are handled separately.
+// Commands that mutate a SpriteSheet. Each has apply() and revert().
+//
+// Two families:
+//   • Structural commands — clone their before/after data at construction
+//     and swap it in on apply/revert. Add/Remove/Rename/Set for frames and
+//     sequences, plus SetCollision and SetSheetSettings.
+//   • Image-swap commands — hold a reference to the previous canvas and
+//     build a new one on first apply. ResizeCanvasCommand and
+//     ReshapeCommand. These don't clone pixels; they replace the whole
+//     canvas reference.
+//
+// CompositeCommand wraps a list of commands into one atomic undo entry.
+// Applied in order on apply, reversed on revert.
 
 function clone(x) {
 	return JSON.parse(JSON.stringify(x));
@@ -59,16 +69,32 @@ export class RenameFrameCommand {
 			if (idxs.length) this.affectedSequences[seqName] = idxs;
 		}
 	}
+
+	apply()  { this._swap(this.oldName, this.newName); }
+	revert() { this._swap(this.newName, this.oldName); }
+
 	_swap(from, to) {
-		this.sheet.frames[to] = this.sheet.frames[from];
-		delete this.sheet.frames[from];
+		const frames = this.sheet.frames;
+		if (!frames[from]) return;
+
+		// Rebuild the entry in its original position. We rebuild into the
+		// same object rather than reassigning sheet.frames, so external
+		// references stay valid and the surrounding key order is preserved.
+		const oldFrame = frames[from];
+		const keys = Object.keys(frames);
+		const ordered = {};
+		for (const key of keys) {
+			if (key === from) ordered[to] = oldFrame;
+			else              ordered[key] = frames[key];
+		}
+		for (const key of keys) delete frames[key];
+		for (const key of Object.keys(ordered)) frames[key] = ordered[key];
+
 		for (const [seqName, idxs] of Object.entries(this.affectedSequences)) {
 			const seq = this.sheet.sequences[seqName];
 			for (const i of idxs) seq.frames[i] = to;
 		}
 	}
-	apply()  { this._swap(this.oldName, this.newName); }
-	revert() { this._swap(this.newName, this.oldName); }
 }
 
 // Sets one frame's numeric/metadata fields (rect, origin). `before` and
@@ -113,13 +139,25 @@ export class RenameSequenceCommand {
 		this.oldName = oldName;
 		this.newName = newName;
 	}
-	apply() {
-		this.sheet.sequences[this.newName] = this.sheet.sequences[this.oldName];
-		delete this.sheet.sequences[this.oldName];
-	}
-	revert() {
-		this.sheet.sequences[this.oldName] = this.sheet.sequences[this.newName];
-		delete this.sheet.sequences[this.newName];
+	apply()  { this._swap(this.oldName, this.newName); }
+	revert() { this._swap(this.newName, this.oldName); }
+
+	// Rebuild the sequences map in place with the renamed key at the same
+	// position. Direct assignment plus delete would append the new key at
+	// the end, changing the visible order.
+	_swap(from, to) {
+		const sequences = this.sheet.sequences;
+		if (!sequences[from]) return;
+
+		const oldSeq = sequences[from];
+		const keys = Object.keys(sequences);
+		const ordered = {};
+		for (const key of keys) {
+			if (key === from) ordered[to] = oldSeq;
+			else              ordered[key] = sequences[key];
+		}
+		for (const key of keys) delete sequences[key];
+		for (const key of Object.keys(ordered)) sequences[key] = ordered[key];
 	}
 }
 
@@ -139,8 +177,6 @@ export class ResizeCanvasCommand {
 	constructor(sheet, newWidth, newHeight) {
 		this.sheet = sheet;
 		this.oldImage = sheet.image;
-		this.oldWidth = sheet.imageWidth;
-		this.oldHeight = sheet.imageHeight;
 		this.newWidth = newWidth;
 		this.newHeight = newHeight;
 		this.newImage = null;
@@ -165,6 +201,7 @@ export class ResizeCanvasCommand {
 		this.sheet.image = this.oldImage;
 	}
 }
+
 // --- sheet settings -------------------------------------------------------
 
 // Updates the sheet's default values: frame size, origin, default frame

@@ -1,8 +1,8 @@
-import { makeEmitter } from '../lib/emitter.js';
 import { ColorPicker } from './ColorPicker.js';
 
-// Floating popover for choosing the viewport background: a texture and
-// two colours (the checker's A/B pair, or base + speckle for speckles).
+// Floating popover for choosing the viewport background: a texture
+// (checker, dots, stripes, none) and two colours — the A/B pair used by
+// the patterned textures.
 //
 // Uses the same ColorPicker the palette uses. Clicking a swatch opens it
 // next to that swatch.
@@ -16,7 +16,6 @@ const TEXTURES = [
 
 export class BackgroundPicker {
 	constructor(viewport) {
-		makeEmitter(this);
 		this.viewport = viewport;
 		this._activeSlot = null;
 

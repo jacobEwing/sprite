@@ -78,6 +78,7 @@ export class AirbrushTool extends Tool {
 		};
 		this.rafId = requestAnimationFrame(tick);
 	}
+
 	_stopLoop() {
 		if (this.rafId) cancelAnimationFrame(this.rafId);
 		this.rafId = null;

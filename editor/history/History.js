@@ -2,14 +2,19 @@ import { makeEmitter } from '../lib/emitter.js';
 
 // Linear undo/redo with per-kind depth tracking.
 //
-// Each command carries a `kind` of 'pixels' (image content) or 'data'
-// (sheet structure and settings). The History tracks how many of each
-// live in the undo stack and remembers, for each kind, the depth and
-// topmost command at the moment of the last save. Dirty state is derived
-// from that comparison, so undoing back to the save point clears it.
+// Each command carries a `kind`:
+//   'pixels' — image content changed (paint strokes, transforms, filters)
+//   'data'   — sheet structure changed (frames, sequences, settings)
+//   'both'   — both at once (e.g. reshape, which moves frames and the image)
+//
+// The History tracks how many of each kind live in the undo stack and
+// remembers, per kind, the depth and topmost command at the moment of the
+// last save. Dirty state is derived from that comparison, so undoing back
+// to the save point clears it.
 //
 // The 'change' event fires after every mutation with:
 //   { canUndo, canRedo, depth, source, kind, dirtyImage, dirtyData, anyDirty }
+// `source` is one of 'push' | 'undo' | 'redo' | 'clear' | 'marksaved'.
 export class History {
 	constructor({ limit = 100 } = {}) {
 		makeEmitter(this);
@@ -26,6 +31,10 @@ export class History {
 		this._savedDataTop    = null;
 	}
 
+	// Record a command that has already been applied by the caller. Use
+	// this when the operation mutates pixels directly (putImageData,
+	// drawImage) and then wraps the before/after state in a command — the
+	// command's own apply() would be a redundant re-application.
 	push(command, kind = 'pixels') {
 		command._historyKind = kind;
 		this.undoStack.push(command);
@@ -40,6 +49,9 @@ export class History {
 		this._emit('push', kind);
 	}
 
+	// Apply a command and record it. Use this when the command itself
+	// performs the mutation — data commands like AddFrameCommand,
+	// SetFrameCommand, and ResizeCanvasCommand are written this way.
 	execute(command, kind = 'pixels') {
 		command.apply();
 		this.push(command, kind);
@@ -105,6 +117,8 @@ export class History {
 	}
 	get anyDirty() { return this.imageDirty || this.dataDirty; }
 
+	// Walk back through the undo stack looking for the topmost command of
+	// the requested kind. A 'both' command satisfies either query.
 	_topOfKind(kind) {
 		for (let i = this.undoStack.length - 1; i >= 0; i--) {
 			const c = this.undoStack[i];
@@ -113,6 +127,7 @@ export class History {
 		}
 		return null;
 	}
+
 	_emit(source, kind = null) {
 		this.emit('change', {
 			canUndo: this.canUndo,

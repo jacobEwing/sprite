@@ -56,12 +56,6 @@ export class ShapeTool extends Tool {
 		this.context.viewport.setPreview(null);
 	}
 
-	_updatePreview() {
-		const tool = this;
-		const hex = this._colorHex();
-		this.context.viewport.setPreview((ctx) => tool._drawPreview(ctx, hex));
-	}
-
 	_commit() {
 		const tx = this.context.beginStroke();
 		if (!tx) return;
@@ -72,10 +66,20 @@ export class ShapeTool extends Tool {
 		if (cmd) this.context.history.push(cmd);
 	}
 
-	_colorHex() {
-		return this.button === 2
-			? this.context.palette.secondary
-			: this.context.palette.primary;
+	_updatePreview() {
+		const tool = this;
+		const color = this._colorCss();
+		this.context.viewport.setPreview((ctx) => tool._drawPreview(ctx, color));
+	}
+
+	// CSS colour string for the preview, with alpha applied. Not to be
+	// confused with _colorRGBA, which returns the numeric tuple used by
+	// the stroke transaction.
+	_colorCss() {
+		const p = this.context.palette;
+		const color = this.button === 2 ? p.secondary : p.primary;
+		const [r, g, b] = hexToRGBA(color.hex) ?? [0, 0, 0];
+		return `rgba(${r}, ${g}, ${b}, ${color.alpha / 255})`;
 	}
 
 	_colorRGBA() {

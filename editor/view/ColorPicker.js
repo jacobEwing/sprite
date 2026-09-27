@@ -8,9 +8,9 @@ const HUE_WIDTH = 20;
 // hex field underneath. Positioned next to an anchor element; dismissed by
 // clicking outside it or pressing Escape.
 //
-// Two callbacks:
-//   onLiveChange(hex) — every change while dragging or typing
-//   onCommit(hex)     — once per interaction (pointer-up or Enter)
+// Two callbacks, both receiving the current (hex, alpha):
+//   onLiveChange(hex, alpha) — every change while dragging or typing
+//   onCommit(hex, alpha)     — once per interaction (pointer-up or Enter)
 //
 // The distinction exists so the recent-colours list records one entry per
 // deliberate pick, not one per pixel of drag.
@@ -187,7 +187,7 @@ export class ColorPicker {
 		this.h = h; this.s = s; this.v = v;
 		this._render();
 		if (this._onLive)   this._onLive(this._currentHex(), this.alpha);
-		if (this._onCommit) this._onCommit(this._currentHex()), this.alpha;
+		if (this._onCommit) this._onCommit(this._currentHex(), this.alpha);
 	}
 
 	_commit() {
@@ -195,8 +195,6 @@ export class ColorPicker {
 	}
 
 	// --- rendering --------------------------------------------------------
-	_currentAlpha() { return this.alpha; }
-
 	_currentHex() {
 		const [r, g, b] = hsvToRgb(this.h, this.s, this.v);
 		return rgbaToHex(r, g, b);

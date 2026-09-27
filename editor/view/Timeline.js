@@ -1,5 +1,3 @@
-import { makeEmitter } from '../lib/emitter.js';
-
 const THUMB_SIZE = 56;
 
 // Horizontal strip of frame thumbnails for the selected sequence. Click a
@@ -8,13 +6,11 @@ const THUMB_SIZE = 56;
 // undo step.
 export class Timeline {
 	constructor(root, doc, viewport) {
-		makeEmitter(this);
 		this.root = root;
 		this.doc = doc;
 		this.viewport = viewport;
 
 		this.drag = null;  // { index, working, moved } while dragging
-		this._listeners = null;
 
 		this.root.innerHTML = `
 			<div class="tl-header">

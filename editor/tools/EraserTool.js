@@ -91,4 +91,5 @@ export class EraserTool extends Tool {
 
 	setSettingValue(key, value) {
 		if (key === 'opacity') this.opacity = Math.max(0, Math.min(100, Number(value) || 0));
-	}}
+	}
+}

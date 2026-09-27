@@ -1,5 +1,5 @@
-import { makeEmitter } from '../lib/emitter.js';
 import { Menu } from './Menu.js';
+import { inlineRename } from '../lib/inlineRename.js';
 
 function esc(s) {
 	return String(s).replace(/[&<>"']/g, c => ({
@@ -9,7 +9,6 @@ function esc(s) {
 
 export class SequenceList {
 	constructor(root, doc) {
-		makeEmitter(this);
 		this.root = root;
 		this.doc = doc;
 
@@ -38,6 +37,21 @@ export class SequenceList {
 			li.addEventListener('contextmenu', (e) => {
 				e.preventDefault();
 				this._showContextMenu(name, e.clientX, e.clientY);
+			});
+			li.addEventListener('dblclick', (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				const nameEl = li.querySelector('.name');
+				if (!nameEl) return;
+				inlineRename(nameEl, name, (newName) => {
+					try {
+						this.doc.editable.renameSequence(name, newName);
+						return true;
+					} catch (err) {
+						console.warn(err.message);
+						return false;
+					}
+				});
 			});
 
 			this.root.appendChild(li);
