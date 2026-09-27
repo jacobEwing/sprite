@@ -737,15 +737,6 @@ function doClearFrame() {
 	doc.editable.clearRegion(rect);
 }
 
-function doSelectAll() {
-	if (!doc.sheet || !doc.selectedFrame) return;
-	doc.selectAllOfFrame();
-}
-
-function doDeselect() {
-	doc.clearSelection();
-}
-
 // --- transforms ----------------------------------------------------------
 //
 // All operate on the current op rect: the selection if any, else the
@@ -848,20 +839,14 @@ new Menu(document.getElementById('editMenuBtn'), [
 	{ label: 'Cut',   shortcut: 'Ctrl+X', action: doCutFrame },
 	{ label: 'Paste', shortcut: 'Ctrl+V', action: doPasteIntoFrame },
 	{ label: 'Clear', shortcut: 'Del',    action: doClearFrame },
-	{ separator: true },
-	{ label: 'Select All (frame)', shortcut: 'Ctrl+A', action: doSelectAll },
-	{ label: 'Deselect',           shortcut: 'Ctrl+D', action: doDeselect },
 ], {
 	onShow: (items) => {
 		const hasFrame = !!(doc.sheet && doc.selectedFrame);
 		const hasClip  = !clipboard.isEmpty;
-		const hasSel   = !doc.selection.isEmpty;
 		items.find(i => i.label === 'Copy').disabled  = !hasFrame;
 		items.find(i => i.label === 'Cut').disabled   = !hasFrame;
 		items.find(i => i.label === 'Paste').disabled = !hasFrame || !hasClip;
 		items.find(i => i.label === 'Clear').disabled = !hasFrame;
-		items.find(i => i.label === 'Select All (frame)').disabled = !hasFrame;
-		items.find(i => i.label === 'Deselect').disabled = !hasSel;
 	},
 });
 
@@ -938,16 +923,6 @@ window.addEventListener('keydown', (e) => {
 			if (key === 'arrowleft')  { e.preventDefault(); doMoveLeft();  return; }
 			if (key === 'arrowright') { e.preventDefault(); doMoveRight(); return; }
 
-			if (key === 'a') {
-				e.preventDefault();
-				doSelectAll();
-				return;
-			}
-			if (key === 'd') {
-				e.preventDefault();
-				doDeselect();
-				return;
-			}
 			if (key === 'z' && !e.shiftKey) {
 				e.preventDefault();
 				if (history.undo()) viewport.invalidate();

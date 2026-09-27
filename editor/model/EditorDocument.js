@@ -268,11 +268,6 @@ export class EditorDocument {
 		this.selection.clear();
 		this.emit('selectionModified', {});
 	}
-	selectAllOfFrame() {
-		const f = this.getSelectedFrame();
-		if (!f) return;
-		this.setSelection({ x: f.x, y: f.y, w: f.width, h: f.height });
-	}
 	_emitSelectionModified() {
 		this.emit('selectionModified', {});
 	}
