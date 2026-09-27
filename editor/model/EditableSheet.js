@@ -99,7 +99,6 @@ export class EditableSheet {
 			height: fh,
 			centerx: sheet.centerx,
 			centery: sheet.centery,
-			drawOffset: { x: 0, y: 0 },
 			// No collision key: the frame inherits the sheet's default shape.
 		};
 
