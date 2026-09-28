@@ -49,6 +49,7 @@ import { AirbrushTool }    from './tools/AirbrushTool.js';
 import { ReshapeDialog } from './view/ReshapeDialog.js';
 import { ToolSettingsPanel } from './view/ToolSettingsPanel.js';
 import { RotatePanel } from './view/RotatePanel.js';
+import { RecolourPanel } from './view/RecolourPanel.js';
 
 // --- wiring ---------------------------------------------------------------
 const viewOptions = { grid: false, snap: false };
@@ -350,6 +351,17 @@ const filterPanel = new FilterPanel(filterPanelEl, doc, viewport);
 document.getElementById('btnFilter').addEventListener('click', (e) => {
 	if (filterPanel.visible) filterPanel.hide();
 	else filterPanel.show(e.currentTarget);
+});
+
+// --- recolouring --------------------------------------------------------------
+const recolourPanelEl = document.createElement('div');
+recolourPanelEl.id = 'recolourPanel';
+document.body.appendChild(recolourPanelEl);
+const recolourPanel = new RecolourPanel(recolourPanelEl, doc, viewport, palette);
+
+document.getElementById('btnRecolour').addEventListener('click', (e) => {
+	if (recolourPanel.visible) recolourPanel.hide();
+	else recolourPanel.show(e.currentTarget);
 });
 
 // --- arbitrary rotation --------------------------------------------------------------

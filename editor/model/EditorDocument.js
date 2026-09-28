@@ -50,9 +50,18 @@ export class EditorDocument {
 				this._reconcileSelection();
 				this.emit('selectionChanged', { changed: true });
 				this.emit('edit', { type: 'history', source });
+			} else if (source === 'push') {
+				// A commit happened. Operations that go through EditableSheet already emit
+				// 'edit' via the 'changed' path, but pixel operations that push directly to
+				// history (tools' stroke transactions, panels' apply steps) would otherwise be
+				// invisible to views that re-render from sheet state. Emitting here covers
+				// both, at the cost of a redundant redraw for the EditableSheet path. Harmless
+				// and cheap.
+				this.emit('edit', { type: 'pixelsPushed' });
 			}
 			this._emitDirty();
 		});
+
 	}
 
 	get anyDirty()   { return this.history.anyDirty; }

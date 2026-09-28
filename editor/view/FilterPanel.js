@@ -46,6 +46,10 @@ export class FilterPanel {
 	}
 
 	hide() {
+		if (this._pending) {
+			cancelAnimationFrame(this._pending);
+			this._pending = null;
+		}
 		this.root.style.display = 'none';
 		this.viewport.setPreview(null);
 		this.previewImageData = null;
@@ -232,6 +236,7 @@ export class FilterPanel {
 	}
 
 	_recompute() {
+		if (!this.visible) return;
 		const sheet = this.doc.sheet;
 		const rect = this.doc.currentOpRect();
 		if (!sheet || !rect) {
