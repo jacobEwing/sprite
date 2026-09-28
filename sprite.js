@@ -1,7 +1,7 @@
 'use strict';
 
 /* =============================================================================
- * sprite.js — dependency-free sprite sheet + sprite runtime for <canvas>.
+ * sprite.js - dependency-free sprite sheet + sprite runtime for <canvas>.
  *
  *   const sheet  = await SpriteSheet.load('hero.json');
  *   const hero   = sheet.newSprite();
@@ -50,8 +50,8 @@
  * @property {number}   frameRate    Frames per second.
  * @property {number}   [iterations] 0/undefined = loop forever, n = play n times.
  * @property {'auto'|'manual'} [method] Legacy flag, preserved for
- *   round-tripping old sheets. The runtime is passive — animation only
- *   advances when `Sprite.update()` is called — so this no longer changes
+ *   round-tripping old sheets. The runtime is passive - animation only
+ *   advances when `Sprite.update()` is called - so this no longer changes
  *   behaviour.
  * @property {number[]} [frameTimes] Per-frame durations in ms; overrides frameRate.
  * @property {Function} [callback]   Invoked when a finite sequence completes.
@@ -209,7 +209,7 @@ function formatCollisionForJSON(shape) {
 /**
  * An image plus the frames cut from it and the sequences that animate them.
  *
- * The runtime treats a loaded sheet as read-only — sprites reference it and
+ * The runtime treats a loaded sheet as read-only - sprites reference it and
  * never write to it. The editor does the opposite: it mutates `frames`,
  * `sequences`, `image`, and the top-level settings directly, which is why
  * Sprite reads `frame`, `image`, and `sequence` through live getters rather
@@ -242,7 +242,7 @@ class SpriteSheet {
 	get frameNames()    { return Object.keys(this.frames); }
 	get sequenceNames() { return Object.keys(this.sequences); }
 
-	/** Reads through to the image, so it is always correct — no listeners. */
+	/** Reads through to the image, so it is always correct - no listeners. */
 	get imageWidth()  { const i = this.image; return i ? (i.naturalWidth  ?? i.width)  : 0; }
 	get imageHeight() { const i = this.image; return i ? (i.naturalHeight ?? i.height) : 0; }
 
@@ -350,7 +350,7 @@ class SpriteSheet {
 	/** @returns {Sprite} */
 	newSprite() {
 		if (!this.ready) {
-			throw new Error('SpriteSheet: sheet is not ready — await load()/fromJSON() first');
+			throw new Error('SpriteSheet: sheet is not ready - await load()/fromJSON() first');
 		}
 		const sprite = new Sprite(this);
 		sprite.scale = this.scale;
@@ -519,7 +519,7 @@ class SpriteSheet {
  * Coordinate model: `position` is where the sprite's origin lands in the
  * parent's space. The origin defaults to the sheet's `centerx`/`centery`, or
  * the frame's own override. Children are drawn inside the parent's transform,
- * so a child at (0, 0) sits on the parent's origin — handy for equipment.
+ * so a child at (0, 0) sits on the parent's origin - handy for equipment.
  */
 class Sprite {
 	/** @param {SpriteSheet} sheet */
@@ -667,7 +667,7 @@ class Sprite {
 			if (this._iterationsLeft > 0) {
 				this._iterationsLeft -= 1;
 				if (this._iterationsLeft === 0) {
-					// Finished — hold the final frame, then notify.
+					// Finished - hold the final frame, then notify.
 					this.animating = false;
 					this.sequenceName = null;
 					const cb = this._onComplete;
@@ -763,7 +763,7 @@ class Sprite {
 	}
 
 	/**
-	 * Blit a random region of the sheet — handy for rubble, foliage, stars.
+	 * Blit a random region of the sheet - handy for rubble, foliage, stars.
 	 * @param {number} [randomKey] Deterministic seed; omit for true randomness.
 	 */
 	drawRandomArea(ctx, dx, dy, width, height, randomKey) {
@@ -812,7 +812,7 @@ class Sprite {
 	}
 
 	/**
-	 * Detach `child` from this sprite, or — with no argument âtach this
+	 * Detach `child` from this sprite, or - with no argument âtach this
 	 * sprite from its own parent.
 	 * @param {Sprite} [child]
 	 */

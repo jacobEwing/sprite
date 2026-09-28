@@ -192,7 +192,7 @@ export class SequenceInspector {
 			.filter(v => Number.isFinite(v) && v > 0);
 
 		if (values.length === 0) {
-			// Nothing parsable — revert the field to the stored state.
+			// Nothing parsable - revert the field to the stored state.
 			this._syncFrameTimes();
 			return;
 		}

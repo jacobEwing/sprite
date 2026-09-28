@@ -3,11 +3,11 @@
 // cell sits under the cursor.
 //
 // Weight is used differently per tool:
-//   • Pencil, Line, Box, Ellipse  — weight ignored; any nonzero cell paints
+//   • Pencil, Line, Box, Ellipse  - weight ignored; any nonzero cell paints
 //                                    at full opacity (hard stamp)
-//   • Airbrush                    — weight scales the per-tick deposit, so
+//   • Airbrush                    - weight scales the per-tick deposit, so
 //                                    edges feather in gradually
-//   • Eraser                      — weight scales the fade amount, so edges
+//   • Eraser                      - weight scales the fade amount, so edges
 //                                    clear more slowly than the centre
 
 export class Brush {

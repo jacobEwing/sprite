@@ -3,7 +3,7 @@
 //
 // Listeners are called synchronously, in the order they were registered.
 // A handler that removes itself, or adds/removes another handler, does not
-// affect the current dispatch — the listener list is snapshotted before
+// affect the current dispatch - the listener list is snapshotted before
 // iteration. Newly-added handlers are not invoked until the next emit.
 //
 // Duplicate registrations are allowed; `off` removes only the first match.

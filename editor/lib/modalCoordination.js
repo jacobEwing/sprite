@@ -12,7 +12,7 @@
 const openModals = new Set();
 
 export function announceOpen(dialog) {
-	// Iterate over a copy — close() will call announceClosed, which
+	// Iterate over a copy - close() will call announceClosed, which
 	// mutates the set we're walking.
 	for (const other of Array.from(openModals)) {
 		if (other !== dialog) other.close(null);

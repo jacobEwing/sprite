@@ -2,7 +2,7 @@ import { ColorPicker } from './ColorPicker.js';
 import { announcePanelOpen, announcePanelClosed } from '../lib/panelCoordination.js';
 
 // Floating popover for choosing the viewport background: a texture
-// (checker, dots, stripes, none) and two colours — the A/B pair used by
+// (checker, dots, stripes, none) and two colours - the A/B pair used by
 // the patterned textures.
 //
 // Uses the same ColorPicker the palette uses. Clicking a swatch opens it

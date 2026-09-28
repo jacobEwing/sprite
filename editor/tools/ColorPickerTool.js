@@ -2,7 +2,7 @@ import { Tool } from './Tool.js';
 import { rgbaToHex } from '../paint/pixelUtils.js';
 
 // Eyedropper. Samples the pixel under the cursor and writes it into the
-// palette — left button sets primary, right button sets secondary. Alpha
+// palette - left button sets primary, right button sets secondary. Alpha
 // is part of the colour, so a sampled semi-transparent pixel lands in the
 // palette with its alpha intact.
 export class ColorPickerTool extends Tool {

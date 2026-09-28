@@ -67,7 +67,7 @@ export class ToolLayer {
 			: this._current();
 		if (!tool) return;
 
-		// A left- or right-click inside a different frame selects it —
+		// A left- or right-click inside a different frame selects it -
 		// unless the tool wants to handle shift-click itself. In that
 		// case we skip the selection change so the tool can see the
 		// previously-selected frame (FrameTool's swap gesture needs this).
@@ -86,7 +86,7 @@ export class ToolLayer {
 
 		// With clipping on, a click that also changed the selected frame
 		// is treated as a selection click, and the tool's gesture is
-		// deferred — the user re-clicks to act. Tools that operate on the
+		// deferred - the user re-clicks to act. Tools that operate on the
 		// atlas as a whole (cellScoped === false) act on every click, and
 		// with clipping off the user has explicitly opted into drawing
 		// across frame boundaries, so the guard doesn't apply either way.
@@ -153,7 +153,7 @@ export class ToolLayer {
 
 				// With clipToFrame on, writes are confined to the selected
 				// frame's rect. With it off, they're confined to the whole
-				// sheet — which lets shapes and strokes cross frame
+				// sheet - which lets shapes and strokes cross frame
 				// boundaries while still bounding the undo snapshot.
 				let rect;
 				if (self.clipToFrame) {

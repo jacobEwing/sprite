@@ -1,10 +1,10 @@
 // Commands that mutate a SpriteSheet. Each has apply() and revert().
 //
 // Two families:
-//   • Structural commands — clone their before/after data at construction
+//   • Structural commands - clone their before/after data at construction
 //     and swap it in on apply/revert. Add/Remove/Rename/Set for frames and
 //     sequences, plus SetCollision and SetSheetSettings.
-//   • Image-swap commands — hold a reference to the previous canvas and
+//   • Image-swap commands - hold a reference to the previous canvas and
 //     build a new one on first apply. ResizeCanvasCommand and
 //     ReshapeCommand. These don't clone pixels; they replace the whole
 //     canvas reference.

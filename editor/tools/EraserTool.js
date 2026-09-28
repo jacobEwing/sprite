@@ -2,7 +2,7 @@ import { Tool } from './Tool.js';
 import { linePoints } from '../paint/pixelUtils.js';
 
 // Eraser. Writes transparent pixels through the same stroke transaction the
-// pencil uses. Both mouse buttons erase — there is no secondary colour for
+// pencil uses. Both mouse buttons erase - there is no secondary colour for
 // an eraser, so left and right behave identically.
 export class EraserTool extends Tool {
 	constructor(context) {

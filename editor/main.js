@@ -170,7 +170,7 @@ $('clipToFrame').addEventListener('change', (e) => {
 // --- document events ------------------------------------------------------
 
 // Update the footer's image notice. Handles two cases, in priority order:
-//   1. No image loaded — sprite references a filename we haven't got.
+//   1. No image loaded - sprite references a filename we haven't got.
 //   2. Sprite and image filenames disagree.
 // Both offer a "Load…" link that opens the image picker.
 function updateImageNotice() {
@@ -185,7 +185,7 @@ function updateImageNotice() {
 	if (!doc.hasImage) {
 		const imgSrc = doc.sheet.imageSrc || '(unnamed)';
 		notice.innerHTML =
-			`No image loaded — sprite uses <code>${imgSrc}</code>.` +
+			`No image loaded - sprite uses <code>${imgSrc}</code>.` +
 			` <a href="#" id="imageNoticeLoad">Load…</a>`;
 		notice.hidden = false;
 		_wireImageNoticeLink();
@@ -434,7 +434,7 @@ const errorDialog = new ErrorDialog();
 const saveDialog = new SaveDialog();
 const sheetDialog = new SheetDialog();
 
-// Cached between saves within a session. Lost on reload — that's fine.
+// Cached between saves within a session. Lost on reload - that's fine.
 let savedFilenames = null;
 let savedDirectory = null;
 let saveMode = null;  // 'directory' | 'download' | null
@@ -513,7 +513,7 @@ async function doLoadImage() {
 	imageMismatch = null;
 	updateImageNotice();
 	$('statusMessage').textContent =
-		`Loaded image ${file.imageFilename} — sprite filename updated to match.`;
+		`Loaded image ${file.imageFilename} - sprite filename updated to match.`;
 }
 
 async function doNewSprite() {
@@ -786,7 +786,7 @@ function updateFileMenuState() {
 	};
 	// Save Image is available whenever there's a sheet, because a sheet
 	// always has an image (the placeholder counts once you've painted into
-	// it). Save Sprite Data needs actual sprite data — the same rule the
+	// it). Save Sprite Data needs actual sprite data - the same rule the
 	// load side already uses.
 	setEnabled('Save Image',          hasSheet);
 	setEnabled('Save Sprite Data',    hasSheet);
@@ -910,9 +910,9 @@ window.addEventListener('keydown', (e) => {
 		}
 		if (key === 's') {
 			e.preventDefault();
-			if (e.altKey)        doSave();       // Ctrl+Alt+S  — save dirty halves
-			else if (e.shiftKey) doSaveData();   // Ctrl+Shift+S — save sprite data
-			else                 doSaveImage();  // Ctrl+S      — save image
+			if (e.altKey)        doSave();       // Ctrl+Alt+S  - save dirty halves
+			else if (e.shiftKey) doSaveData();   // Ctrl+Shift+S - save sprite data
+			else                 doSaveImage();  // Ctrl+S      - save image
 			return;
 		}
 		if (e.altKey) return;
@@ -1080,7 +1080,7 @@ window.addEventListener('beforeunload', (e) => {
 // --- tool icons ----------------------------------------------------------
 //
 // Fire-and-forget. If the sprite loads, buttons swap from text to icons.
-// If it fails, or a frame is missing, the text label stays — no error,
+// If it fails, or a frame is missing, the text label stays - no error,
 // no broken UI.
 
 applyToolIcons('assets/toolIcons.json');

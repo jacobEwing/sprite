@@ -6,7 +6,7 @@ import { normalizeHex } from '../paint/pixelUtils.js';
 // carry it automatically.
 //
 // setPrimary/setSecondary accept an optional alpha. When omitted, the
-// current alpha for that slot is preserved — which is what the hex input
+// current alpha for that slot is preserved - which is what the hex input
 // needs, since it only ever edits the hex part.
 
 const DEFAULT_PRIMARY   = { hex: '#000000', alpha: 255 };

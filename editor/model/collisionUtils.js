@@ -3,7 +3,7 @@
 // editor works exclusively in the internal { circles: [...] } shape.
 //
 // A frame's collision is either present with circles, or absent. An empty
-// circles array is treated the same as absent — it means the frame has no
+// circles array is treated the same as absent - it means the frame has no
 // collision.
 
 // Topmost circle whose disc contains (px, py), or -1. `circles` are in

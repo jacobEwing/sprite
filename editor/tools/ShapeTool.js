@@ -6,8 +6,8 @@ import { hexToRGBA } from '../paint/pixelUtils.js';
 // commits a single StrokeTransaction on release.
 //
 // Subclasses implement:
-//   _drawPreview(ctx, hex)             — draw the shape preview (image space)
-//   _paint(transaction, rgba)          — write the shape's pixels
+//   _drawPreview(ctx, hex)             - draw the shape preview (image space)
+//   _paint(transaction, rgba)          - write the shape's pixels
 export class ShapeTool extends Tool {
 	constructor(context) {
 		super(context);

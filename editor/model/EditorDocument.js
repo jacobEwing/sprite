@@ -9,9 +9,9 @@ import { makeSheetFromImage } from '../io/loadSheet.js';
 // and complete states.
 //
 // Selection model:
-//   selectedFrames / selectedSequences — the full set, for bulk operations
-//   primaryFrame / primarySequence     — the "focused" one tools act on
-//   _frameAnchor / _sequenceAnchor     — anchor for shift-click range select
+//   selectedFrames / selectedSequences - the full set, for bulk operations
+//   primaryFrame / primarySequence     - the "focused" one tools act on
+//   _frameAnchor / _sequenceAnchor     - anchor for shift-click range select
 //
 // A single click sets the set to one item and makes it primary. Ctrl-click
 // toggles membership. Shift-click extends a contiguous range from the
@@ -19,14 +19,14 @@ import { makeSheetFromImage } from '../io/loadSheet.js';
 // ctrl-clicking the last item away is a no-op.
 //
 // Events:
-//   sheetChanged      — { sheet } (may be null)
-//   imageChanged      — {}
-//   selectionChanged  — { frame?, sequence?, changed?, focus? }
-//   selectionModified — {} — the pixel selection rect changed
-//   edit              — the EditableSheet 'changed' payload, or
+//   sheetChanged      - { sheet } (may be null)
+//   imageChanged      - {}
+//   selectionChanged  - { frame?, sequence?, changed?, focus? }
+//   selectionModified - {} - the pixel selection rect changed
+//   edit              - the EditableSheet 'changed' payload, or
 //                       { type: 'history' } for undo/redo, or
 //                       { type: 'imageLoaded' } for setImage
-//   dirtyChanged      — { dirtyImage, dirtyData, anyDirty }
+//   dirtyChanged      - { dirtyImage, dirtyData, anyDirty }
 export class EditorDocument {
 	constructor(history) {
 		makeEmitter(this);
@@ -281,9 +281,9 @@ export class EditorDocument {
 	// --- frame selection --------------------------------------------------
 
 	// Options:
-	//   focus    — hint for the viewport to move the camera
-	//   additive — ctrl/cmd-click: toggle membership
-	//   range    — shift-click: extend from the anchor
+	//   focus    - hint for the viewport to move the camera
+	//   additive - ctrl/cmd-click: toggle membership
+	//   range    - shift-click: extend from the anchor
 	selectFrame(name, { focus = false, additive = false, range = false } = {}) {
 		if (!this.sheet) return;
 		const allNames = this.sheet.frameNames;

@@ -99,11 +99,11 @@ export function translateWrapped(src, dx, dy) {
 //
 // `pivotX` and `pivotY` are in region-relative coordinates (0, 0 = the
 // region's top-left corner). Defaults to the region's centre. Values
-// outside the region are legal — rotating around a point beyond the edge
+// outside the region are legal - rotating around a point beyond the edge
 // is sometimes what you want, and there's no clipping to enforce.
 //
 // Nearest-neighbour sampling. Bilinear would introduce colours not present
-// in the source — undesirable for pixel art, and rarely what's wanted for
+// in the source - undesirable for pixel art, and rarely what's wanted for
 // a small sprite.
 export function rotateArbitrary(src, degrees, pivotX = null, pivotY = null) {
 	const w = src.width;

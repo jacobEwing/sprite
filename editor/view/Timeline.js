@@ -168,7 +168,7 @@ export class Timeline {
 		this.drag = null;
 
 		if (!moved) {
-			// Click without drag. Apply the focus rule directly — the frame
+			// Click without drag. Apply the focus rule directly - the frame
 			// is already selected from mousedown, so we don't need to go
 			// through the document again.
 			if (wasSelected || !this.viewport.sheetFits) {

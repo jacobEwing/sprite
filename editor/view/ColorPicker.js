@@ -9,8 +9,8 @@ const HUE_WIDTH = 20;
 // clicking outside it or pressing Escape.
 //
 // Two callbacks, both receiving the current (hex, alpha):
-//   onLiveChange(hex, alpha) — every change while dragging or typing
-//   onCommit(hex, alpha)     — once per interaction (pointer-up or Enter)
+//   onLiveChange(hex, alpha) - every change while dragging or typing
+//   onCommit(hex, alpha)     - once per interaction (pointer-up or Enter)
 //
 // The distinction exists so the recent-colours list records one entry per
 // deliberate pick, not one per pixel of drag.

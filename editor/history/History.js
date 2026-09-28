@@ -3,9 +3,9 @@ import { makeEmitter } from '../lib/emitter.js';
 // Linear undo/redo with per-kind depth tracking.
 //
 // Each command carries a `kind`:
-//   'pixels' — image content changed (paint strokes, transforms, filters)
-//   'data'   — sheet structure changed (frames, sequences, settings)
-//   'both'   — both at once (e.g. reshape, which moves frames and the image)
+//   'pixels' - image content changed (paint strokes, transforms, filters)
+//   'data'   - sheet structure changed (frames, sequences, settings)
+//   'both'   - both at once (e.g. reshape, which moves frames and the image)
 //
 // The History tracks how many of each kind live in the undo stack and
 // remembers, per kind, the depth and topmost command at the moment of the
@@ -33,7 +33,7 @@ export class History {
 
 	// Record a command that has already been applied by the caller. Use
 	// this when the operation mutates pixels directly (putImageData,
-	// drawImage) and then wraps the before/after state in a command — the
+	// drawImage) and then wraps the before/after state in a command - the
 	// command's own apply() would be a redundant re-application.
 	push(command, kind = 'pixels') {
 		command._historyKind = kind;
@@ -50,7 +50,7 @@ export class History {
 	}
 
 	// Apply a command and record it. Use this when the command itself
-	// performs the mutation — data commands like AddFrameCommand,
+	// performs the mutation - data commands like AddFrameCommand,
 	// SetFrameCommand, and ResizeCanvasCommand are written this way.
 	execute(command, kind = 'pixels') {
 		command.apply();

@@ -34,7 +34,7 @@ export class SpritePreview {
 				<label class="preview-loop" title="Restart when the sequence finishes">
 					<input type="checkbox" class="preview-loop-input"> Loop
 				</label>
-				<span class="preview-status">—</span>
+				<span class="preview-status">-</span>
 			</div>
 		`;
 		this.canvas = this.root.querySelector('.preview-canvas');
@@ -79,7 +79,7 @@ export class SpritePreview {
 	}
 
 	// Central dispatch: decide what the preview should be showing, and
-	// make it so. Called whenever anything relevant changes — selection,
+	// make it so. Called whenever anything relevant changes - selection,
 	// playback state, or an edit.
 	_recompute() {
 		if (!this.sprite) return;
@@ -99,8 +99,8 @@ export class SpritePreview {
 		this._stopLoop();
 		if (this.sprite.sequenceName) this.sprite.stop();
 
-		// Validity: the frame must exist in the sheet, and — if it was
-		// chosen from the sequence — must still be a member of it.
+		// Validity: the frame must exist in the sheet, and - if it was
+		// chosen from the sequence - must still be a member of it.
 		let frameName = this.staticFrameName;
 		const inSheet = !!frameName && !!this.doc.sheet.frames[frameName];
 		const inSeq = !this.staticFrameFollowsSequence
@@ -277,7 +277,7 @@ export class SpritePreview {
 
 	_updateStatus() {
 		if (!this.sprite || !this.sprite.frameName) {
-			this.statusEl.textContent = '—';
+			this.statusEl.textContent = '-';
 			return;
 		}
 		const name = this.sprite.frameName;

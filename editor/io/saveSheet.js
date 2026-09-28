@@ -67,7 +67,7 @@ export function proposeFilenames(sheet) {
  * ========================================================================== */
 
 // The JSON the saver writes. Extracted so both saveSheetData and
-// saveSheetBoth emit identically — differences there would be an easy
+// saveSheetBoth emit identically - differences there would be an easy
 // source of round-trip bugs.
 function serialiseSheet(sheet, imageFilename) {
 	const data = sheet.toJSON();

@@ -5,7 +5,7 @@ import { Tool } from './Tool.js';
 // pixel contents in one undoable step.
 //
 // Settings:
-//   moveContents — when true, a drag carries the frame's pixels along
+//   moveContents - when true, a drag carries the frame's pixels along
 //                  with its rect. When false (default), only the rect
 //                  definition moves; the pixels at the old location stay.
 export class FrameTool extends Tool {

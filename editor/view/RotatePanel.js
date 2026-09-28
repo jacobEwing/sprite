@@ -8,7 +8,7 @@ import { announcePanelOpen, announcePanelClosed } from '../lib/panelCoordination
 //
 // The pivot is expressed in region-relative coordinates: (0, 0) is the
 // top-left of the region being rotated (either the pixel selection or the
-// whole frame). Values outside the region are allowed — the maths doesn't
+// whole frame). Values outside the region are allowed - the maths doesn't
 // clip, and rotating around a point off the sprite is sometimes useful.
 
 export class RotatePanel {
@@ -235,7 +235,7 @@ export class RotatePanel {
 
 	// True when the pivot equals the region's default centre, within a
 	// rounding tolerance. Used to skip the rotation when nothing has
-	// actually changed — a no-op apply doesn't belong in the undo stack.
+	// actually changed - a no-op apply doesn't belong in the undo stack.
 	_pivotIsCentre(rect) {
 		return Math.abs(this.pivotX - rect.w / 2) < 1e-6
 		    && Math.abs(this.pivotY - rect.h / 2) < 1e-6;

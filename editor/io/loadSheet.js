@@ -1,6 +1,6 @@
 // Loading, from disk or programmatically. Two independent halves:
-//   • Sprite data — frames, sequences, settings, collision
-//   • Image       — the pixel atlas
+//   • Sprite data - frames, sequences, settings, collision
+//   • Image       - the pixel atlas
 //
 // Each can be loaded, replaced, or absent independently, so the editor
 // supports sprite-only and image-only states.
@@ -56,7 +56,7 @@ function inputPickOne(accept) {
  * ========================================================================== */
 
 // Load a sprite JSON from disk. Returns:
-//   { json, jsonFilename, imageFilename } — parsed JSON and the filenames
+//   { json, jsonFilename, imageFilename } - parsed JSON and the filenames
 // `imageFilename` is the basename of the JSON's own "image" field, or null
 // if the field is absent. The caller decides whether to also load an image.
 export async function loadSpriteFile() {
@@ -221,7 +221,7 @@ export async function makeBlankSheet({
 	canvas.width  = imageWidth;
 	canvas.height = imageHeight;
 	// Force the CPU-backed pixel store, which later getImageData calls
-	// depend on. We don't draw anything yet — the canvas is transparent.
+	// depend on. We don't draw anything yet - the canvas is transparent.
 	canvas.getContext('2d', { willReadFrequently: true });
 
 	const cols = Math.max(1, Math.floor(imageWidth  / frameWidth));

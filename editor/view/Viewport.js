@@ -7,14 +7,14 @@ import { makeEmitter } from '../lib/emitter.js';
 //   image  (source pixels; the coordinate system frames and sprites use)
 //
 // Emits:
-//   view         — { zoom }
-//   hover        — { screenX, screenY, imageX, imageY }
-//   leave        — pointer left the canvas
-//   frameHover   — { frameName } when the hovered frame changes
-//   pointerDown  — { screenX, screenY, imageX, imageY, button }
-//   pointerMove  — { screenX, screenY, imageX, imageY, buttons }
-//   pointerUp    — { screenX, screenY, imageX, imageY, button }
-//   pointerLeave — pointer left the canvas
+//   view         - { zoom }
+//   hover        - { screenX, screenY, imageX, imageY }
+//   leave        - pointer left the canvas
+//   frameHover   - { frameName } when the hovered frame changes
+//   pointerDown  - { screenX, screenY, imageX, imageY, button }
+//   pointerMove  - { screenX, screenY, imageX, imageY, buttons }
+//   pointerUp    - { screenX, screenY, imageX, imageY, button }
+//   pointerLeave - pointer left the canvas
 export class Viewport {
 	constructor(canvas) {
 		makeEmitter(this);

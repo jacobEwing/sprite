@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>sprite.js — Reference</title>
+<title>sprite.js - Reference</title>
 <style>
 	:root {
 		--bg:        #f7f6f2;
@@ -288,12 +288,12 @@ hero.setFrame(<span class="s">'idle'</span>);
 			<h2>3. Loading sheets</h2>
 
 			<h3>From a URL</h3>
-			<p><code>SpriteSheet.load()</code> fetches the JSON, then loads the image it points at. It's a static async factory — you never construct a sheet yourself.</p>
+			<p><code>SpriteSheet.load()</code> fetches the JSON, then loads the image it points at. It's a static async factory - you never construct a sheet yourself.</p>
 
 <pre><code><span class="k">const</span> sheet = <span class="k">await</span> SpriteSheet.load(<span class="s">'sprites/hero.json'</span>);</code></pre>
 
 			<h3>Relative image paths</h3>
-			<p>Image paths inside the sheet JSON resolve relative to the <em>JSON file</em>, not the page. A sheet at <code>sprites/hero.json</code> whose <code>"image"</code> is <code>"hero.png"</code> loads <code>sprites/hero.png</code>. This makes sheet folders relocatable — move <code>sprites/</code> anywhere and everything still works.</p>
+			<p>Image paths inside the sheet JSON resolve relative to the <em>JSON file</em>, not the page. A sheet at <code>sprites/hero.json</code> whose <code>"image"</code> is <code>"hero.png"</code> loads <code>sprites/hero.png</code>. This makes sheet folders relocatable - move <code>sprites/</code> anywhere and everything still works.</p>
 
 			<p>Override the base explicitly if your sheets live somewhere unusual:</p>
 
@@ -402,8 +402,8 @@ hero.setFrame(<span class="s">'idle'</span>);
 					<tr><td><code>frames</code></td><td><code>[]</code></td><td>Array of frame names, in play order. Names must exist in <code>frames</code>.</td></tr>
 					<tr><td><code>frameRate</code></td><td>sheet's <code>frameRate</code></td><td>Frames per second.</td></tr>
 					<tr><td><code>iterations</code></td><td><code>0</code></td><td><code>0</code> loops forever. <code>1</code> plays once. <code>n</code> plays <em>n</em> times total. Any finite count fires the completion callback.</td></tr>
-					<tr><td><code>frameTimes</code></td><td>—</td><td>Per-frame durations in milliseconds. When present, overrides <code>frameRate</code>. Wraps if shorter than <code>frames</code>.</td></tr>
-					<tr><td><code>callback</code></td><td>—</td><td>Function invoked when a finite sequence completes. JS only; not loadable from JSON.</td></tr>
+					<tr><td><code>frameTimes</code></td><td>-</td><td>Per-frame durations in milliseconds. When present, overrides <code>frameRate</code>. Wraps if shorter than <code>frames</code>.</td></tr>
+					<tr><td><code>callback</code></td><td>-</td><td>Function invoked when a finite sequence completes. JS only; not loadable from JSON.</td></tr>
 					<tr><td><code>method</code></td><td><code>'auto'</code></td><td>Retained for compatibility. The runtime is passive, so this has no effect.</td></tr>
 				</tbody>
 			</table>
@@ -445,8 +445,8 @@ hero.setFrame(<span class="s">'idle'</span>);
 				<thead><tr><th>Getter</th><th>Returns</th></tr></thead>
 				<tbody>
 					<tr><td><code>imageWidth</code>, <code>imageHeight</code></td><td>Pixel dimensions of <code>image</code>. Always current.</td></tr>
-					<tr><td><code>frameNames</code></td><td><code>string[]</code> — every frame name.</td></tr>
-					<tr><td><code>sequenceNames</code></td><td><code>string[]</code> — every sequence name.</td></tr>
+					<tr><td><code>frameNames</code></td><td><code>string[]</code> - every frame name.</td></tr>
+					<tr><td><code>sequenceNames</code></td><td><code>string[]</code> - every sequence name.</td></tr>
 				</tbody>
 			</table>
 
@@ -491,7 +491,7 @@ hero.setFrame(<span class="s">'idle'</span>);
 			<h2>6. Sprite API</h2>
 
 			<h3>Construction</h3>
-			<p>Always via the sheet: <code>sheet.newSprite()</code>. The <code>Sprite</code> constructor also accepts a sheet, but <code>newSprite()</code> is the sanctioned path — it enforces <code>ready</code> and applies <code>sheet.scale</code>.</p>
+			<p>Always via the sheet: <code>sheet.newSprite()</code>. The <code>Sprite</code> constructor also accepts a sheet, but <code>newSprite()</code> is the sanctioned path - it enforces <code>ready</code> and applies <code>sheet.scale</code>.</p>
 
 			<h3>Transform properties</h3>
 			<table>
@@ -548,7 +548,7 @@ hero.draw(ctx, { x: <span class="n">200</span>, y: <span class="n">100</span>, s
 <pre><code><span class="c">// Copy a specific region of the sheet.</span>
 hero.drawArea(ctx, dx, dy, sx, sy, sw, sh, scale);
 
-<span class="c">// Copy a pseudo-random region — handy for rubble, foliage, stars.</span>
+<span class="c">// Copy a pseudo-random region - handy for rubble, foliage, stars.</span>
 hero.drawRandomArea(ctx, dx, dy, width, height, randomKey);</code></pre>
 
 			<p><code>drawRandomArea</code> picks a stable region for a given <code>randomKey</code>. Pass the same key for the same cell and you get the same art every frame; pass <code>undefined</code> and you get true randomness.</p>
@@ -586,7 +586,7 @@ hero.sequenceName;                     <span class="c">// 'walk' or null</span><
 });</code></pre>
 
 			<h3>Frame rate vs. frame times</h3>
-			<p>For uniformly-paced animation, use <code>frameRate</code> (frames per second). For per-frame timing — a hold on one pose, a slow windup, a snap on the hit — use <code>frameTimes</code> (milliseconds each). <code>frameTimes</code> wins over <code>frameRate</code> when both are present.</p>
+			<p>For uniformly-paced animation, use <code>frameRate</code> (frames per second). For per-frame timing - a hold on one pose, a slow windup, a snap on the hit - use <code>frameTimes</code> (milliseconds each). <code>frameTimes</code> wins over <code>frameRate</code> when both are present.</p>
 
 <pre><code><span class="s">"attack"</span>: {
 	<span class="s">"frames"</span>: [<span class="s">"attack1"</span>, <span class="s">"attack2"</span>, <span class="s">"attack3"</span>, <span class="s">"attack2"</span>],
@@ -595,7 +595,7 @@ hero.sequenceName;                     <span class="c">// 'walk' or null</span><
 }</code></pre>
 
 			<h3>Long stalls</h3>
-			<p>If <code>update()</code> is called with a very large <code>dt</code> — tab switch, debugger pause — the runtime stops fast-forwarding after 512 iterations and resets the accumulator.</p>
+			<p>If <code>update()</code> is called with a very large <code>dt</code> - tab switch, debugger pause - the runtime stops fast-forwarding after 512 iterations and resets the accumulator.</p>
 		</section>
 
 		<!-- ================================================================ -->
@@ -683,7 +683,7 @@ hero.destroy();            <span class="c">// stops animation, drops children, u
 			</ul>
 
 			<h3>What's dropped</h3>
-			<p>Function callbacks on sequences. They can't survive JSON, and reloading without them is intended — attach callbacks at the call site with <code>play(name, { onComplete })</code>.</p>
+			<p>Function callbacks on sequences. They can't survive JSON, and reloading without them is intended - attach callbacks at the call site with <code>play(name, { onComplete })</code>.</p>
 
 			<h3>Legacy migration</h3>
 			<p>Older sheets may have a top-level <code>"collision"</code> block. On load, that shape is applied to every frame that doesn't have its own collision, then discarded. Loading and re-saving a sheet makes the migration permanent.</p>
@@ -694,7 +694,7 @@ hero.destroy();            <span class="c">// stops animation, drops children, u
 			<h2>11. Common gotchas</h2>
 
 			<h3>Sprites freeze on frame 0</h3>
-			<p>Almost always a missing <code>update()</code> call. Also check your units — <code>update()</code> takes milliseconds.</p>
+			<p>Almost always a missing <code>update()</code> call. Also check your units - <code>update()</code> takes milliseconds.</p>
 
 			<h3><code>newSprite()</code> throws "sheet is not ready"</h3>
 			<p>You're calling it on a sheet that hasn't finished loading, or on one constructed via <code>new SpriteSheet()</code> directly. Always use <code>SpriteSheet.load()</code> or <code>SpriteSheet.fromJSON()</code> and <code>await</code> them.</p>
@@ -703,7 +703,7 @@ hero.destroy();            <span class="c">// stops animation, drops children, u
 			<p>If everything drawn via <code>draw()</code> is off but <code>drawArea()</code> looks right, you probably have a scale mismatch. <code>draw()</code> multiplies <code>x</code>/<code>y</code> by <code>scale</code> internally; feed it world coordinates, not screen coordinates.</p>
 
 			<h3>Animation callback never fires</h3>
-			<p>The sequence is looping (<code>iterations: 0</code> or omitted). Set <code>iterations</code> to a positive number. Also make sure you're passing a <em>function</em> — <code>{ onComplete: {...} }</code> with an object is silently ignored.</p>
+			<p>The sequence is looping (<code>iterations: 0</code> or omitted). Set <code>iterations</code> to a positive number. Also make sure you're passing a <em>function</em> - <code>{ onComplete: {...} }</code> with an object is silently ignored.</p>
 
 			<h3>Frame not found</h3>
 			<p>Typo in a sequence's <code>frames</code> array, or the frame wasn't defined. Run <code>sheet.validate()</code> after loading to catch every one at once:</p>

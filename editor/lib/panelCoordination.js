@@ -1,4 +1,4 @@
-// Coordination for floating editor panels — the ones that pop up over the
+// Coordination for floating editor panels - the ones that pop up over the
 // interface without a backdrop (FilterPanel, RotatePanel, BackgroundPicker).
 // Unlike modal dialogs, these don't take over the whole screen, so without
 // this they can end up stacked with no clear "top".
@@ -13,7 +13,7 @@
 const openPanels = new Set();
 
 export function announcePanelOpen(panel) {
-	// Iterate over a copy — hide() will trigger announcePanelClosed, which
+	// Iterate over a copy - hide() will trigger announcePanelClosed, which
 	// mutates the set we're walking.
 	for (const other of Array.from(openPanels)) {
 		if (other !== panel) other.hide();
@@ -27,7 +27,7 @@ export function announcePanelClosed(panel) {
 
 // Called by the modal dialogs when they open, so a floating panel doesn't
 // sit hidden behind a modal backdrop and then reappear when the modal
-// closes — the user's attention has moved on by then.
+// closes - the user's attention has moved on by then.
 export function closeAllPanels() {
 	for (const panel of Array.from(openPanels)) panel.hide();
 }

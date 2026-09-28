@@ -26,15 +26,15 @@ import {
 //   { type: 'frameAdded',      name }
 //   { type: 'frameRemoved',    name }
 //   { type: 'frameRenamed',    from, to }
-//   { type: 'frameUpdated',    name }         — rect, origin, or collision
+//   { type: 'frameUpdated',    name }         - rect, origin, or collision
 //   { type: 'sequenceAdded',   name }
 //   { type: 'sequenceRemoved', name }
 //   { type: 'sequenceRenamed', from, to }
-//   { type: 'sequenceUpdated', name }         — frames list or properties
-//   { type: 'regionUpdated' }                 — pixels changed in place
+//   { type: 'sequenceUpdated', name }         - frames list or properties
+//   { type: 'regionUpdated' }                 - pixels changed in place
 //   { type: 'canvasResized',   width, height }
-//   { type: 'settingsUpdated', resized }      — sheet defaults changed
-//   { type: 'collisionUpdated' }              — sheet-level collision changed
+//   { type: 'settingsUpdated', resized }      - sheet defaults changed
+//   { type: 'collisionUpdated' }              - sheet-level collision changed
 //   { type: 'reshaped',        cols, rows, width, height }
 export class EditableSheet {
 	constructor(sheet, history) {
@@ -150,7 +150,7 @@ export class EditableSheet {
 		this.emit('changed', { type: 'frameRenamed', from: oldName, to: newName });
 	}
 
-	// patch: { x, y, width, height, centerx, centery } — scalars only.
+	// patch: { x, y, width, height, centerx, centery } - scalars only.
 	setFrame(name, patch) {
 		const current = this.sheet.frames[name];
 		if (!current) return;
@@ -171,7 +171,7 @@ export class EditableSheet {
 	// one in the same undo step.
 	//
 	// The undo entry is one command either way. Overlap with other frames
-	// is the user's concern — no special handling beyond the swap order
+	// is the user's concern - no special handling beyond the swap order
 	// documented in swapFrames.
 	moveFrameWithContents(name, newX, newY, moveContents) {
 		const frame = this.sheet.frames[name];
@@ -212,7 +212,7 @@ export class EditableSheet {
 		const afterFrame  = { ...frame, x: newX, y: newY };
 		const frameCmd = new SetFrameCommand(this.sheet, name, beforeFrame, afterFrame);
 
-		// The pixel half is already applied — the buffers were written
+		// The pixel half is already applied - the buffers were written
 		// directly so the "after" snapshot could be captured. Apply the
 		// frame half now so both sides of the composite are in their
 		// post-command state before the entry is recorded.
@@ -226,7 +226,7 @@ export class EditableSheet {
 	// Exchange the positions and pixel contents of two frames. Each frame
 	// keeps its own width and height; only x/y trade. When the two rects
 	// overlap, the frame that was at A's position wins in the shared
-	// region — documented rather than special-cased, since a swap between
+	// region - documented rather than special-cased, since a swap between
 	// overlapping frames is a user error that undo resolves.
 	swapFrames(nameA, nameB) {
 		if (nameA === nameB) return;
@@ -797,7 +797,7 @@ export class EditableSheet {
 }
 
 // Structural equality over plain objects and arrays. Used to short-circuit
-// commands that wouldn't change anything — the history layer treats them
+// commands that wouldn't change anything - the history layer treats them
 // as separate entries otherwise, which pollutes the undo stack.
 function deepEqual(a, b) {
 	if (a === b) return true;

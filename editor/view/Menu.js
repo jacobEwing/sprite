@@ -3,11 +3,11 @@
 //   { separator: true }
 //
 // Three modes:
-//   new Menu(trigger, items)                — opens below the trigger on click
-//   new Menu(trigger, items, { onShow })    — onShow(items) runs before the
+//   new Menu(trigger, items)                - opens below the trigger on click
+//   new Menu(trigger, items, { onShow })    - onShow(items) runs before the
 //                                             panel is built, so callers can
 //                                             refresh `checked`/`disabled`
-//   new Menu(null, items).showAt(x, y)      — open programmatically
+//   new Menu(null, items).showAt(x, y)      - open programmatically
 export class Menu {
 	constructor(trigger, items, options = {}) {
 		this.trigger = trigger || null;

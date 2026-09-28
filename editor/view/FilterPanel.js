@@ -246,7 +246,7 @@ export class FilterPanel {
 		const result = applyConvolution(src, this._kernel());
 
 		this.previewImageData = result;
-		// The region is stored as { x, y, w, h } — matching what
+		// The region is stored as { x, y, w, h } - matching what
 		// redrawBackgroundInRegion and the rest of the editor use.
 		this.previewFrame = { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
 
@@ -263,7 +263,7 @@ export class FilterPanel {
 			if (!pf || !this.offscreen) return;
 
 			// Replace the region's pixels with the background, then draw
-			// the filter result over it — matching the putImageData that
+			// the filter result over it - matching the putImageData that
 			// _apply performs.
 			this.viewport.redrawBackgroundInRegion(vctx, pf);
 
