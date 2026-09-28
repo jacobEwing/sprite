@@ -1066,6 +1066,9 @@ $('btnFit').addEventListener('click',    () => viewport.fit());
 $('btnZoomIn').addEventListener('click', () => viewport.zoomBy(1.25));
 $('btnZoomOut').addEventListener('click',() => viewport.zoomBy(1 / 1.25));
 
+$('btnHelp').addEventListener('click', () => {
+	window.open('../docs/editor.html', '_blank', 'noopener');
+});
 // --- unsaved-changes warning ---------------------------------------------
 
 window.addEventListener('beforeunload', (e) => {
