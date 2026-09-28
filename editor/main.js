@@ -109,8 +109,6 @@ brushPicker.select('pixel');
 
 const $ = id => document.getElementById(id);
 
-collisionInspector.onOverlayToggle = (on) => collisionOverlay.setEnabled(on);
-
 // --- viewport → status bar ------------------------------------------------
 
 viewport.on('hover', ({ imageX, imageY }) => {
@@ -521,7 +519,15 @@ async function doNewSprite() {
 		'The current sheet has unsaved changes. Discard them and create a new sheet?'
 	)) return;
 
-	const values = await sheetDialog.openForNew();
+	// If an image is loaded, keep it and prefill the dialog with its
+	// dimensions. Otherwise fall back to the standard defaults.
+	const existingImage = doc.hasImage ? doc.sheet.image : null;
+	const existingSrc   = doc.hasImage ? doc.sheet.imageSrc : null;
+	const defaults = existingImage
+		? { imageWidth: doc.sheet.imageWidth, imageHeight: doc.sheet.imageHeight }
+		: {};
+
+	const values = await sheetDialog.openForNew(defaults);
 	if (!values) return;
 
 	try {
@@ -534,13 +540,18 @@ async function doNewSprite() {
 			centery: values.centery,
 			defaultFrameRate: values.defaultFrameRate,
 			cellCount: values.cellCount,
+			existingImage,
 		});
+		// Carry the filename through when we're reusing the image, so
+		// a subsequent Save writes to the same PNG.
+		if (existingImage) sheet.imageSrc = existingSrc;
+
 		doc.setSheet(sheet, { imageLoaded: true });
-		imageMismatch = null;
-		updateImageNotice();
-		savedFilenames = null;
+
+		if (!existingImage) savedFilenames = null;
 		savedDirectory = null;
 		saveMode = null;
+
 		$('statusMessage').textContent =
 			`New sheet: ${sheet.imageWidth}×${sheet.imageHeight}`;
 	} catch (err) {
@@ -699,8 +710,6 @@ async function doSave() {
 // Menu actions. Save-As variants always prompt for filenames first.
 const doSaveImage    = () => _doSaveImage();
 const doSaveData     = () => _doSaveData();
-const doSaveImageAs  = () => _doSaveImage({ forcePrompt: true });
-const doSaveDataAs   = () => _doSaveData({ forcePrompt: true });
 
 // --- edit operations -----------------------------------------------------
 
@@ -773,9 +782,6 @@ const fileMenu = new Menu(document.getElementById('fileMenuBtn'), [
 	{ label: 'Save Image',         shortcut: 'Ctrl+S',       action: doSaveImage },
 	{ label: 'Save Sprite Data',   shortcut: 'Ctrl+Shift+S', action: doSaveData },
 	{ label: 'Save All',           shortcut: 'Ctrl+Alt+S',   action: doSave },
-	{ separator: true },
-	{ label: 'Save Image As…',         action: doSaveImageAs },
-	{ label: 'Save Sprite Data As…',   action: doSaveDataAs },
 ]);
 
 function updateFileMenuState() {
@@ -791,8 +797,6 @@ function updateFileMenuState() {
 	setEnabled('Save Image',          hasSheet);
 	setEnabled('Save Sprite Data',    hasSheet);
 	setEnabled('Save All',            hasSheet);
-	setEnabled('Save Image As…',      hasSheet);
-	setEnabled('Save Sprite Data As…', hasSheet);
 }
 
 updateFileMenuState();

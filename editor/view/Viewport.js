@@ -416,7 +416,8 @@ export class Viewport {
 			}
 		}
 
-		// Selected frame: dark under-stroke for contrast, bright over-stroke.
+		// Selected frame: dark under-stroke for contrast, bright over-stroke,
+		// then a small crosshair at the frame's origin.
 		if (this.selectedFrame) {
 			const f = this.frames[this.selectedFrame];
 			if (f) {
@@ -434,8 +435,42 @@ export class Viewport {
 				ctx.lineWidth = 1.5;
 				ctx.strokeRect(sx, sy, sw, sh);
 				ctx.restore();
+
+				// Origin marker: where (centerx, centery) lands within the
+				// frame rect. A crosshair rather than a dot, so it reads
+				// even when the origin sits exactly on a frame corner or
+				// edge.
+				const originX = this.offsetX + (f.x + f.centerx) * this.zoom;
+				const originY = this.offsetY + (f.y + f.centery) * this.zoom;
+				const arm = 6;
+
+				ctx.save();
+				ctx.beginPath();
+
+				// Dark under-stroke.
+				ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+				ctx.lineWidth = 3;
+				ctx.beginPath();
+				ctx.moveTo(originX - arm, originY);
+				ctx.lineTo(originX + arm, originY);
+				ctx.moveTo(originX, originY - arm);
+				ctx.lineTo(originX, originY + arm);
+				ctx.stroke();
+
+				// Bright over-stroke.
+				ctx.strokeStyle = '#50d0ff';
+				ctx.lineWidth = 1.5;
+				ctx.beginPath();
+				ctx.moveTo(originX - arm, originY);
+				ctx.lineTo(originX + arm, originY);
+				ctx.moveTo(originX, originY - arm);
+				ctx.lineTo(originX, originY + arm);
+				ctx.stroke();
+
+				ctx.restore();
 			}
 		}
+
 	}
 	// --- sizing -----------------------------------------------------------
 

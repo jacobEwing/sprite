@@ -216,13 +216,21 @@ export async function makeBlankSheet({
 	centery = 0,
 	defaultFrameRate = 12,
 	cellCount = 1,
+	existingImage = null,
 }) {
-	const canvas = document.createElement('canvas');
-	canvas.width  = imageWidth;
-	canvas.height = imageHeight;
-	// Force the CPU-backed pixel store, which later getImageData calls
-	// depend on. We don't draw anything yet - the canvas is transparent.
-	canvas.getContext('2d', { willReadFrequently: true });
+	let canvas;
+	if (existingImage) {
+		// Reuse the current image. Its actual dimensions override whatever
+		// the dialog proposed, since the pixels are what they are.
+		canvas = existingImage;
+		imageWidth  = canvas.width  || canvas.naturalWidth;
+		imageHeight = canvas.height || canvas.naturalHeight;
+	} else {
+		canvas = document.createElement('canvas');
+		canvas.width  = imageWidth;
+		canvas.height = imageHeight;
+		canvas.getContext('2d', { willReadFrequently: true });
+	}
 
 	const cols = Math.max(1, Math.floor(imageWidth  / frameWidth));
 	const rows = Math.max(1, Math.floor(imageHeight / frameHeight));

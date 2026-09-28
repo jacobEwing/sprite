@@ -78,9 +78,11 @@ export class SequenceList {
 		const selected = this.doc.selectedSequences;
 		for (const li of this.root.children) {
 			const name = li.dataset.sequence;
-			li.classList.toggle('selected', name === primary);
-			li.classList.toggle('multi-selected',
-				name !== primary && selected.has(name));
+			const isPrimary = name === primary;
+			li.classList.toggle('selected', isPrimary);
+			li.classList.toggle('multi-selected', !isPrimary && selected.has(name));
+
+			if (isPrimary) li.scrollIntoView({ block: 'nearest' });
 		}
 	}
 }

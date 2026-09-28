@@ -106,9 +106,14 @@ export class FrameList {
 		const selected = this.doc.selectedFrames;
 		for (const li of this.root.children) {
 			const name = li.dataset.frame;
-			li.classList.toggle('selected', name === primary);
-			li.classList.toggle('multi-selected',
-				name !== primary && selected.has(name));
+			const isPrimary = name === primary;
+			li.classList.toggle('selected', isPrimary);
+			li.classList.toggle('multi-selected', !isPrimary && selected.has(name));
+
+			// scrollIntoView with block:'nearest' is a no-op when the item
+			// is already on screen, which is exactly what we want: canvas
+			// clicks pull the list to the item, list clicks don't jitter it.
+			if (isPrimary) li.scrollIntoView({ block: 'nearest' });
 		}
 	}
 }

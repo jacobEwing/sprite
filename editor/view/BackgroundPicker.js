@@ -98,6 +98,7 @@ export class BackgroundPicker {
 	_apply(hex, commit) {
 		if (this._activeSlot === 'a') this.viewport.setBackground({ colorA: hex });
 		else if (this._activeSlot === 'b') this.viewport.setBackground({ colorB: hex });
+		this._sync();
 	}
 
 	_position(anchor) {

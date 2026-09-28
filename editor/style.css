@@ -163,6 +163,7 @@ body {
 	white-space: nowrap;
 	overflow: hidden;
 	user-select: none;
+	scroll-margin-top: 44px;
 }
 .list li:hover { background: var(--panel-2); }
 .list li.selected {

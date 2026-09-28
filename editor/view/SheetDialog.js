@@ -20,7 +20,7 @@ export class SheetDialog {
 		this._build();
 	}
 
-	openForNew() {
+	openForNew(overrides = {}) {
 		this._mode = 'new';
 		this._sheet = null;
 		return this._open({
@@ -34,6 +34,7 @@ export class SheetDialog {
 			centery: 0,
 			defaultFrameRate: 12,
 			imageSrc: '',
+			...overrides,
 		});
 	}
 
