@@ -67,10 +67,28 @@ export class ToolLayer {
 			: this._current();
 		if (!tool) return;
 
-		// A left- or right-click inside a different frame selects it -
-		// unless the tool wants to handle shift-click itself. In that
-		// case we skip the selection change so the tool can see the
-		// previously-selected frame (FrameTool's swap gesture needs this).
+		// Alt-click on a frame swaps it with the current selection. This is
+		// a global gesture — it works with any tool active, matching how
+		// ctrl-to-sample works. Alt has no other meaning in the editor.
+		if (e.altKey && e.button === 0) {
+			const targetName = this.viewport.getFrameAt(
+				Math.floor(e.imageX), Math.floor(e.imageY)
+			);
+			const sourceName = this.document.selectedFrame;
+			if (targetName && sourceName && targetName !== sourceName) {
+				this.document.editable.swapFrames(sourceName, targetName);
+				this.notifyPixelsChanged();
+				return;
+			}
+			// Alt-click on empty space or on the already-selected frame:
+			// fall through. The tool's own alt-guard will decline to start
+			// anything.
+		}
+
+		// A left- or right-click inside a different frame selects it —
+		// unless the tool wants to handle shift-clicks itself (FrameTool's
+		// range select). Alt-clicks that reached this point didn't hit a
+		// swappable frame, so treating them like normal clicks is fine.
 		const shiftHandled = e.shiftKey && tool.shiftClickHandled === true;
 
 		let selectionChanged = false;
@@ -79,7 +97,11 @@ export class ToolLayer {
 				Math.floor(e.imageX), Math.floor(e.imageY)
 			);
 			if (name && name !== this.document.selectedFrame) {
-				this.document.selectFrame(name);
+				// keepSet: when the click lands on a member of an
+				// existing multi-selection, preserve the set so a group
+				// drag can start from any member. Clicks outside the
+				// set still collapse to the clicked frame.
+				this.document.selectFrame(name, { keepSet: true });
 				selectionChanged = true;
 			}
 		}

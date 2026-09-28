@@ -30,6 +30,7 @@ export class Viewport {
 
 		this.frames = null;
 		this.selectedFrame = null;
+		this.selectedFrames = new Set();
 		this.hoveredFrame = null;
 
 		this.overlays = new Map();
@@ -123,11 +124,29 @@ export class Viewport {
 		this.frames = frames;
 		this.invalidate();
 	}
+
 	setSelectedFrame(name) {
 		if (this.selectedFrame === name) return;
 		this.selectedFrame = name;
 		this.invalidate();
 	}
+
+	setSelectedFrames(set) {
+		const next = set || new Set();
+		// Cheap identity check: skip the redraw if nothing meaningful
+		// changed. Sets aren't reference-comparable in a useful way, so
+		// we compare size and members.
+		if (next.size === this.selectedFrames.size) {
+			let same = true;
+			for (const n of next) {
+				if (!this.selectedFrames.has(n)) { same = false; break; }
+			}
+			if (same) return;
+		}
+		this.selectedFrames = next;
+		this.invalidate();
+	}
+
 	setHoveredFrame(name) {
 		if (this.hoveredFrame === name) return;
 		this.hoveredFrame = name;
@@ -416,6 +435,27 @@ export class Viewport {
 			}
 		}
 
+		// Non-primary multi-selected frames: a lighter outline so the
+		// whole range is visible at a glance, without competing with the
+		// primary frame's brighter highlight.
+		if (this.selectedFrames && this.selectedFrames.size > 1) {
+			ctx.save();
+			ctx.strokeStyle = 'rgba(74, 128, 192, 0.65)';
+			ctx.lineWidth = 1.5;
+			for (const name of this.selectedFrames) {
+				if (name === this.selectedFrame) continue;
+				const f = this.frames[name];
+				if (!f) continue;
+				ctx.strokeRect(
+					this.offsetX + f.x * this.zoom,
+					this.offsetY + f.y * this.zoom,
+					f.width  * this.zoom,
+					f.height * this.zoom
+				);
+			}
+			ctx.restore();
+		}
+
 		// Selected frame: dark under-stroke for contrast, bright over-stroke,
 		// then a small crosshair at the frame's origin.
 		if (this.selectedFrame) {
@@ -526,6 +566,7 @@ export class Viewport {
 			imageX: p.x, imageY: p.y,
 			button: e.button,
 			shiftKey: e.shiftKey,
+			altKey: e.altKey,
 			originalEvent: e,
 		});
 	}

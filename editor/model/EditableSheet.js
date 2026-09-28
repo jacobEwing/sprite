@@ -223,6 +223,104 @@ export class EditableSheet {
 		this.emit('changed', { type: 'frameUpdated', name });
 	}
 
+	// Shift every named frame by (dx, dy). When `moveContents` is true the
+	// pixels travel with the rects; otherwise only the rects move. One
+	// undo step regardless of frame count.
+	moveFramesWithContents(names, dx, dy, moveContents) {
+		if (!names || names.length === 0 || (dx === 0 && dy === 0)) return;
+
+		const sheet = this.sheet;
+		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
+
+		// Snapshot everything before touching the canvas.
+		const items = [];
+		for (const name of names) {
+			const frame = sheet.frames[name];
+			if (!frame) continue;
+			items.push({
+				name,
+				oldX: frame.x,
+				oldY: frame.y,
+				newX: frame.x + dx,
+				newY: frame.y + dy,
+				width: frame.width,
+				height: frame.height,
+				pixels: moveContents
+					? ctx.getImageData(frame.x, frame.y, frame.width, frame.height)
+					: null,
+			});
+		}
+		if (items.length === 0) return;
+
+		// Rect-only moves are pure metadata. Straight to a composite of
+		// frame commands.
+		if (!moveContents) {
+			const commands = [];
+			for (const it of items) {
+				const frame = sheet.frames[it.name];
+				const before = { ...frame };
+				const after  = { ...frame, x: it.newX, y: it.newY };
+				const cmd = new SetFrameCommand(sheet, it.name, before, after);
+				cmd.apply();
+				commands.push(cmd);
+			}
+			const composite = commands.length === 1
+				? commands[0]
+				: new CompositeCommand(commands);
+			this.history.push(composite, 'data');
+			for (const it of items) {
+				this.emit('changed', { type: 'frameUpdated', name: it.name });
+			}
+			return;
+		}
+
+		// Content moves: work out the union region that the before/after
+		// snapshot must cover.
+		let ux  = Infinity, uy  = Infinity;
+		let ux2 = -Infinity, uy2 = -Infinity;
+		for (const it of items) {
+			ux  = Math.min(ux,  it.oldX, it.newX);
+			uy  = Math.min(uy,  it.oldY, it.newY);
+			ux2 = Math.max(ux2, it.oldX + it.width,  it.newX + it.width);
+			uy2 = Math.max(uy2, it.oldY + it.height, it.newY + it.height);
+		}
+		ux  = Math.max(0, ux);
+		uy  = Math.max(0, uy);
+		ux2 = Math.min(sheet.imageWidth,  ux2);
+		uy2 = Math.min(sheet.imageHeight, uy2);
+		const uw = ux2 - ux;
+		const uh = uy2 - uy;
+		if (uw <= 0 || uh <= 0) return;
+
+		const before = ctx.getImageData(ux, uy, uw, uh);
+
+		for (const it of items) {
+			ctx.clearRect(it.oldX, it.oldY, it.width, it.height);
+		}
+		for (const it of items) {
+			ctx.putImageData(it.pixels, it.newX, it.newY);
+		}
+
+		const after = ctx.getImageData(ux, uy, uw, uh);
+		const paintCmd = new PaintCommand(ctx, ux, uy, uw, uh, before, after);
+
+		const commands = [paintCmd];
+		for (const it of items) {
+			const frame = sheet.frames[it.name];
+			const beforeFrame = { ...frame, x: it.oldX, y: it.oldY };
+			const afterFrame  = { ...frame, x: it.newX, y: it.newY };
+			const cmd = new SetFrameCommand(sheet, it.name, beforeFrame, afterFrame);
+			cmd.apply();
+			commands.push(cmd);
+		}
+
+		const composite = new CompositeCommand(commands);
+		this.history.push(composite, 'both');
+		for (const it of items) {
+			this.emit('changed', { type: 'frameUpdated', name: it.name });
+		}
+	}
+
 	// Exchange the positions and pixel contents of two frames. Each frame
 	// keeps its own width and height; only x/y trade. When the two rects
 	// overlap, the frame that was at A's position wins in the shared

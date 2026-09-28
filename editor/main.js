@@ -287,12 +287,8 @@ doc.on('imageChanged', () => {
 
 doc.on('selectionChanged', ({ focus, changed }) => {
 	viewport.setSelectedFrame(doc.selectedFrame);
+	viewport.setSelectedFrames(doc.selectedFrames);
 	if (!focus || !doc.selectedFrame) return;
-
-	// Focus rule:
-	//   • Zoomed in (sheet doesn't fit) → follow the selection.
-	//   • Zoomed out, re-clicked same frame → zoom in on it.
-	//   • Zoomed out, picked a different frame → just select, don't move.
 	if (!viewport.sheetFits || !changed) {
 		viewport.focusFrame(doc.selectedFrame);
 	}

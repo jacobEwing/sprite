@@ -284,7 +284,7 @@ export class EditorDocument {
 	//   focus    - hint for the viewport to move the camera
 	//   additive - ctrl/cmd-click: toggle membership
 	//   range    - shift-click: extend from the anchor
-	selectFrame(name, { focus = false, additive = false, range = false } = {}) {
+	selectFrame(name, { focus = false, additive = false, range = false, keepSet = false } = {}) {
 		if (!this.sheet) return;
 		const allNames = this.sheet.frameNames;
 		if (!allNames.includes(name)) return;
@@ -316,6 +316,17 @@ export class EditorDocument {
 				changed = true;
 			}
 
+		} else if (keepSet && this.selectedFrames.has(name)) {
+			// Click on a member of the current multi-selection: move the
+			// primary but keep the set intact, so a group drag can start
+			// from any member. Anchor follows the primary so a subsequent
+			// shift-click extends from where the user last clicked.
+			if (this.primaryFrame !== name) {
+				this.primaryFrame = name;
+				changed = true;
+			}
+			this._frameAnchor = name;
+
 		} else {
 			if (this.selectedFrames.size !== 1 || this.primaryFrame !== name) {
 				this.selectedFrames = new Set([name]);
@@ -334,6 +345,56 @@ export class EditorDocument {
 			changed: changed || prevPrimary !== this.primaryFrame,
 			focus,
 		});
+	}
+
+	// Extend the selection to a rectangular block of frames: every frame
+	// whose origin (x + centerx, y + centery) falls within the bounding
+	// box of the anchor frame and the target frame. Used by the Frame
+	// tool's shift-click.
+	//
+	// The anchor is preserved across repeated shift-clicks, matching the
+	// list-based range select.
+	selectFrameRectRange(targetName) {
+		if (!this.sheet) return;
+		const anchorName = this._frameAnchor ?? this.primaryFrame;
+		if (!anchorName) return;
+
+		const anchor = this.sheet.frames[anchorName];
+		const target = this.sheet.frames[targetName];
+		if (!anchor || !target) return;
+
+		const acx = anchor.x + anchor.centerx;
+		const acy = anchor.y + anchor.centery;
+		const tcx = target.x + target.centerx;
+		const tcy = target.y + target.centery;
+
+		const minX = Math.min(acx, tcx);
+		const maxX = Math.max(acx, tcx);
+		const minY = Math.min(acy, tcy);
+		const maxY = Math.max(acy, tcy);
+
+		const chosen = new Set();
+		for (const name of this.sheet.frameNames) {
+			const f = this.sheet.frames[name];
+			const cx = f.x + f.centerx;
+			const cy = f.y + f.centery;
+			if (cx >= minX && cx <= maxX && cy >= minY && cy <= maxY) {
+				chosen.add(name);
+			}
+		}
+		// Both endpoints always included, whatever their origins say.
+		chosen.add(anchorName);
+		chosen.add(targetName);
+
+		this.selectedFrames = chosen;
+		this.primaryFrame = targetName;
+		// _frameAnchor deliberately not updated here.
+
+		if (!this.selection.isEmpty) {
+			this.selection.clear();
+			this.emit('selectionModified', {});
+		}
+		this.emit('selectionChanged', { frame: targetName, changed: true, focus: false });
 	}
 
 	// --- sequence selection -----------------------------------------------

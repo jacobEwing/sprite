@@ -1,132 +1,137 @@
 import { Tool } from './Tool.js';
 
-// Move the selected frame's rect around the atlas. Shift-click swaps the
-// selected frame with the frame under the cursor, exchanging positions and
-// pixel contents in one undoable step.
+// Move the selected frames around the atlas. With a single frame selected,
+// drag moves its rect. With several selected, drag moves them all together
+// by the same offset.
+//
+// Alt-click swaps the primary frame with the frame under the cursor,
+// exchanging positions and pixel contents in one undoable step.
+//
+// Shift-click extends the selection to a rectangular block of frames:
+// everything whose origin falls within the bounding box of the anchor
+// frame and the frame just clicked.
 //
 // Settings:
-//   moveContents - when true, a drag carries the frame's pixels along
-//                  with its rect. When false (default), only the rect
-//                  definition moves; the pixels at the old location stay.
+//   moveContents — when true, a drag carries the frames' pixels along
+//                  with their rects. When false (default), only the rect
+//                  definitions move; the pixels at the old locations stay.
 export class FrameTool extends Tool {
 	constructor(context) {
 		super(context);
 		this.drag = null;
-		this._pendingSwap = null;
+
 		this.moveContents = false;
 
-		// Signals to ToolLayer that a shift-click should bypass the
-		// automatic frame-selection path, so this tool can implement its
-		// own gesture using the previously-selected frame.
+		// Tells ToolLayer to pass shift-clicks straight through, so this
+		// tool can implement the range-select gesture itself. Without it
+		// the frame under the cursor becomes the primary before the tool
+		// sees the event, and the range anchor is lost.
 		this.shiftClickHandled = true;
 
-		// The frame mover works on the whole atlas and does its own
-		// hit-testing, so the cell-change guard from ToolLayer doesn't
-		// apply.
+		// FrameTool operates on the whole atlas and does its own
+		// hit-testing, so the cell-change guard doesn't apply.
 		this.cellScoped = false;
 	}
 
 	onPointerDown(ev) {
-		// Shift-click swaps with the frame under the cursor.
+		// Alt-click is handled globally by ToolLayer (frame swap). If it
+		// reached us, it didn't hit a swappable frame — don't start a drag.
+		if (ev.altKey) return;
+
+		// Shift-click: extend selection to a rectangular range.
 		if (ev.shiftKey) {
 			const targetName = this.context.viewport.getFrameAt(
 				Math.floor(ev.imageX), Math.floor(ev.imageY)
 			);
-			const sourceName = this.context.document.selectedFrame;
-			if (targetName && sourceName && targetName !== sourceName) {
-				this._pendingSwap = { source: sourceName, target: targetName };
+			if (targetName) {
+				this.context.document.selectFrameRectRange(targetName);
 			}
 			return;
 		}
 
-		// Normal drag: hit-test the selected frame's rect.
-		const sel = this.context.selectedFrame();
-		if (!sel) return;
+		// Normal drag: the click must land inside a selected frame.
 		const x = Math.floor(ev.imageX);
 		const y = Math.floor(ev.imageY);
-		const r = sel.rect;
-		if (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h) return;
+		const hitName = this.context.viewport.getFrameAt(x, y);
+		const selected = this.context.document.selectedFrames;
+		if (!hitName || !selected.has(hitName)) return;
+
+		const sheet = this.context.document.sheet;
+		const snapshot = [];
+		for (const name of selected) {
+			const f = sheet.frames[name];
+			if (!f) continue;
+			snapshot.push({ name, x: f.x, y: f.y, width: f.width, height: f.height });
+		}
+		if (snapshot.length === 0) return;
 
 		this.drag = {
-			name: sel.name,
 			startX: ev.imageX,
 			startY: ev.imageY,
-			frameX: r.x,
-			frameY: r.y,
-			w: r.w,
-			h: r.h,
+			snapshot,
 		};
-		this._updatePreview(this.drag.frameX, this.drag.frameY);
+		this._pendingDx = 0;
+		this._pendingDy = 0;
+		this._updatePreview(0, 0);
 	}
 
 	onPointerMove(ev) {
 		if (!this.drag) return;
-		const dx = Math.round(ev.imageX - this.drag.startX);
-		const dy = Math.round(ev.imageY - this.drag.startY);
-		let nx = this.drag.frameX + dx;
-		let ny = this.drag.frameY + dy;
+		let dx = Math.round(ev.imageX - this.drag.startX);
+		let dy = Math.round(ev.imageY - this.drag.startY);
 
 		if (this.context.snapToGrid) {
 			const sheet = this.context.document.sheet;
 			const gw = sheet.frameWidth  || 0;
 			const gh = sheet.frameHeight || 0;
-			if (gw > 0) nx = Math.round(nx / gw) * gw;
-			if (gh > 0) ny = Math.round(ny / gh) * gh;
+			if (gw > 0) dx = Math.round(dx / gw) * gw;
+			if (gh > 0) dy = Math.round(dy / gh) * gh;
 		}
 
-		this._pendingX = nx;
-		this._pendingY = ny;
-		this._updatePreview(nx, ny);
+		this._pendingDx = dx;
+		this._pendingDy = dy;
+		this._updatePreview(dx, dy);
 	}
 
-	onPointerUp(ev) {
-		if (this._pendingSwap) {
-			const { source, target } = this._pendingSwap;
-			this._pendingSwap = null;
-			this.context.document.editable.swapFrames(source, target);
-			return;
-		}
-
+	onPointerUp() {
 		if (!this.drag) return;
-		const name = this.drag.name;
-		const nx = this._pendingX ?? this.drag.frameX;
-		const ny = this._pendingY ?? this.drag.frameY;
-		const moved = nx !== this.drag.frameX || ny !== this.drag.frameY;
-
+		const dx = this._pendingDx;
+		const dy = this._pendingDy;
+		const names = this.drag.snapshot.map(s => s.name);
 		this.drag = null;
-		this._pendingX = null;
-		this._pendingY = null;
 		this.context.viewport.setPreview(null);
 
-		if (!moved) return;
-		const current = this.context.document.sheet.frames[name];
-		if (!current) return;
-
-		this.context.document.editable.moveFrameWithContents(
-			name, nx, ny, this.moveContents
+		if (dx === 0 && dy === 0) return;
+		this.context.document.editable.moveFramesWithContents(
+			names, dx, dy, this.moveContents
 		);
 	}
 
 	onCancel() {
 		this.drag = null;
-		this._pendingSwap = null;
-		this._pendingX = null;
-		this._pendingY = null;
+		this._pendingDx = 0;
+		this._pendingDy = 0;
 		this.context.viewport.setPreview(null);
 	}
 
-	_updatePreview(nx, ny) {
+	_updatePreview(dx, dy) {
 		if (!this.drag) return;
-		const { w, h } = this.drag;
+		const snapshot = this.drag.snapshot;
 		const v = this.context.viewport;
 		v.setPreview((ctx) => {
 			const hairline = 1 / v.zoom;
-			ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
-			ctx.lineWidth = hairline * 3;
-			ctx.strokeRect(nx, ny, w, h);
-			ctx.strokeStyle = '#d08040';
-			ctx.lineWidth = hairline * 1.5;
-			ctx.strokeRect(nx, ny, w, h);
+			ctx.save();
+			for (const s of snapshot) {
+				const nx = s.x + dx;
+				const ny = s.y + dy;
+				ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+				ctx.lineWidth = hairline * 3;
+				ctx.strokeRect(nx, ny, s.width, s.height);
+				ctx.strokeStyle = '#d08040';
+				ctx.lineWidth = hairline * 1.5;
+				ctx.strokeRect(nx, ny, s.width, s.height);
+			}
+			ctx.restore();
 		});
 	}
 
