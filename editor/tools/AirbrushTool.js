@@ -16,6 +16,10 @@ export class AirbrushTool extends Tool {
 		this.currentX = null;
 		this.currentY = null;
 		this.rafId = null;
+
+		// Slider value, 1–30. The actual deposit rate is computed from
+		// this quadratically (see _depositRate), so the low end — where
+		// fine control matters — gets more slider travel.
 		this.flow = 8;
 	}
 
@@ -91,7 +95,7 @@ export class AirbrushTool extends Tool {
 		const color = this.color;
 		if (!color) return;
 		const colorAlpha = color[3] / 255;
-		const deposit = this.flow / 100;
+		const deposit = this._depositRate();
 
 		brush.forEachPixel(x, y, (px, py, weight) => {
 			const a = colorAlpha * weight * deposit;
@@ -123,6 +127,14 @@ export class AirbrushTool extends Tool {
 		return hexToRGBA(color.hex, color.alpha) ?? [0, 0, 0, 255];
 	}
 
+	// Deposit per tick, 0..1. Quadratic in the slider value so the low
+	// end (1–3%) occupies a larger fraction of the slider's travel than
+	// it would on a linear mapping. At flow=30 the rate is 30%.
+	_depositRate() {
+		const t = this.flow / 30;
+		return t * t * 0.30;
+	}
+
 	getSettings() {
 		return [{
 			key: 'flow',
@@ -131,7 +143,12 @@ export class AirbrushTool extends Tool {
 			min: 1,
 			max: 30,
 			step: 1,
-			format: (v) => `${v}%`,
+			format: (v) => {
+				const pct = (v / 30) ** 2 * 30;
+				return pct < 1
+					? pct.toFixed(2) + '%'
+					: pct.toFixed(1) + '%';
+			},
 		}];
 	}
 
