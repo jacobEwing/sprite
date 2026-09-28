@@ -164,6 +164,123 @@ export class EditableSheet {
 		this.emit('changed', { type: 'frameUpdated', name });
 	}
 
+	// Move a frame's rect to a new position, optionally carrying its pixels
+	// along. When `moveContents` is false, this is just a metadata change
+	// (rect definition moves; the pixels at the old location stay put).
+	// When true, the frame's pixels are moved from the old rect to the new
+	// one in the same undo step.
+	//
+	// The undo entry is one command either way. Overlap with other frames
+	// is the user's concern — no special handling beyond the swap order
+	// documented in swapFrames.
+	moveFrameWithContents(name, newX, newY, moveContents) {
+		const frame = this.sheet.frames[name];
+		if (!frame) return;
+
+		const oldX = frame.x;
+		const oldY = frame.y;
+
+		if (!moveContents) {
+			return this.setFrame(name, { x: newX, y: newY });
+		}
+
+		const ctx = this.sheet.image.getContext('2d', { willReadFrequently: true });
+		const w = frame.width;
+		const h = frame.height;
+
+		// Union of old and new rects, clipped to canvas bounds, defines the
+		// region the PaintCommand will snapshot.
+		const ux  = Math.max(0, Math.min(oldX, newX));
+		const uy  = Math.max(0, Math.min(oldY, newY));
+		const ux2 = Math.min(this.sheet.imageWidth,  Math.max(oldX + w, newX + w));
+		const uy2 = Math.min(this.sheet.imageHeight, Math.max(oldY + h, newY + h));
+		const uw = ux2 - ux;
+		const uh = uy2 - uy;
+		if (uw <= 0 || uh <= 0) return;
+
+		const before = ctx.getImageData(ux, uy, uw, uh);
+		const pixels = ctx.getImageData(oldX, oldY, w, h);
+
+		ctx.clearRect(oldX, oldY, w, h);
+		ctx.putImageData(pixels, newX, newY);
+
+		const after = ctx.getImageData(ux, uy, uw, uh);
+
+		const paintCmd = new PaintCommand(ctx, ux, uy, uw, uh, before, after);
+
+		const beforeFrame = { ...frame };
+		const afterFrame  = { ...frame, x: newX, y: newY };
+		const frameCmd = new SetFrameCommand(this.sheet, name, beforeFrame, afterFrame);
+
+		// The pixel half is already applied — the buffers were written
+		// directly so the "after" snapshot could be captured. Apply the
+		// frame half now so both sides of the composite are in their
+		// post-command state before the entry is recorded.
+		const composite = new CompositeCommand([paintCmd, frameCmd]);
+		frameCmd.apply();
+		this.history.push(composite, 'both');
+
+		this.emit('changed', { type: 'frameUpdated', name });
+	}
+
+	// Exchange the positions and pixel contents of two frames. Each frame
+	// keeps its own width and height; only x/y trade. When the two rects
+	// overlap, the frame that was at A's position wins in the shared
+	// region — documented rather than special-cased, since a swap between
+	// overlapping frames is a user error that undo resolves.
+	swapFrames(nameA, nameB) {
+		if (nameA === nameB) return;
+		const a = this.sheet.frames[nameA];
+		const b = this.sheet.frames[nameB];
+		if (!a || !b) return;
+
+		const ctx = this.sheet.image.getContext('2d', { willReadFrequently: true });
+
+		const ax = a.x, ay = a.y, aw = a.width,  ah = a.height;
+		const bx = b.x, by = b.y, bw = b.width,  bh = b.height;
+
+		const ux  = Math.max(0, Math.min(ax, bx));
+		const uy  = Math.max(0, Math.min(ay, by));
+		const ux2 = Math.min(this.sheet.imageWidth,  Math.max(ax + aw, bx + bw));
+		const uy2 = Math.min(this.sheet.imageHeight, Math.max(ay + ah, by + bh));
+		const uw = ux2 - ux;
+		const uh = uy2 - uy;
+		if (uw <= 0 || uh <= 0) return;
+
+		const before = ctx.getImageData(ux, uy, uw, uh);
+
+		const bufferA = ctx.getImageData(ax, ay, aw, ah);
+		const bufferB = ctx.getImageData(bx, by, bw, bh);
+
+		ctx.clearRect(ax, ay, aw, ah);
+		ctx.clearRect(bx, by, bw, bh);
+
+		// Order matters only when the rects overlap. A lands at B's old
+		// position first, then B lands at A's old position, so B wins any
+		// shared pixels.
+		ctx.putImageData(bufferA, bx, by);
+		ctx.putImageData(bufferB, ax, ay);
+
+		const after = ctx.getImageData(ux, uy, uw, uh);
+
+		const paintCmd = new PaintCommand(ctx, ux, uy, uw, uh, before, after);
+		const cmdA = new SetFrameCommand(this.sheet, nameA,
+			{ ...a }, { ...a, x: bx, y: by });
+		const cmdB = new SetFrameCommand(this.sheet, nameB,
+			{ ...b }, { ...b, x: ax, y: ay });
+
+		// Same pattern as moveFrameWithContents: the pixel half of the
+		// composite has been applied directly; apply the two frame
+		// commands now so the recorded state matches the canvas.
+		const composite = new CompositeCommand([paintCmd, cmdA, cmdB]);
+		cmdA.apply();
+		cmdB.apply();
+		this.history.push(composite, 'both');
+
+		this.emit('changed', { type: 'frameUpdated', name: nameA });
+		this.emit('changed', { type: 'frameUpdated', name: nameB });
+	}
+
 	// --- sequences --------------------------------------------------------
 
 	addSequence(name, sequence) {

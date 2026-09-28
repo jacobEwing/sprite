@@ -490,6 +490,7 @@ export class Viewport {
 			screenX: x, screenY: y,
 			imageX: p.x, imageY: p.y,
 			button: e.button,
+			shiftKey: e.shiftKey,
 			originalEvent: e,
 		});
 	}

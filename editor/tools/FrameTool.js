@@ -1,20 +1,45 @@
 import { Tool } from './Tool.js';
 
-// Drag the selected frame's rect around the atlas. Only the interior is
-// draggable; corner handles for resize are a future addition. Releasing
-// without moving is a no-op.
+// Move the selected frame's rect around the atlas. Shift-click swaps the
+// selected frame with the frame under the cursor, exchanging positions and
+// pixel contents in one undoable step.
+//
+// Settings:
+//   moveContents — when true, a drag carries the frame's pixels along
+//                  with its rect. When false (default), only the rect
+//                  definition moves; the pixels at the old location stay.
 export class FrameTool extends Tool {
 	constructor(context) {
 		super(context);
 		this.drag = null;
+		this._pendingSwap = null;
+		this.moveContents = false;
 
-		// The frame mover has its own hit-testing for "inside the selected
-		// frame's rect". Switching cells with this tool is not the same
-		// hazard as with the drawing tools.
+		// Signals to ToolLayer that a shift-click should bypass the
+		// automatic frame-selection path, so this tool can implement its
+		// own gesture using the previously-selected frame.
+		this.shiftClickHandled = true;
+
+		// The frame mover works on the whole atlas and does its own
+		// hit-testing, so the cell-change guard from ToolLayer doesn't
+		// apply.
 		this.cellScoped = false;
 	}
 
 	onPointerDown(ev) {
+		// Shift-click swaps with the frame under the cursor.
+		if (ev.shiftKey) {
+			const targetName = this.context.viewport.getFrameAt(
+				Math.floor(ev.imageX), Math.floor(ev.imageY)
+			);
+			const sourceName = this.context.document.selectedFrame;
+			if (targetName && sourceName && targetName !== sourceName) {
+				this._pendingSwap = { source: sourceName, target: targetName };
+			}
+			return;
+		}
+
+		// Normal drag: hit-test the selected frame's rect.
 		const sel = this.context.selectedFrame();
 		if (!sel) return;
 		const x = Math.floor(ev.imageX);
@@ -55,6 +80,13 @@ export class FrameTool extends Tool {
 	}
 
 	onPointerUp(ev) {
+		if (this._pendingSwap) {
+			const { source, target } = this._pendingSwap;
+			this._pendingSwap = null;
+			this.context.document.editable.swapFrames(source, target);
+			return;
+		}
+
 		if (!this.drag) return;
 		const name = this.drag.name;
 		const nx = this._pendingX ?? this.drag.frameX;
@@ -69,11 +101,17 @@ export class FrameTool extends Tool {
 		if (!moved) return;
 		const current = this.context.document.sheet.frames[name];
 		if (!current) return;
-		this.context.document.editable.setFrame(name, { x: nx, y: ny });
+
+		this.context.document.editable.moveFrameWithContents(
+			name, nx, ny, this.moveContents
+		);
 	}
 
 	onCancel() {
 		this.drag = null;
+		this._pendingSwap = null;
+		this._pendingX = null;
+		this._pendingY = null;
 		this.context.viewport.setPreview(null);
 	}
 
@@ -90,5 +128,22 @@ export class FrameTool extends Tool {
 			ctx.lineWidth = hairline * 1.5;
 			ctx.strokeRect(nx, ny, w, h);
 		});
+	}
+
+	getSettings() {
+		return [{
+			key: 'moveContents',
+			label: 'Move contents',
+			type: 'checkbox',
+		}];
+	}
+
+	getSettingValue(key) {
+		if (key === 'moveContents') return this.moveContents;
+		return undefined;
+	}
+
+	setSettingValue(key, value) {
+		if (key === 'moveContents') this.moveContents = !!value;
 	}
 }

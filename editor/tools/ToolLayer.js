@@ -67,9 +67,14 @@ export class ToolLayer {
 			: this._current();
 		if (!tool) return;
 
-		// A left- or right-click inside a different frame selects it.
+		// A left- or right-click inside a different frame selects it —
+		// unless the tool wants to handle shift-click itself. In that
+		// case we skip the selection change so the tool can see the
+		// previously-selected frame (FrameTool's swap gesture needs this).
+		const shiftHandled = e.shiftKey && tool.shiftClickHandled === true;
+
 		let selectionChanged = false;
-		if (e.button === 0 || e.button === 2) {
+		if (!shiftHandled && (e.button === 0 || e.button === 2)) {
 			const name = this.viewport.getFrameAt(
 				Math.floor(e.imageX), Math.floor(e.imageY)
 			);
