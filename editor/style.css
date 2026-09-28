@@ -1721,3 +1721,20 @@ body {
 	background: #383840;
 	border-color: var(--accent-2);
 }
+
+/* --- sequence inspector: custom timing row --- */
+.insp-timing-row {
+	display: flex;
+	gap: 4px;
+	align-items: stretch;
+	margin-bottom: 4px;
+}
+.insp-timing-row .insp-input {
+	flex: 1;
+}
+.insp-hint {
+	color: var(--muted);
+	font-size: 10.5px;
+	line-height: 1.4;
+	margin: 0 0 10px;
+}

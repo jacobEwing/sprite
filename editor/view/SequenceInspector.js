@@ -74,6 +74,52 @@ export class SequenceInspector {
 
 		this.root.appendChild(grid);
 
+		// --- custom timing section ---------------------------------------
+
+		const timingHeader = document.createElement('div');
+		timingHeader.className = 'insp-section-label';
+		timingHeader.textContent = 'Custom timing (ms)';
+		this.root.appendChild(timingHeader);
+
+		const timingRow = document.createElement('div');
+		timingRow.className = 'insp-timing-row';
+
+		const timingInput = document.createElement('input');
+		timingInput.type = 'text';
+		timingInput.className = 'insp-input';
+		timingInput.spellcheck = false;
+		timingInput.placeholder = 'blank = uniform rate';
+		timingInput.value = seq.frameTimes ? seq.frameTimes.join(', ') : '';
+		timingInput.addEventListener('change', () => this._commitFrameTimes(timingInput.value));
+		timingInput.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter') { e.preventDefault(); timingInput.blur(); }
+			else if (e.key === 'Escape') {
+				timingInput.value = seq.frameTimes ? seq.frameTimes.join(', ') : '';
+				timingInput.blur();
+			}
+		});
+		timingRow.appendChild(timingInput);
+
+		const fillBtn = document.createElement('button');
+		fillBtn.className = 'insp-mini';
+		fillBtn.textContent = '⟳';
+		fillBtn.title = 'Fill with the uniform frame rate';
+		fillBtn.addEventListener('click', () => this._fillUniformTiming());
+		timingRow.appendChild(fillBtn);
+
+		this.root.appendChild(timingRow);
+
+		const timingHint = document.createElement('div');
+		timingHint.className = 'insp-hint';
+		timingHint.textContent = seq.frameTimes && seq.frameTimes.length > 0
+			? 'Overrides the frame rate above.'
+			: 'Comma-separated per-frame durations. Blank uses the frame rate.';
+		this.root.appendChild(timingHint);
+
+		this.fields.frameTimes = timingInput;
+
+		// --- frames list -------------------------------------------------
+
 		const framesHeader = document.createElement('div');
 		framesHeader.className = 'insp-section-label';
 		framesHeader.textContent = `Frames (${seq.frames.length})`;
@@ -127,6 +173,49 @@ export class SequenceInspector {
 		}
 		if (this.fields.iterations && document.activeElement !== this.fields.iterations) {
 			this.fields.iterations.value = seq.iterations;
+		}
+		this._syncFrameTimes();
+	}
+
+	_commitFrameTimes(raw) {
+		const seq = this.doc.getSelectedSequence();
+		if (!seq) return;
+
+		const trimmed = String(raw).trim();
+		if (trimmed === '') {
+			this.doc.editable.setSequence(this.currentName, { frameTimes: [] });
+			return;
+		}
+
+		const values = trimmed.split(',')
+			.map(s => parseFloat(s.trim()))
+			.filter(v => Number.isFinite(v) && v > 0);
+
+		if (values.length === 0) {
+			// Nothing parsable — revert the field to the stored state.
+			this._syncFrameTimes();
+			return;
+		}
+
+		this.doc.editable.setSequence(this.currentName, { frameTimes: values });
+	}
+
+	_fillUniformTiming() {
+		const seq = this.doc.getSelectedSequence();
+		if (!seq) return;
+
+		const uniform = Math.round(1000 / (seq.frameRate || 12));
+		const values = seq.frames.map(() => uniform);
+		this.doc.editable.setSequence(this.currentName, { frameTimes: values });
+	}
+
+	_syncFrameTimes() {
+		const seq = this.doc.getSelectedSequence();
+		if (!seq) return;
+		const input = this.fields.frameTimes;
+		if (!input) return;
+		if (document.activeElement !== input) {
+			input.value = seq.frameTimes ? seq.frameTimes.join(', ') : '';
 		}
 	}
 

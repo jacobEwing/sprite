@@ -205,7 +205,10 @@ export class EditableSheet {
 		if (patch.frameRate  !== undefined) after.frameRate  = Number(patch.frameRate);
 		if (patch.iterations !== undefined) after.iterations = Number(patch.iterations);
 		if (patch.method     !== undefined) after.method     = String(patch.method);
-		if (patch.frameTimes !== undefined) after.frameTimes = patch.frameTimes.slice();
+		if (patch.frameTimes !== undefined) {
+			if (patch.frameTimes.length === 0) delete after.frameTimes;
+			else after.frameTimes = patch.frameTimes.slice();
+		}
 		if (deepEqual(before, after)) return;
 		this.history.execute(new SetSequenceCommand(this.sheet, name, before, after), 'data');
 		this.emit('changed', { type: 'sequenceUpdated', name });
