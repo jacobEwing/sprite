@@ -24,7 +24,6 @@ import {
 import { FrameInspector }    from './view/FrameInspector.js';
 import { SequenceInspector } from './view/SequenceInspector.js';
 import { Timeline }        from './view/Timeline.js';
-import { FrameTool }       from './tools/FrameTool.js';
 import { SpritePreview }   from './view/SpritePreview.js';
 import { saveSheetImage, saveSheetData, saveSheetBoth, proposeFilenames } from './io/saveSheet.js';
 import { SaveDialog }                   from './view/SaveDialog.js';
@@ -86,7 +85,6 @@ const TOOLS = {
 	ellipse:   new EllipseTool(toolLayer.context),
 	fill:      new FloodFillTool(toolLayer.context),
 	picker:    new ColorPickerTool(toolLayer.context),
-	frame:     new FrameTool(toolLayer.context),
 	collision: new CollisionTool(toolLayer.context),
 	airbrush:  new AirbrushTool(toolLayer.context),
 };
@@ -154,7 +152,7 @@ activateTool('pan');
 const TOOL_KEYS = {
 	a: 'airbrush', s: 'select',
 	p: 'pan', n: 'pencil', e: 'eraser', l: 'line', b: 'box',
-	o: 'ellipse', g: 'fill', i: 'picker', m: 'frame', k: 'collision',
+	o: 'ellipse', g: 'fill', i: 'picker', k: 'collision',
 };
 
 // --- shape-fill toggle ----------------------------------------------------

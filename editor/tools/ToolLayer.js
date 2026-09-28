@@ -67,9 +67,9 @@ export class ToolLayer {
 			: this._current();
 		if (!tool) return;
 
-		// Alt-click on a frame swaps it with the current selection. This is
-		// a global gesture — it works with any tool active, matching how
-		// ctrl-to-sample works. Alt has no other meaning in the editor.
+		// Alt-click on a frame swaps it with the current selection. Global
+		// gesture — works with any tool active, matching how ctrl-to-sample
+		// works.
 		if (e.altKey && e.button === 0) {
 			const targetName = this.viewport.getFrameAt(
 				Math.floor(e.imageX), Math.floor(e.imageY)
@@ -80,40 +80,50 @@ export class ToolLayer {
 				this.notifyPixelsChanged();
 				return;
 			}
-			// Alt-click on empty space or on the already-selected frame:
-			// fall through. The tool's own alt-guard will decline to start
-			// anything.
 		}
 
-		// A left- or right-click inside a different frame selects it —
-		// unless the tool wants to handle shift-clicks itself (FrameTool's
-		// range select). Alt-clicks that reached this point didn't hit a
-		// swappable frame, so treating them like normal clicks is fine.
-		const shiftHandled = e.shiftKey && tool.shiftClickHandled === true;
+		// Shift-click on a frame extends the selection to a rectangular
+		// range. Also global — see the Frames-list behaviour for the
+		// matching interaction.
+		if (e.shiftKey && e.button === 0) {
+			const targetName = this.viewport.getFrameAt(
+				Math.floor(e.imageX), Math.floor(e.imageY)
+			);
+			if (targetName) {
+				this.document.selectFrameRectRange(targetName);
+				this.notifyPixelsChanged();
+				return;
+			}
+			// Shift-click on empty space falls through to the normal path.
+		}
 
+		// A left- or right-click inside a different frame selects it. The
+		// keepSet flag preserves an existing multi-selection when the
+		// click lands inside it, so a group drag can start from any
+		// member.
+		//
+		// If the clicked frame was already part of the selection, the
+		// user has signalled intent to work with that group — no reason
+		// to defer the gesture. The primary follows the click, and the
+		// tool starts immediately.
 		let selectionChanged = false;
-		if (!shiftHandled && (e.button === 0 || e.button === 2)) {
+		let clickedFrameWasSelected = false;
+		if (e.button === 0 || e.button === 2) {
 			const name = this.viewport.getFrameAt(
 				Math.floor(e.imageX), Math.floor(e.imageY)
 			);
-			if (name && name !== this.document.selectedFrame) {
-				// keepSet: when the click lands on a member of an
-				// existing multi-selection, preserve the set so a group
-				// drag can start from any member. Clicks outside the
-				// set still collapse to the clicked frame.
-				this.document.selectFrame(name, { keepSet: true });
-				selectionChanged = true;
+			if (name) {
+				clickedFrameWasSelected = this.document.selectedFrames.has(name);
+				if (name !== this.document.selectedFrame) {
+					this.document.selectFrame(name, { keepSet: true });
+					selectionChanged = true;
+				}
 			}
 		}
 
-		// With clipping on, a click that also changed the selected frame
-		// is treated as a selection click, and the tool's gesture is
-		// deferred - the user re-clicks to act. Tools that operate on the
-		// atlas as a whole (cellScoped === false) act on every click, and
-		// with clipping off the user has explicitly opted into drawing
-		// across frame boundaries, so the guard doesn't apply either way.
 		const deferGesture =
 			selectionChanged
+			&& !clickedFrameWasSelected
 			&& this.clipToFrame
 			&& tool.cellScoped !== false;
 
