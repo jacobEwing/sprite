@@ -69,6 +69,7 @@ new FrameList(document.getElementById('frameList'), doc);
 new SequenceList(document.getElementById('sequenceList'), doc);
 new FrameInspector(document.getElementById('frameInspector'), doc);
 new SequenceInspector(document.getElementById('sequenceInspector'), doc);
+new CollisionInspector(document.getElementById('collisionInspector'), doc);
 new Timeline(document.getElementById('timeline'), doc, viewport);
 new SpritePreview(document.getElementById('spritePreview'), doc);
 const brushPicker = new BrushPicker(document.getElementById('brushPicker'));
