@@ -1,13 +1,19 @@
 import { applyConvolution, matrixSum, PRESETS, defaultMatrix } from '../paint/filters.js';
-import { announcePanelOpen, announcePanelClosed } from '../lib/panelCoordination.js';
 import { PaintCommand } from '../history/PaintCommand.js';
 
-// Floating panel for the convolution filter. Shows a preset dropdown, a
-// matrix editor, divisor/offset fields, and an alpha toggle. Live-previews
-// the filtered frame over the viewport; on Apply, writes pixels and pushes
-// a single PaintCommand to history.
-
-const DEFAULT_MATRIX = [[0,-1,0],[-1,5,-1],[0,-1,0]];
+// Sidebar panel for the convolution filter, rendered inside the Modifiers
+// tab.
+//
+// Preview semantics: the preview shows what Apply would do *right now*.
+// After an Apply, the preview is disabled until the user touches any
+// control or changes the target — at that point the preview returns,
+// reflecting the new settings against the current pixels. Controls
+// themselves are never reset by Apply.
+//
+// The preview lives on the viewport's overlay stack, not its single-slot
+// setPreview. That keeps it alive underneath transient tool previews
+// (frame-drag outlines, shape previews) instead of being cleared when the
+// tool clears its own.
 
 export class FilterPanel {
 	constructor(root, doc, viewport) {
@@ -15,11 +21,16 @@ export class FilterPanel {
 		this.doc = doc;
 		this.viewport = viewport;
 
-		this.matrix = cloneMatrix(DEFAULT_MATRIX);
+		this.active = false;
+		this._overlayToken = null;
+
+		this.matrix = defaultMatrix(3);
 		this.divisor = 1;
 		this.offset = 0;
 		this.convolveAlpha = false;
-		this.presetName = 'Sharpen';
+		this.presetName = '';
+
+		this._previewStale = false;
 
 		this.previewImageData = null;
 		this.previewFrame = null;
@@ -27,44 +38,53 @@ export class FilterPanel {
 
 		this._build();
 		this._bind();
-		this.hide();
+		this._renderMatrix();
+		this._sync();
 
-		doc.on('selectionChanged',  () => { if (this.visible) this._schedule(); });
-		doc.on('selectionModified', () => { if (this.visible) this._schedule(); });
-		doc.on('sheetChanged',      () => { if (this.visible) this._schedule(); });
-		doc.on('edit',              () => { if (this.visible) this._schedule(); });
+		doc.on('selectionChanged',  () => this._onTargetChange());
+		doc.on('selectionModified', () => this._onTargetChange());
+		doc.on('sheetChanged',      () => this._onTargetChange());
+		doc.on('edit',              () => { if (this.active) this._schedule(); });
 	}
 
-	get visible() { return this.root.style.display !== 'none'; }
+	// --- lifecycle --------------------------------------------------------
 
-	show(anchor) {
-		announcePanelOpen(this);
-		this.root.style.display = 'block';
-		this._positionBelow(anchor);
+	activate() {
+		this.active = true;
+		this._overlayToken = this.viewport.addOverlay((ctx) => this._drawPreview(ctx));
 		this._sync();
 		this._schedule();
 	}
 
-	hide() {
+	deactivate() {
+		this.active = false;
 		if (this._pending) {
 			cancelAnimationFrame(this._pending);
 			this._pending = null;
 		}
-		this.root.style.display = 'none';
-		this.viewport.setPreview(null);
+		if (this._overlayToken) {
+			this.viewport.removeOverlay(this._overlayToken);
+			this._overlayToken = null;
+		}
 		this.previewImageData = null;
 		this.previewFrame = null;
-		announcePanelClosed(this);
+	}
+
+	// The preview's target changed: a different frame is selected, the
+	// pixel selection was adjusted, or a new sheet loaded. Any of those is
+	// a signal of intent to see a fresh preview, so clear the stale flag
+	// that Apply set and let the recompute run.
+	_onTargetChange() {
+		if (!this.active) return;
+		this._previewStale = false;
+		this._syncHint();
+		this._schedule();
 	}
 
 	// --- construction -----------------------------------------------------
 
 	_build() {
 		this.root.innerHTML = `
-			<div class="fp-header">
-				<span class="fp-title">Filter</span>
-				<button class="fp-close" title="Close">✕</button>
-			</div>
 			<div class="fp-body">
 				<label class="fp-row">
 					<span class="fp-label">Preset</span>
@@ -97,13 +117,10 @@ export class FilterPanel {
 					<input type="checkbox" class="fp-alpha"> Convolve alpha
 				</label>
 
-				<p class="fp-hint">
-					Applies to the selected frame. Pixels outside the frame
-					clamp to the frame's edge.
-				</p>
+				<p class="fp-hint"></p>
 			</div>
 			<div class="fp-footer">
-				<button class="fp-cancel">Cancel</button>
+				<button class="fp-reset">Reset</button>
 				<button class="fp-apply primary">Apply</button>
 			</div>
 		`;
@@ -113,20 +130,26 @@ export class FilterPanel {
 		this.divisorInput = this.root.querySelector('.fp-divisor');
 		this.offsetInput  = this.root.querySelector('.fp-offset');
 		this.alphaInput   = this.root.querySelector('.fp-alpha');
-		this.sizeButtons = Array.from(this.root.querySelectorAll('.fp-size-btn'));
+		this.hintEl       = this.root.querySelector('.fp-hint');
+		this.sizeButtons  = Array.from(this.root.querySelectorAll('.fp-size-btn'));
+
 		for (const btn of this.sizeButtons) {
 			btn.addEventListener('click', () => {
 				this._setSize(parseInt(btn.dataset.size, 10));
 			});
 		}
+
+		const placeholder = document.createElement('option');
+		placeholder.value = '';
+		placeholder.textContent = 'Custom';
+		this.presetSelect.appendChild(placeholder);
+
 		for (const p of PRESETS) {
 			const opt = document.createElement('option');
 			opt.value = p.name;
 			opt.textContent = p.name;
 			this.presetSelect.appendChild(opt);
 		}
-
-		this._renderMatrix();
 	}
 
 	_bind() {
@@ -137,30 +160,43 @@ export class FilterPanel {
 			this.divisor = p.divisor ?? matrixSum(p.matrix);
 			this.offset = 0;
 			this.presetName = p.name;
-			this._renderMatrix();     // also updates size buttons
+			this._renderMatrix();
 			this._sync();
-			this._schedule();
+			this._onControlChange();
 		});
 		this.divisorInput.addEventListener('input', () => {
 			this.divisor = parseFloat(this.divisorInput.value) || 0;
-			this._schedule();
+			this._onControlChange();
 		});
 		this.offsetInput.addEventListener('input', () => {
 			this.offset = parseFloat(this.offsetInput.value) || 0;
-			this._schedule();
+			this._onControlChange();
 		});
 		this.alphaInput.addEventListener('change', () => {
 			this.convolveAlpha = this.alphaInput.checked;
-			this._schedule();
+			this._onControlChange();
 		});
 
-		this.root.querySelector('.fp-close').addEventListener('click', () => this.hide());
-		this.root.querySelector('.fp-cancel').addEventListener('click', () => this.hide());
+		this.root.querySelector('.fp-reset').addEventListener('click', () => this._resetControls());
 		this.root.querySelector('.fp-apply').addEventListener('click', () => this._apply());
+	}
 
-		document.addEventListener('keydown', (e) => {
-			if (e.key === 'Escape' && this.visible) this.hide();
-		});
+	_onControlChange() {
+		this._previewStale = false;
+		this._schedule();
+	}
+
+	// --- state ------------------------------------------------------------
+
+	_resetControls() {
+		this.matrix = defaultMatrix(3);
+		this.divisor = 1;
+		this.offset = 0;
+		this.convolveAlpha = false;
+		this.presetName = '';
+		this._renderMatrix();
+		this._sync();
+		this._onControlChange();
 	}
 
 	_renderMatrix() {
@@ -178,7 +214,9 @@ export class FilterPanel {
 				input.addEventListener('input', () => {
 					const v = parseFloat(input.value);
 					this.matrix[y][x] = Number.isFinite(v) ? v : 0;
-					this._schedule();
+					this.presetName = '';
+					this.presetSelect.value = '';
+					this._onControlChange();
 				});
 				this.matrixEl.appendChild(input);
 				row.push(input);
@@ -187,11 +225,8 @@ export class FilterPanel {
 		}
 		this.matrixEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
 
-		if (this.sizeButtons) {
-			for (const btn of this.sizeButtons) {
-				btn.classList.toggle('selected',
-					parseInt(btn.dataset.size, 10) === size);
-			}
+		for (const btn of this.sizeButtons) {
+			btn.classList.toggle('selected', parseInt(btn.dataset.size, 10) === size);
 		}
 	}
 
@@ -200,20 +235,30 @@ export class FilterPanel {
 		this.divisorInput.value = formatNumber(this.divisor);
 		this.offsetInput.value = this.offset;
 		this.alphaInput.checked = this.convolveAlpha;
+		this._syncHint();
 	}
 
-	_positionBelow(anchor) {
-		const r = anchor.getBoundingClientRect();
-		const w = this.root.offsetWidth;
-		const h = this.root.offsetHeight;
-		let x = r.right - w;
-		let y = r.bottom + 6;
-		if (x < 8) x = 8;
-		if (x + w > window.innerWidth - 8) x = window.innerWidth - w - 8;
-		if (y + h > window.innerHeight - 8) y = r.top - h - 6;
-		if (y < 8) y = 8;
-		this.root.style.left = x + 'px';
-		this.root.style.top  = y + 'px';
+	_syncHint() {
+		if (this._previewStale) {
+			this.hintEl.textContent = 'Applied. Adjust any control to preview again.';
+		} else {
+			this.hintEl.textContent =
+				'Applies to the pixel selection, or the current frame. ' +
+				'Pixels outside the region clamp to its edge.';
+		}
+	}
+
+	_setSize(size) {
+		if (size !== 3 && size !== 5) return;
+		if (this.matrix.length === size) return;
+
+		this.matrix = defaultMatrix(size);
+		this.divisor = 1;
+		this.offset = 0;
+		this.presetName = '';
+		this._renderMatrix();
+		this._sync();
+		this._onControlChange();
 	}
 
 	// --- preview & apply --------------------------------------------------
@@ -236,13 +281,21 @@ export class FilterPanel {
 	}
 
 	_recompute() {
-		if (!this.visible) return;
+		if (!this.active) return;
+
+		if (this._previewStale) {
+			this.previewImageData = null;
+			this.previewFrame = null;
+			this.viewport.invalidate();
+			return;
+		}
+
 		const sheet = this.doc.sheet;
 		const rect = this.doc.currentOpRect();
 		if (!sheet || !rect) {
-			this.viewport.setPreview(null);
 			this.previewImageData = null;
 			this.previewFrame = null;
+			this.viewport.invalidate();
 			return;
 		}
 
@@ -251,8 +304,6 @@ export class FilterPanel {
 		const result = applyConvolution(src, this._kernel());
 
 		this.previewImageData = result;
-		// The region is stored as { x, y, w, h } - matching what
-		// redrawBackgroundInRegion and the rest of the editor use.
 		this.previewFrame = { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
 
 		if (!this.offscreen) {
@@ -263,49 +314,45 @@ export class FilterPanel {
 		this.offscreen.height = result.height;
 		this.offscreenCtx.putImageData(result, 0, 0);
 
-		this.viewport.setPreview((vctx) => {
-			const pf = this.previewFrame;
-			if (!pf || !this.offscreen) return;
+		this.viewport.invalidate();
+	}
 
-			// Replace the region's pixels with the background, then draw
-			// the filter result over it - matching the putImageData that
-			// _apply performs.
-			this.viewport.redrawBackgroundInRegion(vctx, pf);
-
-			vctx.drawImage(this.offscreen, pf.x, pf.y, pf.w, pf.h);
-		});
+	_drawPreview(ctx) {
+		const pf = this.previewFrame;
+		if (!pf || !this.offscreen) return;
+		this.viewport.redrawBackgroundInRegion(ctx, pf);
+		ctx.drawImage(this.offscreen, pf.x, pf.y, pf.w, pf.h);
 	}
 
 	_apply() {
 		const sheet = this.doc.sheet;
 		const rect = this.doc.currentOpRect();
+
 		if (!sheet || !rect || !this.previewImageData) {
-			this.hide();
+			this._previewStale = true;
+			this.previewImageData = null;
+			this.previewFrame = null;
+			this._syncHint();
+			this.viewport.invalidate();
 			return;
 		}
 
 		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
 		const before = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
-		const after = this.previewImageData;
+		const after  = this.previewImageData;
 
-		ctx.putImageData(after, rect.x, rect.y);
-		const cmd = new PaintCommand(ctx, rect.x, rect.y, rect.w, rect.h, before, after);
-		this.doc.history.push(cmd, 'pixels');
+		const identity = imageDataEqual(before, after);
+		if (!identity) {
+			ctx.putImageData(after, rect.x, rect.y);
+			const cmd = new PaintCommand(ctx, rect.x, rect.y, rect.w, rect.h, before, after);
+			this.doc.history.push(cmd, 'pixels');
+		}
 
-		this.hide();
+		this._previewStale = true;
+		this.previewImageData = null;
+		this.previewFrame = null;
+		this._syncHint();
 		this.viewport.invalidate();
-	}
-
-	_setSize(size) {
-		if (size !== 3 && size !== 5) return;
-		if (this.matrix.length === size) return;
-
-		this.matrix = defaultMatrix(size);
-		this.divisor = 1;
-		this.offset = 0;
-		this._renderMatrix();
-		this._sync();
-		this._schedule();
 	}
 }
 
@@ -314,4 +361,13 @@ function cloneMatrix(m) { return m.map(row => row.slice()); }
 function formatNumber(v) {
 	if (Number.isInteger(v)) return String(v);
 	return String(Math.round(v * 1000) / 1000);
+}
+
+function imageDataEqual(a, b) {
+	if (a.width !== b.width || a.height !== b.height) return false;
+	const ad = a.data, bd = b.data;
+	for (let i = 0; i < ad.length; i++) {
+		if (ad[i] !== bd[i]) return false;
+	}
+	return true;
 }

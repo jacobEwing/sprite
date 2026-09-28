@@ -28,16 +28,6 @@
 
 		<span class="sep"></span>
 
-		<button id="btnFilter" class="menu-trigger" title="Convolution filter">
-			Filter…
-		</button>
-		<button id="btnRecolour" class="menu-trigger" title="Sheet-wide colour replace">
-			Recolour…
-		</button>
-		<button id="transformMenuBtn" class="menu-trigger" title="Transform">
-			Transform <span class="chevron">▾</span>
-		</button>
-
 		<span class="toolbar-spacer"></span>
 
 		<button id="btnFit" title="Fit sheet to view">Fit</button>
@@ -102,6 +92,7 @@
 			<div class="sidebar-tabs">
 				<button class="sidebar-tab selected" data-tab="image">Image</button>
 				<button class="sidebar-tab" data-tab="sprite">Sprite</button>
+				<button class="sidebar-tab" data-tab="modifiers">Modifiers</button>
 			</div>
 
 			<div class="tab-panel" data-panel="image">
@@ -160,6 +151,19 @@
 				<section class="pane">
 					<h2>Collision</h2>
 					<div id="collisionInspector"></div>
+				</section>
+			</div>
+
+			<div class="tab-panel hidden" data-panel="modifiers">
+				<section class="pane">
+					<div class="sub-tabs modifier-tabs">
+						<button class="sub-tab selected" data-modifier="filter">Filter</button>
+						<button class="sub-tab" data-modifier="recolour">Recolour</button>
+						<button class="sub-tab" data-modifier="transform">Transform</button>
+					</div>
+					<div class="modifier-panel" data-modifier-panel="filter"    id="modifierFilter"></div>
+					<div class="modifier-panel hidden" data-modifier-panel="recolour"  id="modifierRecolour"></div>
+					<div class="modifier-panel hidden" data-modifier-panel="transform" id="modifierTransform"></div>
 				</section>
 			</div>
 		</aside>

@@ -1328,19 +1328,28 @@ body {
 	line-height: 1.5;
 }
 
-/* --- filter panel --- */
-#filterPanel {
-	position: fixed;
-	z-index: 950;
-	width: 260px;
-	background: var(--panel);
-	border: 1px solid var(--rule);
-	border-radius: 6px;
-	box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-	display: flex;
-	flex-direction: column;
-	user-select: none;
+/* --- modifier panels (Modifiers tab) --- */
+.modifier-tabs {
+	margin-bottom: 12px;
 }
+.modifier-panel {
+	display: block;
+}
+.modifier-panel.hidden { display: none; }
+
+/* The Filter pane uses a footer with Reset / Apply. No header row —
+   the sub-tab is the header. */
+.modifier-panel .fp-footer {
+	padding: 10px 0 0;
+	border-top: 1px solid var(--rule);
+	margin-top: 12px;
+}
+.modifier-panel .fp-body {
+	padding: 0;
+}
+
+/* --- filter panel --- */
+
 .fp-header {
 	display: flex;
 	justify-content: space-between;
@@ -1797,5 +1806,118 @@ body {
 	border-top: 1px solid var(--rule);
 }
 .rc-scope-hint {
+	margin-top: 10px;
+}
+/* --- transform panel --- */
+.tsp-section-label {
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--muted);
+	margin: 12px 0 6px;
+	padding-top: 10px;
+	border-top: 1px solid var(--rule);
+}
+.tsp-section-label:first-child {
+	margin-top: 0;
+	padding-top: 0;
+	border-top: none;
+}
+.tsp-subsection {
+	margin-bottom: 10px;
+}
+.tsp-subsection > .fp-label {
+	display: block;
+	margin-bottom: 4px;
+}
+.tsp-pivot-inputs {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 6px;
+	margin-bottom: 6px;
+}
+.tsp-pivot-inputs input {
+	width: 100%;
+	min-width: 0;
+	background: var(--panel-2);
+	border: 1px solid var(--rule);
+	border-radius: 3px;
+	padding: 3px 6px;
+	color: var(--ink);
+	font: 11px "SF Mono", Menlo, Consolas, monospace;
+}
+.tsp-pivot-inputs input:focus {
+	outline: none;
+	border-color: var(--accent-2);
+}
+.tsp-pivot-presets {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 6px;
+}
+.tsp-preset-btn {
+	background: var(--panel-2);
+	color: var(--ink);
+	border: 1px solid var(--rule);
+	border-radius: 3px;
+	padding: 4px 6px;
+	cursor: pointer;
+	font: inherit;
+	font-size: 11px;
+}
+.tsp-preset-btn:hover {
+	background: #383840;
+	border-color: var(--accent-2);
+}
+.tsp-apply-rotation {
+	width: 100%;
+	background: var(--accent-2);
+	color: #fff;
+	border: 1px solid var(--accent-2);
+	border-radius: 4px;
+	padding: 6px;
+	cursor: pointer;
+	font: inherit;
+	font-size: 12px;
+	margin-bottom: 4px;
+}
+.tsp-apply-rotation:hover {
+	background: #5a90d0;
+	border-color: #5a90d0;
+}
+.tsp-action-row {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 6px;
+}
+.tsp-btn {
+	background: var(--panel-2);
+	color: var(--ink);
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	padding: 8px 6px;
+	cursor: pointer;
+	font: inherit;
+	font-size: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 32px;
+}
+.tsp-btn:hover {
+	background: #383840;
+	border-color: var(--accent-2);
+}
+.tsp-translate-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	grid-template-rows: auto auto;
+	gap: 4px;
+}
+.tsp-dir[data-action="move-up"]    { grid-column: 2; grid-row: 1; }
+.tsp-dir[data-action="move-left"]  { grid-column: 1; grid-row: 2; }
+.tsp-dir[data-action="move-down"]  { grid-column: 2; grid-row: 2; }
+.tsp-dir[data-action="move-right"] { grid-column: 3; grid-row: 2; }
+.tsp-hint {
 	margin-top: 10px;
 }

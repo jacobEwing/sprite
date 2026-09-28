@@ -3,10 +3,10 @@ import { PaintCommand } from '../history/PaintCommand.js';
 import { CompositeCommand } from '../model/sheetCommands.js';
 import { hexToRGBA, normalizeHex } from '../paint/pixelUtils.js';
 import { rgbToHsv, hsvToRgb } from '../paint/colorConvert.js';
-import { announcePanelOpen, announcePanelClosed } from '../lib/panelCoordination.js';
 
-// Floating panel for colour replace. Matches pixels by RGB distance from
-// a source colour, then shifts the matched pixels in HSV space.
+// Sidebar panel for colour replace, rendered inside the Modifiers tab.
+// Matches pixels by RGB distance from a source colour, then shifts the
+// matched pixels in HSV space.
 //
 // Scope:
 //   • Frames — the current frame-list selection, or every frame when
@@ -14,9 +14,9 @@ import { announcePanelOpen, announcePanelClosed } from '../lib/panelCoordination
 //   • Pixels — within each frame, the whole frame rect unless a pixel
 //     selection exists, in which case only the intersection is touched.
 //
-// Live preview overlays the affected regions. Apply writes one
-// PaintCommand per affected frame, wrapped in a CompositeCommand so the
-// whole operation is a single undo step.
+// Preview semantics match FilterPanel: the preview shows what Apply would
+// do right now, and is suppressed after an Apply until a control changes
+// or the target changes. Preview lives on the viewport overlay stack.
 
 const MAX_RGB_DIST = Math.sqrt(3) * 255;
 
@@ -27,6 +27,9 @@ export class RecolourPanel {
 		this.viewport = viewport;
 		this.palette = palette;
 
+		this.active = false;
+		this._overlayToken = null;
+
 		this.sourceHex = '#000000';
 		this.tolerance = 10;
 		this.hueShift = 0;
@@ -34,60 +37,64 @@ export class RecolourPanel {
 		this.valShift = 0;
 		this.applyToAll = false;
 
-		this.previewParts = [];   // [{ region, offscreen }]
+		this._previewStale = false;
+
+		this.previewParts = [];
 		this._pending = null;
 
 		this.colorPicker = new ColorPicker();
-		this.colorPicker.onLiveChange((hex) => this._setSource(hex, false));
-		this.colorPicker.onCommit((hex)     => this._setSource(hex, true));
+		this.colorPicker.onLiveChange((hex) => this._setSource(hex));
+		this.colorPicker.onCommit((hex)     => this._setSource(hex));
 
 		this._build();
 		this._bind();
-		this.hide();
+		this._sync();
 
-		doc.on('selectionChanged',  () => { if (this.visible) this._schedule(); });
-		doc.on('selectionModified', () => { if (this.visible) this._schedule(); });
-		doc.on('sheetChanged',      () => { if (this.visible) this._schedule(); });
-		doc.on('edit',              () => { if (this.visible) this._schedule(); });
+		doc.on('selectionChanged',  () => this._onTargetChange());
+		doc.on('selectionModified', () => this._onTargetChange());
+		doc.on('sheetChanged',      () => this._onTargetChange());
+		doc.on('edit',              () => { if (this.active) this._schedule(); });
 
-		// Palette changes — from ctrl-to-sample, the Pick tool, or the
-		// palette UI itself — update the source while the panel is open.
-		// The panel's own colour picker never touches the palette, so
-		// there's no feedback loop.
 		this.palette.on('change', () => this._onPaletteChange());
 	}
 
-	get visible() { return this.root.style.display !== 'none'; }
+	// --- lifecycle --------------------------------------------------------
 
-	show(anchor) {
-		announcePanelOpen(this);
-		this.sourceHex = this.palette.primary.hex;
+	activate() {
+		this.active = true;
+		this._overlayToken = this.viewport.addOverlay((ctx) => this._drawPreview(ctx));
+		if (!this._previewStale) {
+			this.sourceHex = normalizeHex(this.palette.primary.hex) ?? this.sourceHex;
+		}
 		this._sync();
-		this.root.style.display = 'block';
-		this._positionBelow(anchor);
 		this._schedule();
 	}
 
-	hide() {
+	deactivate() {
+		this.active = false;
 		if (this._pending) {
 			cancelAnimationFrame(this._pending);
 			this._pending = null;
 		}
-		this.root.style.display = 'none';
-		this.viewport.setPreview(null);
+		if (this._overlayToken) {
+			this.viewport.removeOverlay(this._overlayToken);
+			this._overlayToken = null;
+		}
 		this.previewParts = [];
 		this.colorPicker.hide();
-		announcePanelClosed(this);
+	}
+
+	_onTargetChange() {
+		if (!this.active) return;
+		this._previewStale = false;
+		this._syncHint();
+		this._schedule();
 	}
 
 	// --- construction -----------------------------------------------------
 
 	_build() {
 		this.root.innerHTML = `
-			<div class="fp-header">
-				<span class="fp-title">Recolour</span>
-				<button class="fp-close" title="Close">✕</button>
-			</div>
 			<div class="fp-body">
 				<div class="fp-row">
 					<span class="fp-label">Source</span>
@@ -126,7 +133,7 @@ export class RecolourPanel {
 				<p class="fp-hint rc-scope-hint"></p>
 			</div>
 			<div class="fp-footer">
-				<button class="fp-cancel">Cancel</button>
+				<button class="fp-reset">Reset</button>
 				<button class="fp-apply primary">Apply</button>
 			</div>
 		`;
@@ -150,9 +157,7 @@ export class RecolourPanel {
 			this.colorPicker.show(this.sourceHex, 255, this.swatch);
 		});
 
-		this.hexInput.addEventListener('change', () => {
-			this._setSource(this.hexInput.value, true);
-		});
+		this.hexInput.addEventListener('change', () => this._setSource(this.hexInput.value));
 		this.hexInput.addEventListener('keydown', (e) => {
 			if (e.key === 'Enter') { e.preventDefault(); this.hexInput.blur(); }
 			else if (e.key === 'Escape') {
@@ -165,7 +170,7 @@ export class RecolourPanel {
 			el.addEventListener('input', () => {
 				this[key] = parseFloat(el.value) || 0;
 				this._sync();
-				this._schedule();
+				this._onControlChange();
 			});
 		};
 		slider(this.tolSlider, 'tolerance');
@@ -175,31 +180,39 @@ export class RecolourPanel {
 
 		this.allCheckbox.addEventListener('change', () => {
 			this.applyToAll = this.allCheckbox.checked;
-			this._schedule();
+			this._onControlChange();
 		});
 
-		this.root.querySelector('.fp-close').addEventListener('click', () => this.hide());
-		this.root.querySelector('.fp-cancel').addEventListener('click', () => this.hide());
+		this.root.querySelector('.fp-reset').addEventListener('click', () => this._resetControls());
 		this.root.querySelector('.fp-apply').addEventListener('click', () => this._apply());
-
-		document.addEventListener('keydown', (e) => {
-			if (e.key === 'Escape' && this.visible) this.hide();
-		});
 	}
 
-	_setSource(hex, commit) {
+	_onControlChange() {
+		this._previewStale = false;
+		this._schedule();
+	}
+
+	_resetControls() {
+		this.tolerance = 10;
+		this.hueShift = 0;
+		this.satShift = 0;
+		this.valShift = 0;
+		this.applyToAll = false;
+		this.sourceHex = normalizeHex(this.palette.primary.hex) ?? this.sourceHex;
+		this._sync();
+		this._onControlChange();
+	}
+
+	_setSource(hex) {
 		const norm = normalizeHex(hex);
 		if (!norm) { this._sync(); return; }
 		this.sourceHex = norm;
 		this._sync();
-		this._schedule();
+		this._onControlChange();
 	}
 
-	// Palette events fire for many reasons; only act when the primary hex
-	// actually changed and the panel is open. Alpha-only changes are
-	// ignored — the source is an RGB colour, not a colour-with-alpha.
 	_onPaletteChange() {
-		if (!this.visible) return;
+		if (!this.active || this._previewStale) return;
 		const norm = normalizeHex(this.palette.primary.hex);
 		if (!norm || norm === this.sourceHex) return;
 		this.sourceHex = norm;
@@ -223,23 +236,8 @@ export class RecolourPanel {
 		this.allCheckbox.checked = this.applyToAll;
 	}
 
-	_positionBelow(anchor) {
-		const r = anchor.getBoundingClientRect();
-		const w = this.root.offsetWidth;
-		const h = this.root.offsetHeight;
-		let x = r.right - w;
-		let y = r.bottom + 6;
-		if (x < 8) x = 8;
-		if (x + w > window.innerWidth - 8) x = window.innerWidth - w - 8;
-		if (y + h > window.innerHeight - 8) y = r.top - h - 6;
-		if (y < 8) y = 8;
-		this.root.style.left = x + 'px';
-		this.root.style.top  = y + 'px';
-	}
-
 	// --- region selection -------------------------------------------------
 
-	// Frames this operation will touch.
 	_framesToProcess() {
 		const sheet = this.doc.sheet;
 		if (!sheet) return [];
@@ -247,13 +245,8 @@ export class RecolourPanel {
 		return this.doc.selectedFrameList;
 	}
 
-	// Within one frame, the rect to touch: the pixel selection intersected
-	// with the frame's bounds, or the frame's whole rect if there's no
-	// pixel selection. Returns null when the intersection is empty.
 	_frameRegion(frame) {
-		const frameRect = {
-			x: frame.x, y: frame.y, w: frame.width, h: frame.height,
-		};
+		const frameRect = { x: frame.x, y: frame.y, w: frame.width, h: frame.height };
 		const sel = this.doc.selection.rect;
 		if (!sel) return frameRect;
 
@@ -270,7 +263,7 @@ export class RecolourPanel {
 	_transformPixel(r, g, b, a) {
 		if (a === 0) return [r, g, b, a];
 
-		const [sr, sg, sb] = this._sourceRGB();
+		const [sr, sg, sb] = hexToRGBA(this.sourceHex) ?? [0, 0, 0, 255];
 		const dr = r - sr;
 		const dg = g - sg;
 		const db = b - sb;
@@ -283,10 +276,6 @@ export class RecolourPanel {
 		v = Math.max(0, Math.min(1, v * (1 + this.valShift / 100)));
 		const [nr, ng, nb] = hsvToRgb(h, s, v);
 		return [nr, ng, nb, a];
-	}
-
-	_sourceRGB() {
-		return hexToRGBA(this.sourceHex) ?? [0, 0, 0, 255];
 	}
 
 	_process(src) {
@@ -316,14 +305,19 @@ export class RecolourPanel {
 	}
 
 	_recompute() {
-		// A queued rAF can outlive the panel when a history push fires
-		// during _apply. If the panel is closed by then, bail.
-		if (!this.visible) return;
+		if (!this.active) return;
+
+		if (this._previewStale) {
+			this.previewParts = [];
+			this.viewport.invalidate();
+			this._syncHint();
+			return;
+		}
 
 		const sheet = this.doc.sheet;
 		if (!sheet || !sheet.image) {
-			this.viewport.setPreview(null);
 			this.previewParts = [];
+			this.viewport.invalidate();
 			return;
 		}
 
@@ -349,44 +343,46 @@ export class RecolourPanel {
 		}
 
 		this.previewParts = parts;
-
-		if (parts.length === 0) {
-			this.viewport.setPreview(null);
-		} else {
-			this.viewport.setPreview((vctx) => {
-				for (const part of this.previewParts) {
-					this.viewport.redrawBackgroundInRegion(vctx, part.region);
-					vctx.drawImage(
-						part.offscreen,
-						part.region.x, part.region.y,
-						part.region.w, part.region.h
-					);
-				}
-			});
-		}
-
-		this._updateScopeHint(parts.length);
+		this.viewport.invalidate();
+		this._syncHint();
 	}
 
-	_updateScopeHint(frameCount) {
+	_drawPreview(ctx) {
+		for (const part of this.previewParts) {
+			this.viewport.redrawBackgroundInRegion(ctx, part.region);
+			ctx.drawImage(
+				part.offscreen,
+				part.region.x, part.region.y,
+				part.region.w, part.region.h
+			);
+		}
+	}
+
+	_syncHint() {
+		if (this._previewStale) {
+			this.scopeHint.textContent = 'Applied. Adjust any control to preview again.';
+			return;
+		}
 		const hasSel = !!this.doc.selection.rect;
 		const total = this.doc.sheet ? this.doc.sheet.frameNames.length : 0;
 
 		let scope;
-		if (this.applyToAll) {
-			scope = `all ${total} frame${total === 1 ? '' : 's'}`;
-		} else {
-			scope = `${frameCount} selected frame${frameCount === 1 ? '' : 's'}`;
-		}
-		if (hasSel) {
-			scope += ', limited to the pixel selection';
-		}
+		if (this.applyToAll) scope = `all ${total} frame${total === 1 ? '' : 's'}`;
+		else                 scope = `${this.previewParts.length} selected frame${this.previewParts.length === 1 ? '' : 's'}`;
+		if (hasSel) scope += ', limited to the pixel selection';
+
 		this.scopeHint.textContent = `Applies to ${scope}.`;
 	}
 
 	_apply() {
 		const sheet = this.doc.sheet;
-		if (!sheet || this.previewParts.length === 0) { this.hide(); return; }
+		if (!sheet || this.previewParts.length === 0) {
+			this._previewStale = true;
+			this.previewParts = [];
+			this._syncHint();
+			this.viewport.invalidate();
+			return;
+		}
 
 		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
 		const commands = [];
@@ -398,20 +394,21 @@ export class RecolourPanel {
 			if (imageDataEqual(before, after)) continue;
 
 			ctx.putImageData(after, region.x, region.y);
-			const cmd = new PaintCommand(
+			commands.push(new PaintCommand(
 				ctx, region.x, region.y, region.w, region.h, before, after
-			);
-			commands.push(cmd);
+			));
 		}
 
-		if (commands.length === 0) { this.hide(); return; }
+		if (commands.length > 0) {
+			const composite = commands.length === 1
+				? commands[0]
+				: new CompositeCommand(commands);
+			this.doc.history.push(composite, 'pixels');
+		}
 
-		const composite = commands.length === 1
-			? commands[0]
-			: new CompositeCommand(commands);
-		this.doc.history.push(composite, 'pixels');
-
-		this.hide();
+		this._previewStale = true;
+		this.previewParts = [];
+		this._syncHint();
 		this.viewport.invalidate();
 	}
 }

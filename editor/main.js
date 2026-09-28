@@ -27,7 +27,6 @@ import { Timeline }        from './view/Timeline.js';
 import { SpritePreview }   from './view/SpritePreview.js';
 import { saveSheetImage, saveSheetData, saveSheetBoth, proposeFilenames } from './io/saveSheet.js';
 import { SaveDialog }                   from './view/SaveDialog.js';
-import { FilterPanel }     from './view/FilterPanel.js';
 import { ErrorDialog }     from './view/ErrorDialog.js';
 import { applyToolIcons }  from './view/toolIcons.js';
 import { SheetDialog }     from './view/SheetDialog.js';
@@ -47,8 +46,10 @@ import { NewImageDialog } from './view/NewImageDialog.js';
 import { AirbrushTool }    from './tools/AirbrushTool.js';
 import { ReshapeDialog } from './view/ReshapeDialog.js';
 import { ToolSettingsPanel } from './view/ToolSettingsPanel.js';
-import { RotatePanel } from './view/RotatePanel.js';
 import { RecolourPanel } from './view/RecolourPanel.js';
+import { FilterPanel } from './view/FilterPanel.js';
+import { TransformPanel } from './view/TransformPanel.js';
+
 
 // --- wiring ---------------------------------------------------------------
 const viewOptions = { grid: false, snap: false };
@@ -337,36 +338,51 @@ $('btnRedo').addEventListener('click', () => {
 
 new PalettePanel(document.getElementById('palettePanel'), palette);
 
-// --- filter --------------------------------------------------------------
+// --- modifiers tab -------------------------------------------------------
 
-// Create the filter panel element. It positions itself relative to its
-// anchor when shown.
-const filterPanelEl = document.createElement('div');
-filterPanelEl.id = 'filterPanel';
-document.body.appendChild(filterPanelEl);
-const filterPanel = new FilterPanel(filterPanelEl, doc, viewport);
+const filterPanel = new FilterPanel(
+	document.getElementById('modifierFilter'), doc, viewport);
 
-document.getElementById('btnFilter').addEventListener('click', (e) => {
-	if (filterPanel.visible) filterPanel.hide();
-	else filterPanel.show(e.currentTarget);
+const recolourPanel = new RecolourPanel(
+	document.getElementById('modifierRecolour'), doc, viewport, palette);
+
+const transformPanel = new TransformPanel(
+	document.getElementById('modifierTransform'), doc, viewport, {
+		onTransform: (label, fn) => _transformOp(label, fn),
+	});
+
+const modifierPanels = {
+	filter:    filterPanel,
+	recolour:  recolourPanel,
+	transform: transformPanel,
+};
+
+let currentModifier = 'filter';
+
+function activateModifier(name) {
+	if (!modifierPanels[name]) return;
+	currentModifier = name;
+	for (const [key, panel] of Object.entries(modifierPanels)) {
+		if (key === name) panel.activate();
+		else              panel.deactivate();
+	}
+	document.querySelectorAll('.modifier-tabs .sub-tab').forEach(btn => {
+		btn.classList.toggle('selected', btn.dataset.modifier === name);
+	});
+	document.querySelectorAll('[data-modifier-panel]').forEach(p => {
+		p.classList.toggle('hidden', p.dataset.modifierPanel !== name);
+	});
+}
+
+document.querySelectorAll('.modifier-tabs .sub-tab').forEach(btn => {
+	btn.addEventListener('click', () => activateModifier(btn.dataset.modifier));
 });
 
-// --- recolouring --------------------------------------------------------------
-const recolourPanelEl = document.createElement('div');
-recolourPanelEl.id = 'recolourPanel';
-document.body.appendChild(recolourPanelEl);
-const recolourPanel = new RecolourPanel(recolourPanelEl, doc, viewport, palette);
-
-document.getElementById('btnRecolour').addEventListener('click', (e) => {
-	if (recolourPanel.visible) recolourPanel.hide();
-	else recolourPanel.show(e.currentTarget);
+// Initialize the modifier tabs in the hidden state; the sidebar-tab
+// handler activates the current one when the Modifiers tab is shown.
+document.querySelectorAll('[data-modifier-panel]').forEach(p => {
+	p.classList.toggle('hidden', p.dataset.modifierPanel !== currentModifier);
 });
-
-// --- arbitrary rotation --------------------------------------------------------------
-const rotatePanelEl = document.createElement('div');
-rotatePanelEl.id = 'rotatePanel';
-document.body.appendChild(rotatePanelEl);
-const rotatePanel = new RotatePanel(rotatePanelEl, doc, viewport);
 
 // --- list actions --------------------------------------------------------
 
@@ -1005,7 +1021,7 @@ window.addEventListener('blur', () => {
 
 // --- sidebar tabs --------------------------------------------------------
 
-function setupTabs(sidebarEl) {
+function setupTabs(sidebarEl, onSwitch) {
 	const tabs   = sidebarEl.querySelectorAll('.sidebar-tab');
 	const panels = sidebarEl.querySelectorAll('.tab-panel');
 
@@ -1014,13 +1030,19 @@ function setupTabs(sidebarEl) {
 			const name = tab.dataset.tab;
 			tabs.forEach((t) => t.classList.toggle('selected', t === tab));
 			panels.forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== name));
+			if (onSwitch) onSwitch(name);
 		});
 	});
 }
 
 setupTabs(document.getElementById('leftSidebar'));
-setupTabs(document.getElementById('rightSidebar'));
-
+setupTabs(document.getElementById('rightSidebar'), (name) => {
+	if (name === 'modifiers') {
+		activateModifier(currentModifier);
+	} else {
+		for (const panel of Object.values(modifierPanels)) panel.deactivate();
+	}
+});
 // --- sub-tabs (Brush | Tool) ---------------------------------------------
 
 (function setupBrushSubTabs() {
