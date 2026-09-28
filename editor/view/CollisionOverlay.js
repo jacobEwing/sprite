@@ -1,5 +1,4 @@
 import { makeEmitter } from '../lib/emitter.js';
-import { resolvedCollision } from '../model/collisionUtils.js';
 
 // Draws the collision circles over the selected frame.
 //
@@ -49,18 +48,15 @@ export class CollisionOverlay {
 		this.viewport.invalidate();
 	}
 
-	// Circles in image coordinates for the current frame. Reads the
-	// resolved shape, so an inherited frame shows the sheet's circles.
+	// Circles in image coordinates for the selected frame. Empty when the
+	// frame has no collision.
 	currentCircles() {
 		const frame = this.doc.getSelectedFrame();
-		if (!frame) return [];
-
-		const shape = resolvedCollision(frame, this.doc.sheet.collision);
-		if (!shape || !shape.circles) return [];
+		if (!frame || !frame.collision || !frame.collision.circles) return [];
 
 		const ox = frame.x + frame.centerx;
 		const oy = frame.y + frame.centery;
-		return shape.circles.map((c, i) => ({
+		return frame.collision.circles.map((c, i) => ({
 			index: i,
 			x: ox + c.offsetX,
 			y: oy + c.offsetY,
@@ -75,30 +71,26 @@ export class CollisionOverlay {
 		if (!sheet || !sheet.frames) return;
 
 		const hairline = 1 / this.viewport.zoom;
-		const sheetCollision = sheet.collision;
 		const selected = this.doc.selectedFrame;
 
-		// Draw every frame's resolved shape. The selected frame's circles
-		// are the ones the tool can edit, so they render at full strength;
-		// the rest are dimmed to keep the selected frame legible.
+		// Every frame owns its own shape now, so we read each frame's
+		// collision directly.
 		for (const name of sheet.frameNames) {
 			const frame = sheet.frames[name];
-			const shape = resolvedCollision(frame, sheetCollision);
-			if (!shape || !shape.circles || shape.circles.length === 0) continue;
+			if (!frame.collision || !frame.collision.circles) continue;
+			if (frame.collision.circles.length === 0) continue;
 
 			const isSelected = name === selected;
 			const ox = frame.x + frame.centerx;
 			const oy = frame.y + frame.centery;
 
-			shape.circles.forEach((c, i) => {
+			frame.collision.circles.forEach((c, i) => {
 				let x = ox + c.offsetX;
 				let y = oy + c.offsetY;
 				let r = c.radius;
 
-				const dragging =
-					isSelected &&
-					this.dragOverride &&
-					this.dragOverride.index === i;
+				const dragging = isSelected && this.dragOverride &&
+				                 this.dragOverride.index === i;
 
 				if (dragging) {
 					x = this.dragOverride.x;

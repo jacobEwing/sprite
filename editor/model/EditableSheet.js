@@ -3,7 +3,7 @@ import { PaintCommand } from '../history/PaintCommand.js';
 import {
 	AddFrameCommand, RemoveFrameCommand, RenameFrameCommand, SetFrameCommand,
 	AddSequenceCommand, RemoveSequenceCommand, RenameSequenceCommand, SetSequenceCommand,
-	ResizeCanvasCommand, SetSheetSettingsCommand, SetCollisionCommand,
+	ResizeCanvasCommand, SetSheetSettingsCommand,
 	CompositeCommand, ReshapeCommand,
 	ReorderFramesCommand, ReorderSequencesCommand,
 } from './sheetCommands.js';
@@ -323,53 +323,6 @@ export class EditableSheet {
 		});
 	}
 
-	// --- collision --------------------------------------------------------
-
-	// Replace the whole collision shape. Passing null clears it.
-	setCollision(newCollision) {
-		const before = this.sheet.collision;
-		const after  = newCollision;
-		if (deepEqual(before, after)) return;
-		this.history.execute(new SetCollisionCommand(this.sheet, before, after), 'data');
-		this.emit('changed', { type: 'collisionUpdated' });
-	}
-
-	addCollisionCircle(circle) {
-		const current = this.sheet.collision || { circles: [] };
-		const next = {
-			circles: [
-				...current.circles.map(c => ({ ...c })),
-				{
-					offsetX: Number(circle.offsetX) || 0,
-					offsetY: Number(circle.offsetY) || 0,
-					radius:  Math.max(1, Number(circle.radius) || 1),
-				},
-			],
-		};
-		this.setCollision(next);
-	}
-
-	removeCollisionCircle(index) {
-		if (!this.sheet.collision || !this.sheet.collision.circles[index]) return;
-		const next = this.sheet.collision.circles
-			.filter((_, i) => i !== index)
-			.map(c => ({ ...c }));
-		this.setCollision(next.length ? { circles: next } : null);
-	}
-
-	updateCollisionCircle(index, patch) {
-		if (!this.sheet.collision || !this.sheet.collision.circles[index]) return;
-		const next = this.sheet.collision.circles.map((c, i) => {
-			if (i !== index) return { ...c };
-			return {
-				offsetX: patch.offsetX !== undefined ? Number(patch.offsetX) : c.offsetX,
-				offsetY: patch.offsetY !== undefined ? Number(patch.offsetY) : c.offsetY,
-				radius:  patch.radius  !== undefined ? Math.max(1, Number(patch.radius)) : c.radius,
-			};
-		});
-		this.setCollision({ circles: next });
-	}
-
 	// --- frame content ----------------------------------------------------
 
 	// Clear a specific region to transparent. `rect` is in image coords.
@@ -513,6 +466,55 @@ export class EditableSheet {
 
 		this.history.execute(new SetFrameCommand(this.sheet, frameName, before, after), 'data');
 		this.emit('changed', { type: 'frameUpdated', name: frameName });
+	}
+
+	// Copy the source frame's collision shape onto every other frame in the
+	// sheet. One undo step. Returns the number of frames changed.
+	copyFrameCollisionToAll(sourceName) {
+		const source = this.sheet.frames[sourceName];
+		if (!source) return 0;
+
+		const shape = source.collision && source.collision.circles &&
+		              source.collision.circles.length > 0
+			? { circles: source.collision.circles.map(c => ({ ...c })) }
+			: null;
+
+		const commands = [];
+		const affected = [];
+
+		for (const name of this.sheet.frameNames) {
+			if (name === sourceName) continue;
+			const frame = this.sheet.frames[name];
+			if (!frame) continue;
+
+			const before = { ...frame };
+			const after  = { ...frame };
+
+			if (shape) {
+				after.collision = JSON.parse(JSON.stringify(shape));
+			} else {
+				delete after.collision;
+			}
+
+			if (deepEqual(before, after)) continue;
+
+			const cmd = new SetFrameCommand(this.sheet, name, before, after);
+			cmd.apply();
+			commands.push(cmd);
+			affected.push(name);
+		}
+
+		if (commands.length === 0) return 0;
+
+		const composite = commands.length === 1
+			? commands[0]
+			: new CompositeCommand(commands);
+		this.history.push(composite, 'data');
+
+		for (const name of affected) {
+			this.emit('changed', { type: 'frameUpdated', name });
+		}
+		return affected.length;
 	}
 
 	// --- reshape ----------------------------------------------------------

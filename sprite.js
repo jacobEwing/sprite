@@ -134,11 +134,10 @@ function applyFrameParams(frame, params, tileW, tileH) {
 
 			case 'centerx': case 'cx': frame.centerx = Number(value); break;
 			case 'centery': case 'cy': frame.centery = Number(value); break;
-
 			case 'collision':
-				frame.collision = value === null
-					? { circles: [] }
-					: clone(value);
+				// Route through parseCollision so the single-circle
+				// shorthand is normalised to the internal { circles } form.
+				frame.collision = parseCollision(value);
 				break;
 		}
 	}
@@ -176,6 +175,33 @@ function parseCollision(value) {
 	return null;
 }
 
+/**
+ * Serialise a collision shape for JSON output. Single circles collapse to
+ * the shorthand form so hand-authored sheets stay readable; multi-circle
+ * shapes keep the explicit `{ circles: [...] }` structure. Empty or null
+ * shapes produce null, meaning "no collision" and omitted from the output.
+ */
+function formatCollisionForJSON(shape) {
+	if (!shape || !shape.circles || shape.circles.length === 0) return null;
+
+	if (shape.circles.length === 1) {
+		const c = shape.circles[0];
+		return {
+			radius:  c.radius,
+			offsetX: c.offsetX,
+			offsetY: c.offsetY,
+		};
+	}
+
+	return {
+		circles: shape.circles.map(c => ({
+			offsetX: c.offsetX,
+			offsetY: c.offsetY,
+			radius:  c.radius,
+		})),
+	};
+}
+
 /* -------------------------------------------------------------------------- */
 /* SpriteSheet                                                                */
 /* -------------------------------------------------------------------------- */
@@ -209,8 +235,6 @@ class SpriteSheet {
 		this.frames = Object.create(null);
 		/** @type {Record<string, Sequence>} */
 		this.sequences = Object.create(null);
-		/** @type {CollisionShape|null} */
-		this.collision = null;
 
 		this.ready = false;
 	}
@@ -286,8 +310,22 @@ class SpriteSheet {
 		const sequences = pick('sequences');
 		if (sequences !== undefined) this.loadSequences(sequences);
 
-		const collision = pick('collision');
-		if (collision !== undefined) this.collision = parseCollision(collision);
+		// Legacy sheets carry a single sheet-wide collision shape. Fold it
+		// into each frame that doesn't have its own, then forget it.
+		// Loading and re-saving a sheet in the editor makes the migration
+		// permanent.
+		const legacyCollision = pick('collision');
+		if (legacyCollision !== undefined) {
+			const parsed = parseCollision(legacyCollision);
+			if (parsed) {
+				for (const name of this.frameNames) {
+					const f = this.frames[name];
+					if (!Object.prototype.hasOwnProperty.call(f, 'collision')) {
+						f.collision = clone(parsed);
+					}
+				}
+			}
+		}
 
 		return this;
 	}
@@ -444,11 +482,8 @@ class SpriteSheet {
 				width: f.width, height: f.height,
 				centerx: f.centerx, centery: f.centery,
 			};
-
-			if (Object.prototype.hasOwnProperty.call(f, 'collision') && f.collision) {
-				out.collision = clone(f.collision);
-			}
-
+			const collision = formatCollisionForJSON(f.collision);
+			if (collision) out.collision = collision;
 			frames[name] = out;
 		}
 
@@ -461,7 +496,7 @@ class SpriteSheet {
 			sequences[name] = out;
 		}
 
-		const out = {
+		return {
 			image: this.imageSrc,
 			frameWidth: this.frameWidth,
 			frameHeight: this.frameHeight,
@@ -471,8 +506,6 @@ class SpriteSheet {
 			frames,
 			sequences,
 		};
-		if (this.collision) out.collision = clone(this.collision);
-		return out;
 	}
 }
 
@@ -530,15 +563,10 @@ class Sprite {
 	// mutations (frame data replaced, image swapped, sequence reordered) take
 	// effect immediately, without the sprite needing to invalidate anything.
 
-	// Resolved collision: the frame's own override if it has one, else the
-	// sheet's default. Returns null when neither applies, matching the
-	// pre-frame-override behaviour.
+	// The current frame's collision shape, or null if it has none. Every
+	// frame owns its own collision; there is no sheet-wide fallback.
 	get collision() {
-		const f = this.frame;
-		if (f && Object.prototype.hasOwnProperty.call(f, 'collision')) {
-			return f.collision;
-		}
-		return this.sheet?.collision ?? null;
+		return this.frame?.collision ?? null;
 	}
 	get image() { return this.sheet?.image ?? null; }
 	get frame() {

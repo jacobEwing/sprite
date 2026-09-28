@@ -221,18 +221,6 @@ export class SetSheetSettingsCommand {
 	}
 }
 
-// --- collision ------------------------------------------------------------
-
-export class SetCollisionCommand {
-	constructor(sheet, before, after) {
-		this.sheet = sheet;
-		this.before = clone(before);
-		this.after  = clone(after);
-	}
-	apply()  { this.sheet.collision = clone(this.after); }
-	revert() { this.sheet.collision = clone(this.before); }
-}
-
 // Bundle several commands as one atomic action. apply() runs forwards,
 // revert() runs backwards, so dependencies unwind correctly.
 export class CompositeCommand {

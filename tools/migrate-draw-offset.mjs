@@ -43,8 +43,17 @@ let unchanged = 0;
 
 for (const name of Object.keys(data.frames)) {
 	const frame = data.frames[name];
-	const off = frame.drawOffset;
-	if (!off || (off.x === 0 && off.y === 0)) { unchanged++; continue; }
+
+	// The JSON may use either the modern camelCase key or the older
+	// all-lowercase one. Look up case-insensitively.
+	const offKey = Object.keys(frame).find(k => k.toLowerCase() === 'drawoffset');
+	if (!offKey) { unchanged++; continue; }
+
+	const off = frame[offKey];
+	if (!off || ((Number(off.x) || 0) === 0 && (Number(off.y) || 0) === 0)) {
+		unchanged++;
+		continue;
+	}
 
 	const dx = Number(off.x) || 0;
 	const dy = Number(off.y) || 0;
@@ -55,9 +64,9 @@ for (const name of Object.keys(data.frames)) {
 
 	frame.centerx = cx - dx;
 	frame.centery = cy - dy;
-	delete frame.drawOffset;
+	delete frame[offKey];
 
-	console.log(`  ${name}: drawOffset ${dx},${dy} → center ${frame.centerx},${frame.centery}`);
+	console.log(`  ${name}: drawoffset ${dx},${dy} → center ${frame.centerx},${frame.centery}`);
 	migrated++;
 }
 

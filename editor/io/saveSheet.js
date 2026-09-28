@@ -1,5 +1,3 @@
-import { serialiseCollision } from '../model/collisionUtils.js';
-
 // Serialise an edited sheet. Three independent entry points, since the
 // JSON and the image can be saved separately and marked clean
 // independently.
@@ -73,15 +71,6 @@ export function proposeFilenames(sheet) {
 // source of round-trip bugs.
 function serialiseSheet(sheet, imageFilename) {
 	const data = sheet.toJSON();
-
-	// Collapse single-circle collision back to the shorthand form the
-	// runtime and hand-authored sheets use. Empty shapes are dropped
-	// entirely rather than written as an empty object.
-	if (data.collision) {
-		const shorthand = serialiseCollision(data.collision);
-		if (shorthand) data.collision = shorthand;
-		else delete data.collision;
-	}
 
 	data.image = imageFilename;
 	return JSON.stringify(data, null, '\t') + '\n';
