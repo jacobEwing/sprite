@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sprite Editor — User Guide</title>
+<style>
+	:root {
+		--bg:        #f7f6f2;
+		--panel:     #ffffff;
+		--ink:       #1e1c19;
+		--muted:     #6a6459;
+		--rule:      #ddd8cd;
+		--accent:    #8a3a1e;
+		--accent-2:  #2a5a3a;
+		--code-bg:   #2b2a28;
+		--code-ink:  #ece7da;
+		--code-key:  #e6b06a;
+		--code-str:  #9ed18c;
+		--code-cmt:  #8a857a;
+		--code-num:  #f0a880;
+	}
+	* { box-sizing: border-box; }
+	html { scroll-behavior: smooth; }
+	body {
+		margin: 0;
+		background: var(--bg);
+		color: var(--ink);
+		font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	}
+	.page {
+		display: grid;
+		grid-template-columns: 260px minmax(0, 1fr);
+		max-width: 1180px;
+		margin: 0 auto;
+		padding: 0 24px;
+		gap: 40px;
+	}
+	@media (max-width: 900px) {
+		.page { grid-template-columns: 1fr; gap: 0; }
+		nav.toc { position: static !important; max-height: none !important; }
+	}
+
+	header.title {
+		grid-column: 1 / -1;
+		padding: 48px 0 24px;
+		border-bottom: 1px solid var(--rule);
+	}
+	header.title h1 {
+		margin: 0 0 6px;
+		font-size: 34px;
+		letter-spacing: -0.02em;
+	}
+	header.title p {
+		margin: 0;
+		color: var(--muted);
+		font-size: 17px;
+	}
+
+	nav.toc {
+		position: sticky;
+		top: 24px;
+		align-self: start;
+		max-height: calc(100vh - 48px);
+		overflow-y: auto;
+		padding: 24px 0;
+		font-size: 14px;
+	}
+	nav.toc h2 {
+		font-size: 12px;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--muted);
+		margin: 0 0 10px;
+	}
+	nav.toc ol {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		counter-reset: toc;
+	}
+	nav.toc li { counter-increment: toc; margin: 2px 0; }
+	nav.toc a {
+		color: var(--ink);
+		text-decoration: none;
+		display: block;
+		padding: 3px 8px;
+		border-left: 2px solid transparent;
+		border-radius: 0 4px 4px 0;
+	}
+	nav.toc a::before {
+		content: counter(toc) ". ";
+		color: var(--muted);
+	}
+	nav.toc a:hover {
+		background: var(--panel);
+		border-left-color: var(--accent);
+	}
+
+	main { padding: 24px 0 96px; min-width: 0; }
+	main section {
+		padding: 24px 0;
+		border-top: 1px solid var(--rule);
+	}
+	main section:first-child { border-top: none; padding-top: 8px; }
+	main h2 {
+		font-size: 24px;
+		margin: 0 0 16px;
+		letter-spacing: -0.01em;
+	}
+	main h3 {
+		font-size: 17px;
+		margin: 28px 0 10px;
+	}
+	main h4 {
+		font-size: 15px;
+		margin: 20px 0 6px;
+		color: var(--muted);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+	p { margin: 0 0 12px; }
+	p.note {
+		background: var(--panel);
+		border-left: 3px solid var(--accent-2);
+		padding: 10px 14px;
+		border-radius: 0 4px 4px 0;
+		color: #3a3630;
+	}
+	p.warn {
+		background: var(--panel);
+		border-left: 3px solid var(--accent);
+		padding: 10px 14px;
+		border-radius: 0 4px 4px 0;
+	}
+	code {
+		font-family: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+		font-size: 0.9em;
+		background: #eae6dc;
+		padding: 1px 5px;
+		border-radius: 3px;
+	}
+	pre {
+		background: var(--code-bg);
+		color: var(--code-ink);
+		padding: 16px 18px;
+		border-radius: 6px;
+		overflow-x: auto;
+		margin: 0 0 16px;
+		font-size: 13.5px;
+		line-height: 1.55;
+	}
+	pre code {
+		background: none;
+		padding: 0;
+		color: inherit;
+		font-size: inherit;
+	}
+	table {
+		width: 100%;
+		border-collapse: collapse;
+		margin: 0 0 16px;
+		font-size: 14px;
+		background: var(--panel);
+		border-radius: 6px;
+		overflow: hidden;
+	}
+	th, td {
+		text-align: left;
+		padding: 8px 12px;
+		border-bottom: 1px solid var(--rule);
+		vertical-align: top;
+	}
+	th {
+		background: #efe9dc;
+		font-weight: 600;
+		font-size: 12.5px;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--muted);
+	}
+	tr:last-child td { border-bottom: none; }
+	td code { white-space: nowrap; }
+
+	ul, ol { margin: 0 0 16px; padding-left: 24px; }
+	li { margin: 4px 0; }
+
+	kbd {
+		display: inline-block;
+		background: var(--panel);
+		border: 1px solid var(--rule);
+		border-bottom-width: 2px;
+		border-radius: 4px;
+		padding: 1px 6px;
+		font-family: "SF Mono", Menlo, Consolas, monospace;
+		font-size: 0.85em;
+		color: var(--ink);
+		line-height: 1.4;
+	}
+</style>
+</head>
+<body>
+<div class="page">
+
+	<header class="title">
+		<h1>Sprite Editor</h1>
+		<p>A pixel editor, frame layout tool, and animation workshop for <code>sprite.js</code> sheets.</p>
+	</header>
+
+	<nav class="toc">
+		<h2>Contents</h2>
+		<ol>
+			<li><a href="#getting-started">Getting started</a></li>
+			<li><a href="#layout">The layout</a></li>
+			<li><a href="#loading">Loading and saving</a></li>
+			<li><a href="#frames">Frames</a></li>
+			<li><a href="#sequences">Sequences</a></li>
+			<li><a href="#timeline">Timeline</a></li>
+			<li><a href="#preview">Preview</a></li>
+			<li><a href="#tools">Tools</a></li>
+			<li><a href="#colours">Colours and alpha</a></li>
+			<li><a href="#brushes">Brushes</a></li>
+			<li><a href="#filters">Filters</a></li>
+			<li><a href="#transforms">Transforms</a></li>
+			<li><a href="#collision">Collision</a></li>
+			<li><a href="#sheet-settings">Sheet settings</a></li>
+			<li><a href="#reshape">Reshape</a></li>
+			<li><a href="#view">View options</a></li>
+			<li><a href="#keyboard">Keyboard shortcuts</a></li>
+		</ol>
+	</nav>
+
+	<main>
+
+		<!-- ================================================================ -->
+		<section id="getting-started">
+			<h2>1. Getting started</h2>
+
+			<p>The editor is a static page — no build step, no server-side logic. Serve the <code>sprite/</code> directory over HTTP (or open the editor from any HTTP server rooted above it) and visit <code>editor/</code>.</p>
+
+			<p>The runtime it depends on is the sibling file <code>sprite.js</code> at the repo root, loaded as a plain script. Everything else is ES modules inside <code>editor/</code>.</p>
+
+			<h3>A typical session</h3>
+			<ol>
+				<li>Open the editor.</li>
+				<li><strong>File → Load Sprite…</strong> and pick a sheet's JSON (e.g. <code>hero.json</code>).</li>
+				<li>The editor will ask separately for the sheet's image. Pick it (e.g. <code>hero.png</code>).</li>
+				<li>Click a frame in the left sidebar to select it. The viewport pans and zooms to it.</li>
+				<li>Pick a tool, choose a colour, and paint.</li>
+				<li>When you're done: <strong>File → Save Image</strong> and <strong>File → Save Sprite Data</strong>, or <strong>Save All</strong> to write both at once.</li>
+			</ol>
+
+			<p class="note">The editor tracks two independent "dirty" states — one for the image, one for the sprite data — so you can edit and save either half without touching the other. The dot in the status bar tells you which is pending.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="layout">
+			<h2>2. The layout</h2>
+
+			<p>The interface is a fixed three-column grid with a toolbar on top and a status bar at the bottom.</p>
+
+			<h3>Toolbar</h3>
+			<p>From left to right: the File, Edit, Sheet, View, and Transform menus; Undo and Redo; the Filter button; then Fit, zoom-out, zoom-in, and a percentage readout.</p>
+
+			<h3>Left sidebar</h3>
+			<p>Two tabs — <strong>Frames</strong> and <strong>Sequences</strong> — each with a list and a small action bar. Below them, a live <strong>Preview</strong> of the current sequence.</p>
+
+			<h3>Centre</h3>
+			<p>The atlas viewport fills most of the space. Below it, the <strong>Timeline</strong> shows thumbnails of the selected sequence.</p>
+
+			<h3>Right sidebar</h3>
+			<p>Two tabs — <strong>Image</strong> and <strong>Sprite</strong>. The Image tab holds Colours, Tools, and the Brush / Tool sub-tabs. The Sprite tab holds the Frame, Sequence, and Collision inspectors.</p>
+
+			<h3>Status bar</h3>
+			<p>Left to right: an unsaved-changes dot, the status message, an image notice (when the image is missing or mismatched), and the pixel coordinate under the cursor.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="loading">
+			<h2>3. Loading and saving</h2>
+
+			<h3>File menu</h3>
+			<table>
+				<thead><tr><th>Item</th><th>Shortcut</th><th>Action</th></tr></thead>
+				<tbody>
+					<tr><td>New Sprite</td><td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>N</kbd></td><td>Open a dialog to create a fresh sheet with a blank image and a set of empty frames.</td></tr>
+					<tr><td>New Image</td><td>—</td><td>Replace the current image with a blank canvas of a chosen size, keeping the sheet's frames and settings.</td></tr>
+					<tr><td>Load Sprite…</td><td>—</td><td>Pick a sheet JSON from disk.</td></tr>
+					<tr><td>Load Image…</td><td>—</td><td>Pick an image file from disk. Replaces the current image only.</td></tr>
+					<tr><td>Save Image</td><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Write the current image as a PNG.</td></tr>
+					<tr><td>Save Sprite Data</td><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></td><td>Write the sheet's JSON.</td></tr>
+					<tr><td>Save All</td><td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd></td><td>Write whichever halves are dirty.</td></tr>
+					<tr><td>Save Image As…</td><td>—</td><td>Prompt for a filename, then write the image.</td></tr>
+					<tr><td>Save Sprite Data As…</td><td>—</td><td>Prompt for a filename, then write the JSON.</td></tr>
+				</tbody>
+			</table>
+
+			<p>The sprite and image are independent. Loading a sprite while an image is already loaded keeps the existing image; loading an image replaces the image only. Loading either from a fresh session — with nothing else loaded — bootstraps the other with sensible defaults.</p>
+
+			<h3>Where files go</h3>
+			<p>In browsers that support the File System Access API (Chrome, Edge, Brave), the first save prompts for a directory. Subsequent saves to the same directory happen silently. In other browsers (Firefox, Safari), saving triggers a download as usual. The Save As variants always prompt for filenames.</p>
+
+			<h3>Image notices</h3>
+			<p>If the sprite's declared image filename doesn't match what's loaded, or no image is loaded at all, the status bar shows a small notice with a <strong>Load…</strong> link.</p>
+
+			<h3>Dirty tracking</h3>
+			<p>The status dot lights when the current state differs from the last save. Hover it to see which half is dirty. Undoing back to the saved state clears it — the editor compares the current undo-stack position to the one recorded when you last saved.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="frames">
+			<h2>4. Frames</h2>
+
+			<p>Frames are the unit of both drawing and animation. Each has a rectangle on the atlas, an origin (<code>centerx</code>/<code>centery</code>), and optional per-frame collision.</p>
+
+			<h3>Selecting</h3>
+			<ul>
+				<li><strong>Click</strong> a frame to select it. The viewport pans and zooms to it.</li>
+				<li><strong>Ctrl-click</strong> (or <kbd>Cmd</kbd>-click) to add or remove a frame from the selection.</li>
+				<li><strong>Shift-click</strong> to select a contiguous range from the previous click.</li>
+			</ul>
+
+			<p>Bulk operations act on the whole selection. The primary selection — the last frame clicked — is what the inspectors and drawing tools act on.</p>
+
+			<h3>Action bar</h3>
+			<table>
+				<thead><tr><th>Button</th><th>Action</th></tr></thead>
+				<tbody>
+					<tr><td><strong>+</strong></td><td>Create a new blank frame at the first free slot in the atlas.</td></tr>
+					<tr><td><strong>⧉</strong></td><td>Duplicate the selected frame (or all selected frames, if multi-selected).</td></tr>
+					<tr><td><strong>×</strong></td><td>Delete the selected frames.</td></tr>
+					<tr><td><strong>↑</strong>, <strong>↓</strong></td><td>Move the selected frames up or down one position in the list.</td></tr>
+				</tbody>
+			</table>
+
+			<h3>Renaming</h3>
+			<p>Double-click a frame's name. Enter commits, Escape cancels. Renaming a frame updates every sequence that references it.</p>
+
+			<h3>Right-click menu</h3>
+			<p>New blank frame / Duplicate / Delete.</p>
+
+			<h3>Frame inspector</h3>
+			<p>On the Sprite tab, the Frame pane shows Name and the six numeric fields: <code>x</code>, <code>y</code>, <code>width</code>, <code>height</code>, <code>centerx</code>, <code>centery</code>. Edits apply immediately and are undoable.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="sequences">
+			<h2>5. Sequences</h2>
+
+			<p>A sequence is an ordered list of frame names with a playback rate. Sequences are edited in the Sequence inspector on the Sprite tab.</p>
+
+			<h3>Creating and deleting</h3>
+			<p>The <strong>+</strong> button in the Sequences action bar creates a new sequence named after the currently-selected frame (e.g. <code>seq_idle</code>). Right-click a sequence to delete it.</p>
+
+			<h3>Editing</h3>
+			<table>
+				<thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+				<tbody>
+					<tr><td>Name</td><td>Rename via double-click in the list or by editing this field.</td></tr>
+					<tr><td>frameRate</td><td>Frames per second. Used when <code>frameTimes</code> is blank.</td></tr>
+					<tr><td>iterations</td><td><code>0</code> loops forever. <code>1</code> plays once. <code>n</code> plays n times.</td></tr>
+					<tr><td>frameTimes</td><td>Optional comma-separated per-frame durations in milliseconds. Overrides <code>frameRate</code> when non-blank. The ⟳ button fills it with the uniform frame rate.</td></tr>
+				</tbody>
+			</table>
+
+			<p>Below the numeric fields, the frames list shows the sequence's frames in order. Use the arrow buttons to reorder, <strong>×</strong> to remove, and <strong>+ Add current frame</strong> to append the currently-selected frame.</p>
+
+			<p class="note">Frame times are positional, not attached to specific frames. Reordering the frames list does not reorder the timings — <code>frameTimes[0]</code> always applies to whatever frame is first.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="timeline">
+			<h2>6. Timeline</h2>
+
+			<p>The timeline strip below the viewport shows a thumbnail for every frame in the selected sequence, in order.</p>
+
+			<ul>
+				<li><strong>Click</strong> a tile to select that frame. Clicking an already-selected tile zooms to it.</li>
+				<li><strong>Drag</strong> a tile left or right to reorder the sequence. One drag is one undo step.</li>
+			</ul>
+
+			<p>The index badge on each tile shows its position in the sequence.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="preview">
+			<h2>7. Preview</h2>
+
+			<p>The Preview pane at the bottom of the left sidebar runs the selected sequence through the actual <code>sprite.js</code> runtime, so what you see is what the game will render.</p>
+
+			<table>
+				<thead><tr><th>Control</th><th>Meaning</th></tr></thead>
+				<tbody>
+					<tr><td>⏸ / ▶</td><td>Pause or play. Pausing freezes on the current frame; selecting a different frame while paused updates the display.</td></tr>
+					<tr><td>Loop</td><td>When checked, a finite sequence restarts automatically instead of stopping at its last frame.</td></tr>
+					<tr><td>Status</td><td>Shows the current frame name and its index within the sequence.</td></tr>
+				</tbody>
+			</table>
+
+			<p>Selecting a sequence always starts playing. If a sequence runs to completion (with Loop off), the button flips to ▶ so you can tell it finished rather than paused.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="tools">
+			<h2>8. Tools</h2>
+
+			<p>Tools live on the Image tab's <strong>Tools</strong> grid. The currently-active tool is highlighted. Each has a single-letter shortcut.</p>
+
+			<table>
+				<thead><tr><th>Tool</th><th>Key</th><th>Behaviour</th></tr></thead>
+				<tbody>
+					<tr>
+						<td>Select</td><td><kbd>S</kbd></td>
+						<td>Drag to define a rectangular selection. Click without dragging to clear. Ops that target a frame act on the selection when there is one.</td>
+					</tr>
+					<tr>
+						<td>Pan</td><td><kbd>P</kbd></td>
+						<td>Drag to pan. Middle-drag pans with any tool active.</td>
+					</tr>
+					<tr>
+						<td>Pencil</td><td><kbd>N</kbd></td>
+						<td>Freehand drawing. Left button paints primary, right paints secondary.</td>
+					</tr>
+					<tr>
+						<td>Airbrush</td><td><kbd>A</kbd></td>
+						<td>Accumulative — the longer you dwell, the more opaque the deposit. Has a <strong>Flow</strong> setting.</td>
+					</tr>
+					<tr>
+						<td>Eraser</td><td><kbd>E</kbd></td>
+						<td>Fades pixels to transparent. Has an <strong>Opacity</strong> setting.</td>
+					</tr>
+					<tr>
+						<td>Line</td><td><kbd>L</kbd></td>
+						<td>Drag to draw a line. Preview follows the cursor.</td>
+					</tr>
+					<tr>
+						<td>Box</td><td><kbd>B</kbd></td>
+						<td>Drag to draw a rectangle. Uses the <strong>Fill</strong> toggle.</td>
+					</tr>
+					<tr>
+						<td>Oval</td><td><kbd>O</kbd></td>
+						<td>Drag to draw an ellipse fitted to the bounding box. Uses the <strong>Fill</strong> toggle.</td>
+					</tr>
+					<tr>
+						<td>Fill</td><td><kbd>G</kbd></td>
+						<td>Flood-fill the connected region of similarly-coloured pixels.</td>
+					</tr>
+					<tr>
+						<td>Pick</td><td><kbd>I</kbd></td>
+						<td>Eyedropper. Samples the pixel under the cursor into the palette, including alpha.</td>
+					</tr>
+					<tr>
+						<td>Frame</td><td><kbd>M</kbd></td>
+						<td>Drag the selected frame's rect. Shift-click another frame to swap positions and contents. Has a <strong>Move contents</strong> setting.</td>
+					</tr>
+					<tr>
+						<td>Hit</td><td><kbd>K</kbd></td>
+						<td>Edit collision circles. Drag to move or create; right-click to delete. Has an <strong>Always show</strong> setting.</td>
+					</tr>
+				</tbody>
+			</table>
+
+			<h3>Tool options</h3>
+
+			<p><strong>Fill</strong> and <strong>Clip</strong> checkboxes sit below the tool grid. <em>Fill</em> affects the Box and Oval tools. <em>Clip</em> confines strokes to the selected frame's rect — with it off, you can draw across frame boundaries.</p>
+
+			<p>Tools with their own settings expose them under the <strong>Tool</strong> sub-tab next to Brush. The panel rebuilds when you change tools.</p>
+
+			<h3>Cell-change guard</h3>
+			<p>With Clip on, a click that lands in a different frame selects that frame and stops there — the tool's gesture is deferred to the next click. This prevents accidental collision circles or paint strokes when you meant to switch frames. Pan, Pick, Select, and Frame are exempt.</p>
+
+			<h3>Ctrl-to-sample</h3>
+			<p>Hold <kbd>Ctrl</kbd> (or <kbd>Cmd</kbd>) to temporarily turn any tool into an eyedropper. Left-click samples into primary, right-click into secondary. Releasing the key returns to the previous tool.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="colours">
+			<h2>9. Colours and alpha</h2>
+
+			<p>Two colour slots: <strong>Primary</strong> for the left mouse button, <strong>Secondary</strong> for the right. Below them, a Recent strip (last 16 colours used) and a fixed palette of presets.</p>
+
+			<h3>Choosing a colour</h3>
+			<ul>
+				<li><strong>Click a swatch</strong> to open the picker: SV square, hue strip, hex field, and an alpha slider.</li>
+				<li><strong>Left-click a recent or preset</strong> to set primary.</li>
+				<li><strong>Right-click one</strong> to set secondary.</li>
+				<li><strong>Swap</strong> with the ⇄ button or by pressing <kbd>X</kbd>.</li>
+			</ul>
+
+			<p>Alpha is part of the colour — a semi-transparent red and an opaque red are different entries. Recents preserve whatever alpha they were chosen with; presets always set alpha to 255. Sampling a pixel with the Pick tool copies both the colour and its alpha.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="brushes">
+			<h2>10. Brushes</h2>
+
+			<p>The Brush sub-tab holds eight brush shapes. Each is a small mask of weights; the preview shows the shape at a consistent scale so you can compare sizes at a glance.</p>
+
+			<table>
+				<thead><tr><th>Brush</th><th>Shape</th></tr></thead>
+				<tbody>
+					<tr><td><code>pixel</code></td><td>A single pixel.</td></tr>
+					<tr><td><code>cross</code></td><td>A 3×3 plus shape.</td></tr>
+					<tr><td><code>square2</code></td><td>A 2×2 solid square.</td></tr>
+					<tr><td><code>square3</code></td><td>A 3×3 solid square.</td></tr>
+					<tr><td><code>circle3</code></td><td>A 3×3 ring.</td></tr>
+					<tr><td><code>circle5</code></td><td>A 5×5 circle.</td></tr>
+					<tr><td><code>soft3</code></td><td>A 3×3 with weighted edges (darker at the corners, solid in the centre).</td></tr>
+					<tr><td><code>soft5</code></td><td>A 5×5 with a smooth falloff to the edges.</td></tr>
+				</tbody>
+			</table>
+
+			<p>Weights matter for the Airbrush and Eraser — soft brushes feather at the edges rather than cutting off sharply. The Pencil, Line, Box, and Oval ignore them and stamp at full opacity.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="filters">
+			<h2>11. Filters</h2>
+
+			<p><strong>Filter…</strong> in the toolbar opens a floating panel with a matrix-based convolution. It applies to the selection if there is one, otherwise to the whole frame.</p>
+
+			<h3>The matrix</h3>
+			<p>A square grid of numbers that is convolved with the region. Size can be toggled between 3×3 and 5×5. Presets include several blur, sharpen, emboss, and edge variants; each can be edited freely after selection.</p>
+
+			<h3>Controls</h3>
+			<table>
+				<thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+				<tbody>
+					<tr><td>Divisor</td><td>Divides the weighted sum. Usually set to the sum of the matrix so overall brightness is unchanged. Blur kernels need this; edge and emboss kernels typically don't.</td></tr>
+					<tr><td>Offset</td><td>Added after the division. Useful for edge detection where the weighted sum can go negative.</td></tr>
+					<tr><td>Convolve alpha</td><td>When off, alpha passes through unchanged so hard edges stay hard. When on, alpha is convolved like the colour channels, producing soft edges.</td></tr>
+				</tbody>
+			</table>
+
+			<p>Pixels near the region's boundary are clamped to the nearest in-bounds pixel, so a filter on one frame never reads into a neighbouring frame.</p>
+
+			<p>The preview overlays the result on the atlas. Apply writes the pixels and pushes a single undo entry. Cancel discards.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="transforms">
+			<h2>12. Transforms</h2>
+
+			<p>All transforms act on the selection if there is one, otherwise on the whole frame.</p>
+
+			<table>
+				<thead><tr><th>Action</th><th>Shortcut</th><th>Notes</th></tr></thead>
+				<tbody>
+					<tr><td>Rotate 90° CW</td><td><kbd>R</kbd></td><td></td></tr>
+					<tr><td>Rotate 90° CCW</td><td><kbd>Shift</kbd>+<kbd>R</kbd></td><td></td></tr>
+					<tr><td>Rotate…</td><td>—</td><td>Arbitrary angle via a slider and numeric field. See below.</td></tr>
+					<tr><td>Flip Vertical</td><td><kbd>F</kbd></td><td>Mirrors top-to-bottom.</td></tr>
+					<tr><td>Flip Horizontal</td><td><kbd>Shift</kbd>+<kbd>F</kbd></td><td>Mirrors left-to-right.</td></tr>
+					<tr><td>Move Up</td><td><kbd>Ctrl</kbd>+<kbd>↑</kbd></td><td>Shift the region one pixel, wrapping around its own bounds.</td></tr>
+					<tr><td>Move Down</td><td><kbd>Ctrl</kbd>+<kbd>↓</kbd></td><td></td></tr>
+					<tr><td>Move Left</td><td><kbd>Ctrl</kbd>+<kbd>←</kbd></td><td></td></tr>
+					<tr><td>Move Right</td><td><kbd>Ctrl</kbd>+<kbd>→</kbd></td><td></td></tr>
+				</tbody>
+			</table>
+
+			<h3>Arbitrary rotation</h3>
+			<p>Transform → Rotate… opens a floating panel with an angle slider (wrapping between −180° and +180°) and a numeric entry for values outside that range.</p>
+
+			<p>The <strong>Pivot</strong> section has two number fields and two preset buttons. Pivot coordinates are region-relative: <code>(0, 0)</code> is the top-left of the region being rotated.</p>
+
+			<table>
+				<thead><tr><th>Preset</th><th>Effect</th></tr></thead>
+				<tbody>
+					<tr><td>Selection centre</td><td>Pivot at the region's geometric centre — the default when the panel opens.</td></tr>
+					<tr><td>Frame centre</td><td>Pivot at the frame's origin (its <code>centerx</code>/<code>centery</code>), expressed relative to the region.</td></tr>
+				</tbody>
+			</table>
+
+			<p>Custom values outside the region are allowed — rotating around a point off the sprite is occasionally useful.</p>
+
+			<p>Rotation uses nearest-neighbour sampling, which is what you want for pixel art: bilinear would introduce colours that don't exist in the source. Small angles will look chunky; that's inherent to the approach.</p>
+
+			<p class="note">Rotating by 0° (or 360°, or any multiple) is detected as a no-op and does not create an undo entry.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="collision">
+			<h2>13. Collision</h2>
+
+			<p>Collision is per-frame. Each frame has zero or more circles, each with an offset from the frame's origin and a radius. A frame with no circles simply has no collision.</p>
+
+			<p>Edit them in the <strong>Collision</strong> pane on the Sprite tab, or with the <strong>Hit</strong> tool directly on the canvas.</p>
+
+			<h3>Hit tool gestures</h3>
+			<ul>
+				<li><strong>Drag on empty space</strong> — creates a new circle, growing from the press point.</li>
+				<li><strong>Drag inside an existing circle</strong> — moves it.</li>
+				<li><strong>Right-click a circle</strong> — deletes it.</li>
+			</ul>
+
+			<h3>Inspector</h3>
+			<p>Each circle has three fields: <code>offsetX</code>, <code>offsetY</code>, <code>radius</code>. A <strong>+ Add circle at origin</strong> button appends a new one sized to the frame. The <strong>×</strong> button on each row removes it.</p>
+
+			<p>The <strong>Copy to all frames</strong> button writes the current frame's collision onto every other frame in the sheet as one undoable step. Useful when you've tuned a shape and want it applied consistently across an animation.</p>
+
+			<h3>Overlay</h3>
+			<p>Collision circles are drawn over every frame in the sheet when the overlay is on. The selected frame's circles draw at full strength; the rest are dimmed. The <strong>Always show</strong> checkbox in the Tool sub-tab controls whether they're visible when the Hit tool isn't active. With Hit active, the overlay is always on.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="sheet-settings">
+			<h2>14. Sheet settings</h2>
+
+			<p>Sheet → Sheet settings… opens a dialog for the sheet-wide defaults.</p>
+
+			<table>
+				<thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+				<tbody>
+					<tr><td>Image size (W/H)</td><td>Resizes the canvas. Expanding adds blank space at the right and bottom; shrinking crops. Shrinking is allowed; frames that extend past the new bounds keep their data but lose pixels outside.</td></tr>
+					<tr><td>Frame width/height</td><td>Default tile size. Affects new frames and the <code>col</code>/<code>row</code> shorthand. Existing frames keep their own dimensions.</td></tr>
+					<tr><td>Centre X/Y</td><td>Default origin for new frames.</td></tr>
+					<tr><td>Image file</td><td>The filename recorded in the sheet's JSON. Change it if you renamed the PNG on disk.</td></tr>
+					<tr><td>Frame rate</td><td>Default frame rate for new sequences.</td></tr>
+				</tbody>
+			</table>
+
+			<p class="warn">Shrinking the canvas past a frame's bounds keeps the frame's data — its <code>x</code>, <code>y</code>, and dimensions are unchanged — but any pixels outside the new canvas are gone. The dialog warns before applying if any frame would be affected.</p>
+
+			<p>Changing the image size and any other field at the same time is one undo step.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="reshape">
+			<h2>15. Reshape</h2>
+
+			<p>Sheet → Reshape… repacks every frame into a clean row-major grid and resizes the canvas to fit. Cells use the sheet's current <code>frameWidth</code>/<code>frameHeight</code>.</p>
+
+			<p>The dialog asks for a column count and shows the resulting grid and canvas size live. A suggested column count that produces a roughly square layout is pre-filled. The canvas is resized to exactly fit — no wasted space at the right or bottom.</p>
+
+			<p>Frame order is preserved: frames fill the grid left-to-right, top-to-bottom, in the order they appear in the frame list. Frames larger than a single cell get clipped to the cell size; the dialog lists them.</p>
+
+			<p>Reshape is one undo step. The old canvas is preserved for the undo, so reverting restores both the previous layout and the previous image exactly.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="view">
+			<h2>16. View options</h2>
+
+			<p>The View menu controls how the atlas is presented, without touching any data.</p>
+
+			<table>
+				<thead><tr><th>Item</th><th>Effect</th></tr></thead>
+				<tbody>
+					<tr><td>Background…</td><td>Opens a popover for the canvas backdrop. Choose a texture (Checker, Dots, Stripes, None) and two colours.</td></tr>
+					<tr><td>Show grid</td><td>Toggle a faint grid at <code>frameWidth</code>/<code>frameHeight</code> spacing. Hidden automatically when zoomed out below 3× so it doesn't clutter the view.</td></tr>
+					<tr><td>Snap to grid</td><td>When on, the Frame tool's drags snap to the grid. Other tools are unaffected.</td></tr>
+				</tbody>
+			</table>
+
+			<p>The background is a good way to check sprites with colours that are hard to distinguish against the default checkerboard. Two independent colours let you tune contrast to the artwork.</p>
+		</section>
+
+		<!-- ================================================================ -->
+		<section id="keyboard">
+			<h2>17. Keyboard shortcuts</h2>
+
+			<h3>Tools</h3>
+			<table>
+				<thead><tr><th>Key</th><th>Tool</th></tr></thead>
+				<tbody>
+					<tr><td><kbd>S</kbd></td><td>Select</td></tr>
+					<tr><td><kbd>P</kbd></td><td>Pan</td></tr>
+					<tr><td><kbd>N</kbd></td><td>Pencil</td></tr>
+					<tr><td><kbd>A</kbd></td><td>Airbrush</td></tr>
+					<tr><td><kbd>E</kbd></td><td>Eraser</td></tr>
+					<tr><td><kbd>L</kbd></td><td>Line</td></tr>
+					<tr><td><kbd>B</kbd></td><td>Box</td></tr>
+					<tr><td><kbd>O</kbd></td><td>Oval</td></tr>
+					<tr><td><kbd>G</kbd></td><td>Fill</td></tr>
+					<tr><td><kbd>I</kbd></td><td>Pick</td></tr>
+					<tr><td><kbd>M</kbd></td><td>Frame</td></tr>
+					<tr><td><kbd>K</kbd></td><td>Hit</td></tr>
+				</tbody>
+			</table>
+
+			<h3>File</h3>
+			<table>
+				<thead><tr><th>Key</th><th>Action</th></tr></thead>
+				<tbody>
+					<tr><td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>N</kbd></td><td>New Sprite</td></tr>
+					<tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Save Image</td></tr>
+					<tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></td><td>Save Sprite Data</td></tr>
+					<tr><td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd></td><td>Save All (writes whichever halves are dirty)</td></tr>
+				</tbody>
+			</table>
+
+			<h3>Edit</h3>
+			<table>
+				<thead><tr><th>Key</th><th>Action</th></tr></thead>
+				<tbody>
+					<tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo</td></tr>
+					<tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd></td><td>Redo</td></tr>
+					<tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd></td><td>Copy the current selection, or the whole frame</td></tr>
+					<tr><td><kbd>Ctrl</kbd>+<kbd>X</kbd></td><td>Cut</td></tr>
+					<tr><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>Paste</td></tr>
+					<tr><td><kbd>Del</kbd></td><td>Clear the selection, or the whole frame</td></tr>
+				</tbody>
+			</table>
+
+			<h3>Transforms</h3>
+			<table>
+				<thead><tr><th>Key</th><th>Action</th></tr></thead>
+				<tbody>
+					<tr><td><kbd>R</kbd> / <kbd>Shift</kbd>+<kbd>R</kbd></td><td>Rotate 90° CW / CCW</td></tr>
+					<tr><td><kbd>F</kbd> / <kbd>Shift</kbd>+<kbd>F</kbd></td><td>Flip vertical / horizontal</td></tr>
+					<tr><td><kbd>Ctrl</kbd>+<kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></td><td>Move the region by one pixel</td></tr>
+				</tbody>
+			</table>
+
+			<h3>Modifiers</h3>
+			<table>
+				<thead><tr><th>Key</th><th>Effect</th></tr></thead>
+				<tbody>
+					<tr><td><kbd>X</kbd></td><td>Swap primary and secondary colours</td></tr>
+					<tr><td><kbd>Ctrl</kbd> (hold)</td><td>Temporarily turn the active tool into an eyedropper</td></tr>
+					<tr><td><kbd>Shift</kbd>+click (list)</td><td>Range-select in Frames or Sequences</td></tr>
+					<tr><td><kbd>Ctrl</kbd>+click (list)</td><td>Toggle an item in the selection</td></tr>
+					<tr><td><kbd>Shift</kbd>+click (canvas, Frame tool)</td><td>Swap the selected frame with the one under the cursor</td></tr>
+					<tr><td>Middle-drag</td><td>Pan regardless of active tool</td></tr>
+					<tr><td>Wheel</td><td>Zoom around the cursor</td></tr>
+					<tr><td><kbd>Esc</kbd></td><td>Close the current panel or dialog</td></tr>
+				</tbody>
+			</table>
+		</section>
+
+	</main>
+</div>
+</body>
+</html>
