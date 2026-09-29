@@ -299,6 +299,10 @@ body {
 .tl-tile.same-frame {
 	border-color: rgba(208, 128, 64, 0.45);
 }
+.tl-tile.multi-selected {
+	border-color: var(--accent-2);
+	box-shadow: 0 0 0 1px var(--accent-2);
+}
 .tl-tile.dragging {
 	opacity: 0.4;
 	cursor: grabbing;
@@ -436,6 +440,16 @@ body {
 .tl-editor-num:focus {
 	outline: none;
 	border-color: var(--accent-2);
+}
+.tl-editor-num.mixed {
+	background-image: repeating-linear-gradient(
+		-45deg,
+		transparent 0,
+		transparent 4px,
+		rgba(208, 128, 64, 0.15) 4px,
+		rgba(208, 128, 64, 0.15) 8px
+	);
+	border-color: rgba(208, 128, 64, 0.45);
 }
 .tl-editor-actions {
 	display: flex;
@@ -1678,7 +1692,7 @@ body {
 }
 .fp-footer {
 	display: flex;
-	justify-content: flex-e;
+	justify-content: flex-end;
 	gap: 6px;
 	padding: 10px 12px;
 	border-top: 1px solid var(--rule);

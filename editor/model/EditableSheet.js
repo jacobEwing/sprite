@@ -531,48 +531,65 @@ export class EditableSheet {
 		this.setSequence(seqName, { frames });
 	}
 
-	// Update a single sequence slot's rendering transform. `patch` is a
-	// subset of { translateX, translateY, rotation, scaleX, scaleY };
-	// passing null clears the transform entirely. A transform whose fields
-	// all match their defaults is also cleared, so the saved JSON stays
-	// compact.
+	// Apply a transform patch to a single slot. Thin wrapper around the
+	// bulk version.
 	setSlotTransform(seqName, index, patch) {
+		this.setSlotTransforms(seqName, [index], patch);
+	}
+
+	// Apply a transform patch to several slots in one atomic undo step.
+	// `patch` is a subset of the transform fields, or null to clear every
+	// selected slot's transform. A slot that ends up with all-default
+	// fields (including pivot) drops its transform entirely, keeping the
+	// saved JSON compact.
+	setSlotTransforms(seqName, indices, patch) {
 		const seq = this.sheet.sequences[seqName];
-		if (!seq) return;
-		if (index < 0 || index >= seq.frames.length) return;
+		if (!seq || !indices || indices.length === 0) return;
 
-		const slot = seq.frames[index];
-		const frame = this.sheet.frames[slot.frame];
-		const defX = frame ? frame.centerx : 0;
-		const defY = frame ? frame.centery : 0;
+		const frames = seq.frames.map(s => ({
+			frame: s.frame,
+			transform: s.transform ? { ...s.transform } : null,
+		}));
 
-		let nextTransform;
+		let changed = false;
 
-		if (patch === null) {
-			nextTransform = null;
-		} else {
-			const base = slot.transform || {
-				translateX: 0, translateY: 0, rotation: 0,
-				scaleX: 1, scaleY: 1,
-				pivotX: defX, pivotY: defY,
-			};
-			const next = { ...base };
-			for (const k of [
-				'translateX', 'translateY', 'rotation', 'scaleX', 'scaleY',
-				'pivotX', 'pivotY',
-			]) {
-				if (patch[k] !== undefined) next[k] = Number(patch[k]);
+		for (const idx of indices) {
+			if (idx < 0 || idx >= frames.length) continue;
+
+			let newTransform;
+			if (patch === null) {
+				newTransform = null;
+			} else {
+				const frame = this.sheet.frames[frames[idx].frame];
+				const defX = frame ? frame.centerx : 0;
+				const defY = frame ? frame.centery : 0;
+				const base = frames[idx].transform || {
+					translateX: 0, translateY: 0, rotation: 0,
+					scaleX: 1, scaleY: 1,
+					pivotX: defX, pivotY: defY,
+				};
+				const next = { ...base };
+				for (const k of [
+					'translateX', 'translateY', 'rotation', 'scaleX', 'scaleY',
+					'pivotX', 'pivotY',
+				]) {
+					if (patch[k] !== undefined) next[k] = Number(patch[k]);
+				}
+				const isIdentity =
+					next.translateX === 0 && next.translateY === 0 &&
+					next.rotation === 0 &&
+					next.scaleX === 1 && next.scaleY === 1 &&
+					next.pivotX === defX && next.pivotY === defY;
+				newTransform = isIdentity ? null : next;
 			}
-			const isIdentity =
-				next.translateX === 0 && next.translateY === 0 &&
-				next.rotation === 0 &&
-				next.scaleX === 1 && next.scaleY === 1 &&
-				next.pivotX === defX && next.pivotY === defY;
-			nextTransform = isIdentity ? null : next;
+
+			if (!deepEqual(newTransform, frames[idx].transform)) {
+				frames[idx] = { frame: frames[idx].frame, transform: newTransform };
+				changed = true;
+			}
 		}
 
-		const frames = seq.frames.slice();
-		frames[index] = { frame: slot.frame, transform: nextTransform };
+		if (!changed) return;
 		this.setSequence(seqName, { frames });
 	}
 

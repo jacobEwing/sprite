@@ -6,14 +6,23 @@ import { escapeBlurs } from '../lib/fieldEscape.js';
 const THUMB_SIZE = 56;
 
 // Horizontal strip of frame thumbnails for the selected sequence. Each
-// tile carries a small toolbar for slot-level actions. Click a tile to
-// select its frame; drag to reorder. The # button opens the slot
-// transform editor, which expands the timeline upward over the canvas.
+// tile carries a small toolbar for slot-level actions.
 //
-// Slot transforms are rendering-time only — they never touch the pixels
-// or the frame rect. The same frame can appear multiple times in a
-// sequence with different transforms, animating without duplicating
-// artwork.
+// Selection mirrors the frame and sequence lists: plain click replaces,
+// ctrl/cmd toggles, shift extends a range from the anchor. The primary
+// (last-clicked) drives the paused preview; the full set is what the
+// transform editor targets.
+//
+// Drag reorder: the block spans from the min to the max of the current
+// selection, gaps included. The whole span moves as one unit. Selected
+// indices, the primary, the anchor, and the open transform editor all
+// shift to stay on the same slots.
+//
+// A left-click on empty strip space collapses a multi-selection down to
+// the primary, mirroring the canvas behaviour for frames.
+//
+// The # button opens the slot transform editor, which expands the
+// timeline upward over the canvas.
 export class Timeline {
 	constructor(root, doc, viewport) {
 		makeEmitter(this);
@@ -21,8 +30,8 @@ export class Timeline {
 		this.doc = doc;
 		this.viewport = viewport;
 
-		this.drag = null;              // { index, working, moved, wasSelected } during a reorder
-		this.editingIndex = null;      // index of the slot whose transform is open, or null
+		this.drag = null;              // see _onDown for the shape
+		this.editingIndex = null;      // non-null when the transform editor is open
 
 		this._build();
 		this._bind();
@@ -87,7 +96,7 @@ export class Timeline {
 	// --- rendering --------------------------------------------------------
 
 	render() {
-		if (this.drag) return;  // don't clobber during drag
+		if (this.drag) return;
 		this._renderFrames(null);
 	}
 
@@ -109,7 +118,9 @@ export class Timeline {
 
 		slots.forEach((slot, i) => {
 			const tile = this._makeTile(slot, i, sheet, seq);
-			if (this.drag && i === this.drag.index) tile.classList.add('dragging');
+			if (this.drag && i >= this.drag.blockStart && i <= this.drag.blockEnd) {
+				tile.classList.add('dragging');
+			}
 			this.stripEl.appendChild(tile);
 		});
 	}
@@ -120,10 +131,15 @@ export class Timeline {
 
 		const tile = document.createElement('div');
 		tile.className = 'tl-tile';
+
+		const isPrimarySlot   = this.doc.selectedSlotIndex === index;
+		const isInSet         = this.doc.selectedSlotIndices.has(index);
 		const isSelectedFrame = frameName === this.doc.selectedFrame;
-		const isPrimarySlot   = isSelectedFrame && this.doc.selectedSlotIndex === index;
-		if (isPrimarySlot)       tile.classList.add('selected');
+
+		if (isPrimarySlot)        tile.classList.add('selected');
+		else if (isInSet)         tile.classList.add('multi-selected');
 		else if (isSelectedFrame) tile.classList.add('same-frame');
+
 		tile.dataset.index = index;
 		tile.dataset.frame = frameName;
 
@@ -148,11 +164,10 @@ export class Timeline {
 		const toolbar = document.createElement('div');
 		toolbar.className = 'tl-tile-toolbar';
 
-		// Transform: opens the slot transform editor.
 		const tBtn = document.createElement('button');
 		tBtn.className = 'tl-tile-btn';
 		tBtn.dataset.icon = 'slot-transform';
-		tBtn.textContent = '#';   // fallback until the icon sheet loads
+		tBtn.textContent = '#';
 		tBtn.title = slot.transform
 			? 'Edit slot transform (currently set)'
 			: 'Add slot transform';
@@ -164,7 +179,6 @@ export class Timeline {
 		applyIcon(tBtn, 'slot-transform');
 		toolbar.appendChild(tBtn);
 
-		// Duplicate: inserts a copy right after this slot.
 		const dBtn = document.createElement('button');
 		dBtn.className = 'tl-tile-btn';
 		dBtn.dataset.icon = 'slot-duplicate';
@@ -177,7 +191,6 @@ export class Timeline {
 		applyIcon(dBtn, 'slot-duplicate');
 		toolbar.appendChild(dBtn);
 
-		// Delete: removes this slot from the sequence.
 		const xBtn = document.createElement('button');
 		xBtn.className = 'tl-tile-btn';
 		xBtn.dataset.icon = 'slot-delete';
@@ -191,7 +204,7 @@ export class Timeline {
 		toolbar.appendChild(xBtn);
 
 		tile.appendChild(toolbar);
-		return tile;	
+		return tile;
 	}
 
 	_drawThumb(canvas, sheet, frame, transform) {
@@ -203,12 +216,9 @@ export class Timeline {
 		const availW = canvas.width - pad * 2;
 		const availH = canvas.height - pad * 2;
 
-		// Fit base dimensions.
 		let scale = Math.min(availW / frame.width, availH / frame.height);
 		if (scale >= 1) scale = Math.floor(scale);
 
-		// Translate to the tile's centre, apply transform, then draw the
-		// frame anchored at its origin so the transform pivots correctly.
 		ctx.save();
 		ctx.translate(canvas.width / 2, canvas.height / 2);
 		if (transform) {
@@ -240,6 +250,10 @@ export class Timeline {
 		const seq = this.doc.getSelectedSequence();
 		if (!seq || index < 0 || index >= seq.frames.length) return;
 
+		if (!this.doc.selectedSlotIndices.has(index)) {
+			this.doc.selectSlot(index);
+		}
+
 		this.editingIndex = index;
 		this.root.classList.add('editing');
 		this._renderEditor();
@@ -253,24 +267,23 @@ export class Timeline {
 
 	_renderEditor() {
 		const seq = this.doc.getSelectedSequence();
-		const index = this.editingIndex;
-		if (!seq || index === null || index >= seq.frames.length) return;
+		const indices = [...this.doc.selectedSlotIndices].sort((a, b) => a - b);
+		if (!seq || indices.length === 0) return;
 
-		const slot = seq.frames[index];
-		const frame = this.doc.sheet.frames[slot.frame];
-		const defX = frame ? frame.centerx : 0;
-		const defY = frame ? frame.centery : 0;
+		const primaryIdx = this.doc.selectedSlotIndex ?? indices[indices.length - 1];
+		const primarySlot = seq.frames[primaryIdx];
+		if (!primarySlot) return;
 
-		const t = slot.transform || {
-			translateX: 0, translateY: 0, rotation: 0,
-			scaleX: 1, scaleY: 1,
-			pivotX: defX, pivotY: defY,
-		};
+		const primaryFrame = this.doc.sheet.frames[primarySlot.frame];
+		const defX = primaryFrame ? primaryFrame.centerx : 0;
+		const defY = primaryFrame ? primaryFrame.centery : 0;
 
-		this.editorTitleEl.textContent = `Slot ${index}: ${slot.frame}`;
+		this.editorTitleEl.textContent = indices.length === 1
+			? `Slot ${primaryIdx}: ${primarySlot.frame}`
+			: `${indices.length} slots selected`;
 		this.editorFieldsEl.innerHTML = '';
 
-		const fields = [
+		const fieldSpecs = [
 			{ key: 'translateX', label: 'Translate X', step: 0.5, default: 0 },
 			{ key: 'translateY', label: 'Translate Y', step: 0.5, default: 0 },
 			{ key: 'rotation',   label: 'Rotation °',  step: 1,   default: 0 },
@@ -280,7 +293,21 @@ export class Timeline {
 			{ key: 'pivotY',     label: 'Pivot Y',     step: 0.5, default: defY },
 		];
 
-		for (const f of fields) {
+		for (const f of fieldSpecs) {
+			const values = indices.map(i => {
+				const slot = seq.frames[i];
+				if (!slot) return 0;
+				const t = slot.transform || {};
+				const sf = this.doc.sheet.frames[slot.frame];
+				const dfX = sf ? sf.centerx : 0;
+				const dfY = sf ? sf.centery : 0;
+				if (f.key === 'pivotX') return t.pivotX ?? dfX;
+				if (f.key === 'pivotY') return t.pivotY ?? dfY;
+				return t[f.key] ?? f.default;
+			});
+			const first = values[0];
+			const mixed = !values.every(v => v === first);
+
 			const cell = document.createElement('div');
 			cell.className = 'tl-editor-field';
 
@@ -289,66 +316,134 @@ export class Timeline {
 			label.textContent = f.label;
 			cell.appendChild(label);
 
-			const visible = document.createElement('input');
-			visible.type = 'number';
-			visible.className = 'tl-editor-num';
-			visible.step = String(f.step);
-			visible.value = t[f.key] !== undefined ? t[f.key] : f.default;
-			escapeBlurs(visible);
-			cell.appendChild(visible);
+			if (mixed) {
+				const input = document.createElement('input');
+				input.type = 'number';
+				input.className = 'tl-editor-num mixed';
+				input.step = String(f.step);
+				input.placeholder = '—';
+				input.value = '';
+				input.addEventListener('change', () => {
+					const v = parseFloat(input.value);
+					if (!Number.isFinite(v)) return;
+					this.doc.editable.setSlotTransforms(
+						seq.name, indices,
+						{ [f.key]: v }
+					);
+				});
+				escapeBlurs(input);
+				cell.appendChild(input);
+			} else {
+				const visible = document.createElement('input');
+				visible.type = 'number';
+				visible.className = 'tl-editor-num';
+				visible.step = String(f.step);
+				visible.value = first;
+				escapeBlurs(visible);
+				cell.appendChild(visible);
 
-			const raw = document.createElement('input');
-			raw.type = 'number';
-			raw.step = String(f.step);
-			raw.value = visible.value;
-			cell.appendChild(raw);
+				const raw = document.createElement('input');
+				raw.type = 'number';
+				raw.step = String(f.step);
+				raw.value = first;
+				cell.appendChild(raw);
+
+				valueAdjuster(raw, {
+					stepSize: f.step,
+					displayElement: visible,
+					onAdjust: (v) => {
+						const num = Number.isFinite(v) ? v : f.default;
+						this.doc.editable.setSlotTransforms(
+							seq.name, indices,
+							{ [f.key]: num }
+						);
+					},
+				});
+
+				const handle = raw.nextElementSibling
+					? raw.nextElementSibling.querySelector('.value-adjuster-handle')
+					: null;
+				if (handle) handle.tabIndex = -1;
+			}
 
 			this.editorFieldsEl.appendChild(cell);
-
-			valueAdjuster(raw, {
-				stepSize: f.step,
-				displayElement: visible,
-				onAdjust: (v) => {
-					const num = Number.isFinite(v) ? v : f.default;
-					this.doc.editable.setSlotTransform(
-						seq.name, index,
-						{ [f.key]: num }
-					);
-				},
-			});
-
-			// The widget's handle is focusable by default, which puts it
-			// between our visible fields in the tab order. Take it out;
-			// the field itself is what the user tabs into.
-			const handle = raw.nextElementSibling
-				? raw.nextElementSibling.querySelector('.value-adjuster-handle')
-				: null;
-			if (handle) handle.tabIndex = -1;		
 		}
 
-		this.editorResetBtn.disabled = !slot.transform;
+		this.editorResetBtn.disabled =
+			!indices.some(i => seq.frames[i] && seq.frames[i].transform);
 	}
 
 	_resetSlotTransform() {
 		const seq = this.doc.getSelectedSequence();
-		const index = this.editingIndex;
-		if (!seq || index === null) return;
-		this.doc.editable.setSlotTransform(seq.name, index, null);
+		const indices = [...this.doc.selectedSlotIndices];
+		if (!seq || indices.length === 0) return;
+		this.doc.editable.setSlotTransforms(seq.name, indices, null);
 	}
+
+	_applyPivotPreset(which) {
+		const seq = this.doc.getSelectedSequence();
+		const indices = [...this.doc.selectedSlotIndices].sort((a, b) => a - b);
+		if (!seq || indices.length === 0) return;
+
+		for (const i of indices) {
+			const slot = seq.frames[i];
+			if (!slot) continue;
+			const f = this.doc.sheet.frames[slot.frame];
+			if (!f) continue;
+
+			let px, py;
+			if (which === 'origin') {
+				px = f.centerx;
+				py = f.centery;
+			} else if (which === 'centre') {
+				px = f.width  / 2;
+				py = f.height / 2;
+			} else return;
+
+			this.doc.editable.setSlotTransform(seq.name, i, {
+				pivotX: px, pivotY: py,
+			});
+		}
+	}
+
+	_onSelectionChange() {
+		const seq = this.doc.getSelectedSequence();
+
+		if (this.editingIndex !== null) {
+			if (!seq || this.doc.selectedSlotIndices.size === 0) {
+				this._closeEditor();
+			} else {
+				this._renderEditor();
+			}
+		}
+
+		this.render();
+	}
+
+	_onEdit() {
+		if (this.editingIndex !== null) this._renderEditor();
+		this.render();
+	}
+
+	// --- slot buttons -----------------------------------------------------
 
 	_duplicateSlot(index) {
 		const seq = this.doc.getSelectedSequence();
 		if (!seq) return;
 
-		// Track the open editor across the index shift. If it was
-		// pointing at a slot after the insertion point, its index moves
-		// up by one to stay on the same content. If it was on the source
-		// slot itself, it stays put.
-		if (this.editingIndex !== null && this.editingIndex > index) {
-			this.editingIndex += 1;
+		const newSet = new Set();
+		for (const i of this.doc.selectedSlotIndices) {
+			newSet.add(i > index ? i + 1 : i);
 		}
+		this.doc.selectedSlotIndices = newSet;
 		if (this.doc.selectedSlotIndex !== null && this.doc.selectedSlotIndex > index) {
 			this.doc.selectedSlotIndex += 1;
+		}
+		if (this.doc._slotAnchor !== null && this.doc._slotAnchor > index) {
+			this.doc._slotAnchor += 1;
+		}
+		if (this.editingIndex !== null && this.editingIndex > index) {
+			this.editingIndex += 1;
 		}
 
 		this.doc.editable.duplicateSequenceSlot(seq.name, index);
@@ -358,63 +453,68 @@ export class Timeline {
 		const seq = this.doc.getSelectedSequence();
 		if (!seq) return;
 
-		// If the editor is open on the slot being deleted, close it.
-		// Otherwise shift its index down if it was after the deletion.
-		if (this.editingIndex !== null) {
-			if (this.editingIndex === index)      this._closeEditor();
-			else if (this.editingIndex > index)   this.editingIndex -= 1;
+		// Compute the post-delete list locally so we can pick a new
+		// primary from it before committing.
+		const newFrames = seq.frames.slice();
+		newFrames.splice(index, 1);
+
+		// Remap the selection: drop the deleted index; shift the rest.
+		const newSet = new Set();
+		for (const i of this.doc.selectedSlotIndices) {
+			if (i === index) continue;
+			newSet.add(i > index ? i - 1 : i);
 		}
-		if (this.doc.selectedSlotIndex !== null) {
-			if (this.doc.selectedSlotIndex === index)      this.doc.selectedSlotIndex = null;
-			else if (this.doc.selectedSlotIndex > index)   this.doc.selectedSlotIndex -= 1;
+
+		// Primary: shift if after the deletion; clear if it was the
+		// deleted slot and let the promotion step below pick a new one.
+		let newPrimary = this.doc.selectedSlotIndex;
+		if (newPrimary !== null) {
+			if (newPrimary === index)    newPrimary = null;
+			else if (newPrimary > index) newPrimary -= 1;
 		}
 
-		this.doc.editable.removeFrameFromSequence(seq.name, index);
-	}
-
-	_applyPivotPreset(which) {
-		const seq = this.doc.getSelectedSequence();
-		const index = this.editingIndex;
-		if (!seq || index === null) return;
-
-		const slot = seq.frames[index];
-		const frame = this.doc.sheet.frames[slot.frame];
-		if (!frame) return;
-
-		let px, py;
-		if (which === 'origin') {
-			px = frame.centerx;
-			py = frame.centery;
-		} else if (which === 'centre') {
-			px = frame.width  / 2;
-			py = frame.height / 2;
-		} else return;
-
-		this.doc.editable.setSlotTransform(seq.name, index, {
-			pivotX: px, pivotY: py,
-		});
-	}
-
-	_onSelectionChange() {
-		const seq = this.doc.getSelectedSequence();
-
-		// Close the editor if the selected sequence changed or shrank
-		// past the slot we were editing.
-		if (this.editingIndex !== null) {
-			if (!seq || this.editingIndex >= seq.frames.length) {
-				this._closeEditor();
+		// Ensure something is selected after the delete, matching the
+		// frame and sequence lists.
+		//   - If the set still has members, promote the lowest-indexed.
+		//   - If the set is now empty but slots remain, pick the slot at
+		//     the deleted index, or the new last slot if we removed the
+		//     tail.
+		if (newPrimary === null) {
+			if (newSet.size > 0) {
+				newPrimary = [...newSet].sort((a, b) => a - b)[0];
+			} else if (newFrames.length > 0) {
+				newPrimary = Math.min(index, newFrames.length - 1);
+				newSet.add(newPrimary);
 			}
 		}
 
-		this.render();
-	}
+		this.doc.selectedSlotIndices = newSet;
+		this.doc.selectedSlotIndex = newPrimary;
 
-	_onEdit() {
-		// Slot data may have changed underneath us (transform edited here,
-		// reorder via the inspector, undo). Re-render the editor fields
-		// and the strip.
-		if (this.editingIndex !== null) this._renderEditor();
-		this.render();
+		// Anchor: shift with the deletion, or fall back to the new
+		// primary if it was the deleted slot.
+		if (this.doc._slotAnchor !== null) {
+			if (this.doc._slotAnchor === index)    this.doc._slotAnchor = newPrimary;
+			else if (this.doc._slotAnchor > index) this.doc._slotAnchor -= 1;
+		}
+
+		// Sync the frame selection to the new primary slot's frame.
+		if (newPrimary !== null && newFrames[newPrimary]) {
+			const newFrame = newFrames[newPrimary].frame;
+			if (newFrame !== this.doc.primaryFrame) {
+				this.doc.primaryFrame = newFrame;
+				this.doc.selectedFrames = new Set([newFrame]);
+				this.doc._frameAnchor = newFrame;
+			}
+		}
+
+		// Close the editor if it was on the deleted slot; shift if after.
+		if (this.editingIndex !== null) {
+			if (this.editingIndex === index)    this._closeEditor();
+			else if (this.editingIndex > index) this.editingIndex -= 1;
+		}
+
+		this.doc.editable.removeFrameFromSequence(seq.name, index);
 	}
 
 	// --- drag reorder -----------------------------------------------------
@@ -422,32 +522,47 @@ export class Timeline {
 	_onDown(e) {
 		if (e.button !== 0) return;
 
-		// Clicking a toolbar button shouldn't start a drag.
 		if (e.target.closest && e.target.closest('.tl-tile-btn')) return;
 
 		const tile = e.target.closest && e.target.closest('.tl-tile');
-		if (!tile || !this.stripEl.contains(tile)) return;
+		if (!tile || !this.stripEl.contains(tile)) {
+			// Click on empty strip space: collapse a multi-selection down
+			// to the primary, mirroring the frame-list behaviour on the
+			// canvas. Plain left-click only.
+			if (!e.shiftKey && !e.altKey) this._collapseMultiSelection();
+			return;
+		}
 
 		const seq = this.doc.getSelectedSequence();
 		if (!seq) return;
 
 		e.preventDefault();
 		const index = parseInt(tile.dataset.index, 10);
-		this.doc.selectedSlotIndex = index;
 
-		const wasSelected = this.doc.selectedFrame === seq.frames[index].frame;
+		const additive = e.ctrlKey || e.metaKey;
+		const range    = e.shiftKey;
+		const wasSelectedBefore = this.doc.selectedSlotIndices.has(index);
+
+		this.doc.selectSlot(index, { additive, range });
+
+		const selected = [...this.doc.selectedSlotIndices].sort((a, b) => a - b);
+		if (selected.length === 0) return;
+		const blockStart = selected[0];
+		const blockEnd   = selected[selected.length - 1];
 
 		this.drag = {
-			index,
+			blockStart,
+			blockEnd,
+			originalBlockStart: blockStart,
+			originalBlockEnd:   blockEnd,
 			working: seq.frames.map(s => ({
 				frame: s.frame,
 				transform: s.transform ? { ...s.transform } : null,
 			})),
 			moved: false,
-			wasSelected,
+			wasSelectedBefore,
+			grabIndex: index,
 		};
-
-		this.doc.selectFrame(seq.frames[index].frame);
 
 		const onMove = (ev) => this._onMove(ev);
 		const onUp   = (ev) => {
@@ -461,6 +576,15 @@ export class Timeline {
 		tile.classList.add('dragging');
 	}
 
+	_collapseMultiSelection() {
+		if (this.doc.selectedSlotIndices.size <= 1) return;
+		const primary = this.doc.selectedSlotIndex;
+		if (primary === null) return;
+		this.doc.selectedSlotIndices = new Set([primary]);
+		this.doc._slotAnchor = primary;
+		this.doc.emit('selectionChanged', { changed: true });
+	}
+
 	_onMove(e) {
 		if (!this.drag) return;
 		const el = document.elementFromPoint(e.clientX, e.clientY);
@@ -468,48 +592,118 @@ export class Timeline {
 		if (!tile || !this.stripEl.contains(tile)) return;
 
 		const overIndex = parseInt(tile.dataset.index, 10);
-		if (overIndex === this.drag.index) return;
 
-		const [item] = this.drag.working.splice(this.drag.index, 1);
-		this.drag.working.splice(overIndex, 0, item);
-		this.drag.index = overIndex;
-		this.drag.moved = true;
+		if (overIndex >= this.drag.blockStart && overIndex <= this.drag.blockEnd) return;
 
-		this._renderFrames(this.drag.working);
+		let moved = false;
+		let guard = 0;
+		if (overIndex < this.drag.blockStart) {
+			while (overIndex < this.drag.blockStart && guard++ < 64) {
+				if (!this._shiftBlock(-1)) break;
+				moved = true;
+			}
+		} else {
+			while (overIndex > this.drag.blockEnd && guard++ < 64) {
+				if (!this._shiftBlock(+1)) break;
+				moved = true;
+			}
+		}
+
+		if (moved) {
+			this.drag.moved = true;
+			this._renderFrames(this.drag.working);
+		}
+	}
+
+	_shiftBlock(direction) {
+		const w = this.drag.working;
+		const { blockStart, blockEnd } = this.drag;
+
+		if (direction < 0) {
+			if (blockStart <= 0) return false;
+			const item = w.splice(blockStart - 1, 1)[0];
+			w.splice(blockEnd, 0, item);
+			this.drag.blockStart -= 1;
+			this.drag.blockEnd   -= 1;
+		} else {
+			if (blockEnd >= w.length - 1) return false;
+			const item = w.splice(blockEnd + 1, 1)[0];
+			w.splice(blockStart, 0, item);
+			this.drag.blockStart += 1;
+			this.drag.blockEnd   += 1;
+		}
+		return true;
+	}
+
+	// Map an old index to its new position given the block reorder. Slots
+	// in the block shift by `shift`. Slots consumed from just before the
+	// block (when moving up) land just after it, and vice versa.
+	_translateIndex(i, bs, be, shift) {
+		const L = be - bs + 1;
+		if (i >= bs && i <= be) return i + shift;
+		if (shift < 0 && i >= bs + shift && i < bs) return i + L;
+		if (shift > 0 && i > be && i <= be + shift) return i - L;
+		return i;
 	}
 
 	_onUp() {
 		if (!this.drag) return;
-		const { working, moved, wasSelected, index } = this.drag;
-		const slotName = working[index] ? working[index].frame : null;
+		const {
+			working, moved, wasSelectedBefore, grabIndex,
+			blockStart, originalBlockStart, originalBlockEnd,
+		} = this.drag;
+		const slotName = working[grabIndex] ? working[grabIndex].frame : null;
 		this.drag = null;
 
 		if (!moved) {
-			if (wasSelected || !this.viewport.sheetFits) {
+			const singleSlotSelected = this.doc.selectedSlotIndices.size === 1;
+			if (singleSlotSelected && (wasSelectedBefore || !this.viewport.sheetFits)) {
 				if (slotName) this.viewport.focusFrame(slotName);
 			}
-			// If the transform editor is open, follow the click to the
-			// newly-selected slot.
-			if (this.editingIndex !== null && this.editingIndex !== index) {
-				this._openEditor(index);
-			}
+			if (this.editingIndex !== null) this._renderEditor();
 			this.render();
 			return;
 		}
 
-		// Reordering shifts indices; the editor's slot index no longer
-		// points at the same thing. Close it rather than trying to
-		// track the moved slot.
-		if (this.editingIndex !== null) this._closeEditor();
-
 		const seq = this.doc.getSelectedSequence();
 		if (!seq) { this.render(); return; }
 
-		// Compare on frame names only — slot order, not transforms.
 		const same = working.length === seq.frames.length &&
 			working.every((s, i) => s.frame === seq.frames[i].frame);
 		if (same) { this.render(); return; }
 
+		const shift = blockStart - originalBlockStart;
+
+		// Remap every index that tracked a specific slot.
+		if (shift !== 0) {
+			const newSet = new Set();
+			for (const i of this.doc.selectedSlotIndices) {
+				newSet.add(this._translateIndex(i, originalBlockStart, originalBlockEnd, shift));
+			}
+			this.doc.selectedSlotIndices = newSet;
+
+			if (this.doc.selectedSlotIndex !== null) {
+				this.doc.selectedSlotIndex = this._translateIndex(
+					this.doc.selectedSlotIndex, originalBlockStart, originalBlockEnd, shift
+				);
+			}
+			if (this.doc._slotAnchor !== null) {
+				this.doc._slotAnchor = this._translateIndex(
+					this.doc._slotAnchor, originalBlockStart, originalBlockEnd, shift
+				);
+			}
+			if (this.editingIndex !== null) {
+				this.editingIndex = this._translateIndex(
+					this.editingIndex, originalBlockStart, originalBlockEnd, shift
+				);
+			}
+		}
+
 		this.doc.editable.setSequence(seq.name, { frames: working });
+
+		// If the editor is still open, re-render so its title reflects the
+		// new index. The content is unchanged; the fields already show the
+		// correct values.
+		if (this.editingIndex !== null) this._renderEditor();
 	}
 }

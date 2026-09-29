@@ -13,10 +13,11 @@ import { makeSheetFromImage } from '../io/loadSheet.js';
 //   primaryFrame / primarySequence     - the "focused" one tools act on
 //   _frameAnchor / _sequenceAnchor     - anchor for shift-click range select
 //
-// A single click sets the set to one item and makes it primary. Ctrl-click
-// toggles membership. Shift-click extends a contiguous range from the
-// anchor. The set is never empty while the corresponding list is non-empty;
-// ctrl-clicking the last item away is a no-op.
+//   selectedSlotIndices / selectedSlotIndex / _slotAnchor
+//     Timeline slots in the current sequence. Same modifier semantics as
+//     the lists: plain click replaces, ctrl/cmd toggles, shift extends a
+//     range. The primary is the last-clicked member and drives the paused
+//     preview's display; the full set is what a multi-slot edit targets.
 //
 // Events:
 //   sheetChanged      - { sheet } (may be null)
@@ -43,6 +44,8 @@ export class EditorDocument {
 		this._sequenceAnchor = null;
 
 		this.selectedSlotIndex = null;
+		this.selectedSlotIndices = new Set();
+		this._slotAnchor = null;
 
 		this.selection = new Selection();
 		this.imageLoaded = false;
@@ -53,17 +56,14 @@ export class EditorDocument {
 				this.emit('selectionChanged', { changed: true });
 				this.emit('edit', { type: 'history', source });
 			} else if (source === 'push') {
-				// A commit happened. Operations that go through EditableSheet already emit
-				// 'edit' via the 'changed' path, but pixel operations that push directly to
-				// history (tools' stroke transactions, panels' apply steps) would otherwise be
-				// invisible to views that re-render from sheet state. Emitting here covers
-				// both, at the cost of a redundant redraw for the EditableSheet path. Harmless
-				// and cheap.
+				// A commit happened. Operations that go through EditableSheet
+				// already emit 'edit' via the 'changed' path, but pixel
+				// operations that push directly to history would otherwise
+				// be invisible to views that re-render from sheet state.
 				this.emit('edit', { type: 'pixelsPushed' });
 			}
 			this._emitDirty();
 		});
-
 	}
 
 	get anyDirty()   { return this.history.anyDirty; }
@@ -109,12 +109,10 @@ export class EditorDocument {
 
 		this._resetFrameSelection();
 		this._resetSequenceSelection();
+		this._resetSlotSelection();
 		this.selection.clear();
-		this.selectedSlotIndex = null;
 		this.imageLoaded = imageLoaded !== null ? imageLoaded : !keepImage;
 		this.history.clear();
-
-
 
 		this.emit('sheetChanged', { sheet });
 		this.emit('selectionChanged', { focus: false });
@@ -143,6 +141,9 @@ export class EditorDocument {
 		this.primarySequence = null;
 		this._frameAnchor = null;
 		this._sequenceAnchor = null;
+		this.selectedSlotIndex = null;
+		this.selectedSlotIndices = new Set();
+		this._slotAnchor = null;
 		this.selection.clear();
 		this.imageLoaded = false;
 		this.history.clear();
@@ -176,6 +177,26 @@ export class EditorDocument {
 		}
 	}
 
+	// Seed the timeline's slot selection from the current frame. If the
+	// primary frame appears in the primary sequence, its first occurrence
+	// becomes the primary slot. Otherwise the timeline sets it on first
+	// interaction.
+	_resetSlotSelection() {
+		this.selectedSlotIndex = null;
+		this.selectedSlotIndices = new Set();
+		this._slotAnchor = null;
+
+		const seq = this.getSelectedSequence();
+		if (seq && this.primaryFrame) {
+			const idx = seq.frames.findIndex(s => s.frame === this.primaryFrame);
+			if (idx !== -1) {
+				this.selectedSlotIndex = idx;
+				this.selectedSlotIndices = new Set([idx]);
+				this._slotAnchor = idx;
+			}
+		}
+	}
+
 	// --- edits ------------------------------------------------------------
 
 	_onEdit(info) {
@@ -192,7 +213,6 @@ export class EditorDocument {
 			if (this._frameAnchor === info.name) {
 				this._frameAnchor = this.primaryFrame;
 			}
-			// If the frame set is now empty but frames remain, pick the first.
 			if (this.selectedFrames.size === 0 && this.sheet.frameNames.length > 0) {
 				const first = this.sheet.frameNames[0];
 				this.selectedFrames.add(first);
@@ -270,6 +290,8 @@ export class EditorDocument {
 		// Slot indices are sequence-relative; after undo/redo they may
 		// point at a different slot. Clear and let the timeline re-derive.
 		this.selectedSlotIndex = null;
+		this.selectedSlotIndices = new Set();
+		this._slotAnchor = null;
 	}
 
 	markSaved(which = 'all') { this.history.markSaved(which); }
@@ -339,6 +361,7 @@ export class EditorDocument {
 	//   focus    - hint for the viewport to move the camera
 	//   additive - ctrl/cmd-click: toggle membership
 	//   range    - shift-click: extend from the anchor
+	//   keepSet  - plain click on a member of the current set preserves it
 	selectFrame(name, { focus = false, additive = false, range = false, keepSet = false } = {}) {
 		if (!this.sheet) return;
 		const allNames = this.sheet.frameNames;
@@ -372,10 +395,6 @@ export class EditorDocument {
 			}
 
 		} else if (keepSet && this.selectedFrames.has(name)) {
-			// Click on a member of the current multi-selection: move the
-			// primary but keep the set intact, so a group drag can start
-			// from any member. Anchor follows the primary so a subsequent
-			// shift-click extends from where the user last clicked.
 			if (this.primaryFrame !== name) {
 				this.primaryFrame = name;
 				changed = true;
@@ -396,12 +415,11 @@ export class EditorDocument {
 			this.emit('selectionModified', {});
 		}
 
-		// Reconcile the shared slot index against the new frame. If the tracked slot
-		// no longer matches, forget it; then, if the new frame appears in the current
-		// sequence, promote its first occurrence to be the primary slot.
-		//
-		// Runs here rather than in a view so every listener sees a consistent value on
-		// the same event — the preview in particular reads it when paused.
+		// Reconcile the shared slot selection against the new frame. If
+		// the tracked slot no longer matches, forget it; then, if the new
+		// frame appears in the current sequence, promote its first
+		// occurrence. The multi-selection collapses to just the primary —
+		// a frame change invalidates any previous multi-slot choice.
 		const seq = this.getSelectedSequence();
 		if (this.selectedSlotIndex !== null) {
 			const slot = seq && seq.frames[this.selectedSlotIndex];
@@ -411,6 +429,10 @@ export class EditorDocument {
 			const idx = seq.frames.findIndex(s => s.frame === name);
 			if (idx !== -1) this.selectedSlotIndex = idx;
 		}
+		this.selectedSlotIndices = this.selectedSlotIndex !== null
+			? new Set([this.selectedSlotIndex])
+			: new Set();
+		this._slotAnchor = this.selectedSlotIndex;
 
 		this.emit('selectionChanged', {
 			frame: name,
@@ -421,11 +443,7 @@ export class EditorDocument {
 
 	// Extend the selection to a rectangular block of frames: every frame
 	// whose origin (x + centerx, y + centery) falls within the bounding
-	// box of the anchor frame and the target frame. Used by the Frame
-	// tool's shift-click.
-	//
-	// The anchor is preserved across repeated shift-clicks, matching the
-	// list-based range select.
+	// box of the anchor frame and the target frame.
 	selectFrameRectRange(targetName) {
 		if (!this.sheet) return;
 		const anchorName = this._frameAnchor ?? this.primaryFrame;
@@ -454,13 +472,11 @@ export class EditorDocument {
 				chosen.add(name);
 			}
 		}
-		// Both endpoints always included, whatever their origins say.
 		chosen.add(anchorName);
 		chosen.add(targetName);
 
 		this.selectedFrames = chosen;
 		this.primaryFrame = targetName;
-		// _frameAnchor deliberately not updated here.
 
 		if (!this.selection.isEmpty) {
 			this.selection.clear();
@@ -512,11 +528,100 @@ export class EditorDocument {
 			this._sequenceAnchor = name;
 		}
 
-		if (changed) this.selectedSlotIndex = null;
+		// A sequence change invalidates the slot selection; the timeline
+		// re-derives it from the primary frame.
+		if (changed) {
+			this.selectedSlotIndex = null;
+			this.selectedSlotIndices = new Set();
+			this._slotAnchor = null;
+		}
+
 		this.emit('selectionChanged', {
 			sequence: name,
 			changed: changed || prevPrimary !== this.primarySequence,
 		});
+	}
+
+	// --- slot selection ---------------------------------------------------
+
+	// Timeline entry point. Mirrors selectFrame's modifier semantics:
+	//   plain    - replace the set with the clicked slot
+	//   ctrl/cmd - toggle membership; clicked slot becomes primary if added
+	//   shift    - extend from the last-clicked anchor
+	//
+	// keepSet: when true (the timeline's default), a plain click on a slot
+	// that's already in the selection preserves the set and moves the
+	// primary. This lets a group drag start from any member. Clicks
+	// outside the set still replace it.
+	selectSlot(index, { additive = false, range = false, keepSet = true } = {}) {
+		const seq = this.getSelectedSequence();
+		if (!seq) return;
+		if (index < 0 || index >= seq.frames.length) return;
+
+		let changed = false;
+		const prevPrimary = this.selectedSlotIndex;
+
+		if (range && this._slotAnchor !== null) {
+			const a = this._slotAnchor;
+			const b = index;
+			const [lo, hi] = a < b ? [a, b] : [b, a];
+			this.selectedSlotIndices = new Set();
+			for (let i = lo; i <= hi; i++) this.selectedSlotIndices.add(i);
+			this.selectedSlotIndex = index;
+			changed = true;
+
+		} else if (additive) {
+			if (this.selectedSlotIndices.has(index)) {
+				if (this.selectedSlotIndices.size > 1) {
+					this.selectedSlotIndices.delete(index);
+					changed = true;
+				}
+				if (this.selectedSlotIndex === index) {
+					const sorted = [...this.selectedSlotIndices].sort((a, b) => a - b);
+					this.selectedSlotIndex = sorted[0] ?? null;
+				}
+			} else {
+				this.selectedSlotIndices.add(index);
+				this.selectedSlotIndex = index;
+				this._slotAnchor = index;
+				changed = true;
+			}
+
+		} else if (keepSet && this.selectedSlotIndices.has(index)) {
+			if (this.selectedSlotIndex !== index) {
+				this.selectedSlotIndex = index;
+				changed = true;
+			}
+			this._slotAnchor = index;
+
+		} else {
+			if (this.selectedSlotIndices.size !== 1 || this.selectedSlotIndex !== index) {
+				this.selectedSlotIndices = new Set([index]);
+				changed = true;
+			}
+			this.selectedSlotIndex = index;
+			this._slotAnchor = index;
+		}
+
+		// Sync the frame selection to the primary slot's frame. Collapses
+		// the frame selection to that one frame, matching what a plain
+		// frame click would do. Done directly rather than via selectFrame,
+		// which would collapse the slot set back to a singleton.
+		const primarySlot = seq.frames[this.selectedSlotIndex];
+		if (primarySlot && primarySlot.frame !== this.primaryFrame) {
+			this.primaryFrame = primarySlot.frame;
+			this.selectedFrames = new Set([primarySlot.frame]);
+			this._frameAnchor = primarySlot.frame;
+			if (!this.selection.isEmpty) {
+				this.selection.clear();
+				this.emit('selectionModified', {});
+			}
+			changed = true;
+		}
+
+		if (changed || prevPrimary !== this.selectedSlotIndex) {
+			this.emit('selectionChanged', { changed: true });
+		}
 	}
 
 	getSelectedFrame() {
