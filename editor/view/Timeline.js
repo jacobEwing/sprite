@@ -1,4 +1,5 @@
 import { makeEmitter } from '../lib/emitter.js';
+import { valueAdjuster } from '../lib/valueAdjuster.js';
 
 const THUMB_SIZE = 56;
 
@@ -228,31 +229,58 @@ export class Timeline {
 		this.editorFieldsEl.innerHTML = '';
 
 		const fields = [
-			{ key: 'translateX', label: 'Translate X', step: '0.5', default: 0 },
-			{ key: 'translateY', label: 'Translate Y', step: '0.5', default: 0 },
-			{ key: 'rotation',   label: 'Rotation °',  step: '1',   default: 0 },
-			{ key: 'scaleX',     label: 'Scale X',     step: '0.1', default: 1 },
-			{ key: 'scaleY',     label: 'Scale Y',     step: '0.1', default: 1 },
+			{ key: 'translateX', label: 'Translate X', step: 0.5, default: 0 },
+			{ key: 'translateY', label: 'Translate Y', step: 0.5, default: 0 },
+			{ key: 'rotation',   label: 'Rotation °',  step: 1,   default: 0 },
+			{ key: 'scaleX',     label: 'Scale X',     step: 0.1, default: 1 },
+			{ key: 'scaleY',     label: 'Scale Y',     step: 0.1, default: 1 },
 		];
 
 		for (const f of fields) {
-			const cell = document.createElement('label');
-			cell.className = 'insp-cell';
-			cell.innerHTML = `<span class="insp-label">${f.label}</span>`;
-			const input = document.createElement('input');
-			input.type = 'number';
-			input.className = 'insp-input';
-			input.step = f.step;
-			input.value = t[f.key];
-			input.addEventListener('change', () => {
-				const v = parseFloat(input.value);
-				this.doc.editable.setSlotTransform(
-					seq.name, index,
-					{ [f.key]: Number.isFinite(v) ? v : f.default }
-				);
-			});
-			cell.appendChild(input);
+			const cell = document.createElement('div');
+			cell.className = 'tl-editor-field';
+
+			const label = document.createElement('span');
+			label.className = 'insp-label';
+			label.textContent = f.label;
+			cell.appendChild(label);
+
+			// Visible, editable number field. Registered as the widget's
+			// displayElement, so the widget writes the current value
+			// here on every adjustment and reads it back when the user
+			// types. Sits above the slider so the readout is never
+			// obscured by the handle.
+			const visible = document.createElement('input');
+			visible.type = 'number';
+			visible.className = 'tl-editor-num';
+			visible.step = String(f.step);
+			visible.value = t[f.key];
+			cell.appendChild(visible);
+
+			// Hidden value store for the widget. It reads and writes
+			// this, and dispatches input/change on it when a value
+			// settles. Kept separate from the visible field so the
+			// widget's own event flow is the single source of updates
+			// through the model.
+			const raw = document.createElement('input');
+			raw.type = 'number';
+			raw.step = String(f.step);
+			raw.value = t[f.key];
+			cell.appendChild(raw);
+
 			this.editorFieldsEl.appendChild(cell);
+
+			valueAdjuster(raw, {
+				stepSize: f.step,
+				displayElement: visible,
+				onAdjust: (v) => {
+					const num = Number.isFinite(v) ? v : f.default;
+					this.doc.editable.setSlotTransform(
+						seq.name, index,
+						{ [f.key]: num }
+					);
+				},
+			});
 		}
 
 		this.editorResetBtn.disabled = !slot.transform;
@@ -363,6 +391,7 @@ export class Timeline {
 		const { working, moved, wasSelected, index } = this.drag;
 		const slotName = working[index] ? working[index].frame : null;
 		this.drag = null;
+
 		if (!moved) {
 			if (wasSelected || !this.viewport.sheetFits) {
 				if (slotName) this.viewport.focusFrame(slotName);

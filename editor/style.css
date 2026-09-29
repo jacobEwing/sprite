@@ -415,7 +415,27 @@ body {
 .tl-editor-fields {
 	display: grid;
 	grid-template-columns: repeat(5, 1fr);
-	gap: 8px;
+	gap: 10px;
+}
+.tl-editor-field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+.tl-editor-num {
+	background: var(--panel-2);
+	border: 1px solid var(--rule);
+	border-radius: 3px;
+	padding: 3px 6px;
+	color: var(--ink);
+	font: 11px "SF Mono", Menlo, Consolas, monospace;
+	width: 100%;
+	min-width: 0;
+}
+.tl-editor-num:focus {
+	outline: none;
+	border-color: var(--accent-2);
 }
 .tl-editor-actions {
 	display: flex;
@@ -2039,4 +2059,78 @@ body {
 .tsp-dir[data-action="move-right"] { grid-column: 3; grid-row: 2; }
 .tsp-hint {
 	margin-top: 10px;
+}
+/* --- value adjuster widget --- */
+.value-adjuster {
+	width: 100%;
+	user-select: none;
+}
+.value-adjuster-track {
+	position: relative;
+	height: 26px;
+	background: var(--panel-2);
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	cursor: ew-resize;
+	overflow: hidden;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.value-adjuster-track:focus {
+	outline: none;
+	border-color: var(--accent-2);
+}
+.value-adjuster-fill {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	background: rgba(74, 128, 192, 0.35);
+	pointer-events: none;
+}
+.value-adjuster-display {
+	position: relative;
+	color: var(--ink);
+	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-size: 11px;
+	pointer-events: none;
+	z-index: 1;
+}
+.value-adjuster-handle {
+	position: absolute;
+	top: 2px;
+	bottom: 2px;
+	left: 50%;
+	width: 16px;
+	margin-left: -8px;
+	background: var(--accent);
+	border-radius: 3px;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	gap: 2px;
+	transition: transform 100ms ease-out;
+	z-index: 2;
+}
+.value-adjuster-handle span {
+	display: block;
+	width: 8px;
+	height: 1px;
+	background: var(--panel);
+}
+.value-adjuster-dot {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 8px;
+	height: 8px;
+	margin-top: -4px;
+	margin-left: -4px;
+	background: var(--accent-2);
+	border-radius: 50%;
+	opacity: 0;
+	pointer-events: none;
+	z-index: 2;
+	transition: opacity 120ms ease-out;
 }
