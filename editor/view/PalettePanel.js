@@ -1,5 +1,6 @@
 import { normalizeHex, hexToRGBA } from '../paint/pixelUtils.js';
 import { ColorPicker } from './ColorPicker.js';
+import { escapeBlurs } from '../lib/fieldEscape.js';
 
 const PRESETS = [
 	'#000000', '#1d2b53', '#7e2553', '#008751',
@@ -84,14 +85,9 @@ export class PalettePanel {
 
 		for (const input of [this.hexPrimary, this.hexSecondary]) {
 			const slot = input.dataset.slot;
-			input.addEventListener('blur', () => this._commitHex(slot, input.value));
-			input.addEventListener('keydown', (e) => {
-				if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-				else if (e.key === 'Escape') {
-					input.value = this.palette[slot].hex;
-					input.blur();
-				}
-			});
+			input.addEventListener('change', () => this._commitHex(slot, input.value));
+			input.addEventListener('blur',   () => this._commitHex(slot, input.value));
+			escapeBlurs(input);
 		}
 
 		this.root.querySelector('.pal-swap')

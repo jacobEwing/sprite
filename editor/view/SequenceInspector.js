@@ -1,5 +1,6 @@
 // Edits the selected sequence: rename, frameRate, iterations, and the
 // ordered list of frames with add/remove/reorder controls.
+import { escapeBlurs } from '../lib/fieldEscape.js';
 
 export class SequenceInspector {
 	constructor(root, doc) {
@@ -68,6 +69,7 @@ export class SequenceInspector {
 				nameInput.value = this.currentName;
 			}
 		});
+		escapeBlurs(nameInput);
 		nameRow.appendChild(nameInput);
 		this.root.appendChild(nameRow);
 
@@ -98,13 +100,7 @@ export class SequenceInspector {
 		timingInput.placeholder = 'blank = uniform rate';
 		timingInput.value = seq.frameTimes ? seq.frameTimes.join(', ') : '';
 		timingInput.addEventListener('change', () => this._commitFrameTimes(timingInput.value));
-		timingInput.addEventListener('keydown', (e) => {
-			if (e.key === 'Enter') { e.preventDefault(); timingInput.blur(); }
-			else if (e.key === 'Escape') {
-				timingInput.value = seq.frameTimes ? seq.frameTimes.join(', ') : '';
-				timingInput.blur();
-			}
-		});
+		escapeBlurs(timingInput);
 		timingRow.appendChild(timingInput);
 
 		const fillBtn = document.createElement('button');
@@ -237,6 +233,7 @@ export class SequenceInspector {
 		input.value = value;
 		input.min = '0';
 		input.addEventListener('change', () => onChange(input.value));
+		escapeBlurs(input);
 		cell.appendChild(input);
 		parent.appendChild(cell);
 		this.fields[key] = input;

@@ -1,7 +1,7 @@
 // Edits the selected frame: rename, and rect/origin fields. Rebuilds itself
 // when the selection changes; refreshes field values when the underlying
 // frame changes (including via undo/redo).
-
+import { escapeBlurs } from '../lib/fieldEscape.js';
 const FIELDS = ['x', 'y', 'width', 'height', 'centerx', 'centery'];
 
 export class FrameInspector {
@@ -55,6 +55,7 @@ export class FrameInspector {
 				nameInput.value = this.currentName;
 			}
 		});
+		escapeBlurs(nameInput);
 		nameRow.appendChild(nameInput);
 		this.root.appendChild(nameRow);
 
@@ -71,6 +72,7 @@ export class FrameInspector {
 			input.addEventListener('change', () => {
 				this.doc.editable.setFrame(this.currentName, { [key]: input.value });
 			});
+			escapeBlurs(input);
 			cell.appendChild(input);
 			grid.appendChild(cell);
 			this.fields[key] = input;

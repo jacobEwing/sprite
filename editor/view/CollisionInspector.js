@@ -1,4 +1,5 @@
 import { circleAt } from '../model/collisionUtils.js';
+import { escapeBlurs } from '../lib/fieldEscape.js';
 
 // Edit-tab pane for the selected frame's collision shape.
 //
@@ -9,6 +10,11 @@ import { circleAt } from '../model/collisionUtils.js';
 // The "Copy to all frames" button writes the current frame's shape onto
 // every other frame in the sheet, so a shape defined once can be applied
 // consistently across an animation.
+//
+// Rebuild vs refresh: the DOM is torn down and recreated when the selected
+// frame changes. When the frame is the same and only the underlying data
+// changed — a field committed, a sibling edit came in via undo — values
+// are refreshed in place instead, so tab focus survives the edit.
 
 const FIELDS = ['offsetX', 'offsetY', 'radius'];
 
@@ -16,19 +22,36 @@ export class CollisionInspector {
 	constructor(root, doc) {
 		this.root = root;
 		this.doc = doc;
+		this.currentName = null;
+		this.fields = {};
 
 		doc.on('sheetChanged',     () => this.rebuild());
 		doc.on('selectionChanged', () => this.rebuild());
-		doc.on('edit',             () => this.rebuild());
+		doc.on('edit',             () => this._onEdit());
 
 		this.rebuild();
 	}
 
+	_onEdit() {
+		if (this.doc.selectedFrame !== this.currentName) {
+			this.rebuild();
+		} else {
+			this.refresh();
+		}
+	}
+
 	rebuild() {
 		this.root.innerHTML = '';
-		if (!this.doc.sheet) return;
+		this.fields = {};
+
+		if (!this.doc.sheet) {
+			this.currentName = null;
+			return;
+		}
 
 		const frame = this.doc.getSelectedFrame();
+		this.currentName = this.doc.selectedFrame;
+
 		if (!frame) {
 			this._info('No frame selected.');
 			return;
@@ -59,6 +82,26 @@ export class CollisionInspector {
 		copyBtn.disabled = this.doc.sheet.frameNames.length <= 1;
 		copyBtn.addEventListener('click', () => this._copyToAll());
 		this.root.appendChild(copyBtn);
+	}
+
+	// Update input values in place, without touching the DOM structure.
+	// Skips whichever field has focus, so an in-progress edit isn't
+	// clobbered by a refresh triggered from elsewhere.
+	refresh() {
+		const frame = this.doc.getSelectedFrame();
+		if (!frame) return;
+		const circles = frame.collision && frame.collision.circles
+			? frame.collision.circles
+			: [];
+
+		for (let i = 0; i < circles.length; i++) {
+			for (const key of FIELDS) {
+				const input = this.fields[`${i}.${key}`];
+				if (!input) continue;
+				if (document.activeElement === input) continue;
+				input.value = circles[i][key];
+			}
+		}
 	}
 
 	_info(msg) {
@@ -102,8 +145,10 @@ export class CollisionInspector {
 			if (key === 'radius') input.min = '1';
 			input.addEventListener('change', () =>
 				this._updateCircle(index, key, input.value));
+			escapeBlurs(input);
 			cell.appendChild(input);
 			grid.appendChild(cell);
+			this.fields[`${index}.${key}`] = input;
 		}
 		wrap.appendChild(grid);
 

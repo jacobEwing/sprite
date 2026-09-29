@@ -9,6 +9,7 @@
 // coordinates — (0, 0) is the frame rect's top-left corner. It defaults
 // to the frame's origin (centerx, centery), which is what transforms
 // used before pivots existed.
+import { escapeBlurs } from '../lib/fieldEscape.js';
 
 const FIELDS = [
 	{ key: 'translateX', label: 'Translate X', default: 0,   step: 0.5 },
@@ -76,6 +77,7 @@ export class FrameTransformInspector {
 					[f.key]: Number.isFinite(v) ? v : fallback,
 				});
 			});
+			escapeBlurs(input);
 			cell.appendChild(input);
 			grid.appendChild(cell);
 			this.fields[f.key] = input;

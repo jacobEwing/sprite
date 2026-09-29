@@ -1,6 +1,7 @@
 import { applyConvolution, matrixSum, PRESETS, defaultMatrix } from '../paint/filters.js';
 import { PaintCommand } from '../history/PaintCommand.js';
 import { CompositeCommand } from '../model/sheetCommands.js';
+import { escapeBlurs } from '../lib/fieldEscape.js';
 
 // Sidebar panel for the convolution filter, rendered inside the Modifiers
 // tab.
@@ -172,6 +173,9 @@ export class FilterPanel {
 			this.offset = parseFloat(this.offsetInput.value) || 0;
 			this._onControlChange();
 		});
+		escapeBlurs(this.divisorInput);
+		escapeBlurs(this.offsetInput);
+
 		this.alphaInput.addEventListener('change', () => {
 			this.convolveAlpha = this.alphaInput.checked;
 			this._onControlChange();
@@ -223,6 +227,7 @@ export class FilterPanel {
 					this.presetSelect.value = '';
 					this._onControlChange();
 				});
+				escapeBlurs(input);
 				this.matrixEl.appendChild(input);
 				row.push(input);
 			}

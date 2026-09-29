@@ -1,6 +1,7 @@
 import { makeEmitter } from '../lib/emitter.js';
 import { valueAdjuster } from '../lib/valueAdjuster.js';
 import { applyIcon } from './toolIcons.js';
+import { escapeBlurs } from '../lib/fieldEscape.js';
 
 const THUMB_SIZE = 56;
 
@@ -268,6 +269,7 @@ export class Timeline {
 			visible.className = 'tl-editor-num';
 			visible.step = String(f.step);
 			visible.value = t[f.key] !== undefined ? t[f.key] : f.default;
+			escapeBlurs(visible);
 			cell.appendChild(visible);
 
 			const raw = document.createElement('input');
@@ -289,6 +291,14 @@ export class Timeline {
 					);
 				},
 			});
+
+			// The widget's handle is focusable by default, which puts it
+			// between our visible fields in the tab order. Take it out;
+			// the field itself is what the user tabs into.
+			const handle = raw.nextElementSibling
+				? raw.nextElementSibling.querySelector('.value-adjuster-handle')
+				: null;
+			if (handle) handle.tabIndex = -1;		
 		}
 
 		this.editorResetBtn.disabled = !slot.transform;

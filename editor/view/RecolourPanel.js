@@ -4,6 +4,7 @@ import { CompositeCommand } from '../model/sheetCommands.js';
 import { hexToRGBA, normalizeHex } from '../paint/pixelUtils.js';
 import { rgbToHsv, hsvToRgb } from '../paint/colorConvert.js';
 import { enableWheelStep } from '../lib/wheelStep.js';
+import { escapeBlurs } from '../lib/fieldEscape.js';
 
 
 // Sidebar panel for colour replace, rendered inside the Modifiers tab.
@@ -167,13 +168,7 @@ export class RecolourPanel {
 		});
 
 		this.hexInput.addEventListener('change', () => this._setSource(this.hexInput.value));
-		this.hexInput.addEventListener('keydown', (e) => {
-			if (e.key === 'Enter') { e.preventDefault(); this.hexInput.blur(); }
-			else if (e.key === 'Escape') {
-				this.hexInput.value = this.sourceHex;
-				this.hexInput.blur();
-			}
-		});
+		escapeBlurs(this.hexInput);
 
 		const slider = (el, key) => {
 			el.addEventListener('input', () => {
