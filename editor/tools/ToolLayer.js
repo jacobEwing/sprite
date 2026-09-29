@@ -97,15 +97,13 @@ export class ToolLayer {
 			// Shift-click on empty space falls through to the normal path.
 		}
 
-		// A left- or right-click inside a different frame selects it. The
-		// keepSet flag preserves an existing multi-selection when the
-		// click lands inside it, so a group drag can start from any
-		// member.
+		// A left- or right-click inside a different frame selects it. The keepSet flag
+		// preserves an existing multi-selection when the click lands inside it, so a
+		// group drag can start from any member.
 		//
-		// If the clicked frame was already part of the selection, the
-		// user has signalled intent to work with that group — no reason
-		// to defer the gesture. The primary follows the click, and the
-		// tool starts immediately.
+		// If the clicked frame was already part of the selection, the user has
+		// signalled intent to work with that group — no reason to defer the gesture.
+		// The primary follows the click, and the tool starts immediately.
 		let selectionChanged = false;
 		let clickedFrameWasSelected = false;
 		if (e.button === 0 || e.button === 2) {
@@ -116,6 +114,16 @@ export class ToolLayer {
 				clickedFrameWasSelected = this.document.selectedFrames.has(name);
 				if (name !== this.document.selectedFrame) {
 					this.document.selectFrame(name, { keepSet: true });
+					selectionChanged = true;
+				}
+			} else if (e.button === 0 && !e.shiftKey && !e.altKey) {
+				// Plain left-click on empty space collapses a multi- selection down to the
+				// primary frame. This gives the user a way out of a "everything is selected"
+				// state without needing a frame outside the group to click on.  The primary
+				// survives, so drawing tools still have a target — a full deselect would
+				// strand them.
+				if (this.document.selectedFrames.size > 1) {
+					this.document.selectFrame(this.document.selectedFrame, { focus: false });
 					selectionChanged = true;
 				}
 			}
