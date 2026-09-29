@@ -280,7 +280,7 @@ body {
 }
 .tl-tile {
 	flex: 0 0 auto;
-	width: 64px;
+	width: 72px;
 	padding: 2px;
 	border: 1px solid var(--rule);
 	border-radius: 4px;
@@ -345,12 +345,12 @@ body {
 	justify-content: center;
 	margin-top: 2px;
 }
+
 .tl-tile-btn {
 	flex: 1 1 0;
 	min-width: 0;
-	background: var(--panel);
-	border: 1px solid var(--rule);
-	border-radius: 3px;
+	background: transparent;
+	border: none;
 	color: var(--muted);
 	padding: 1px 0;
 	font: inherit;
@@ -362,15 +362,10 @@ body {
 	align-items: center;
 	justify-content: center;
 	overflow: hidden;
+	border-radius: 3px;
 }
 .tl-tile-btn:hover {
-	color: var(--ink);
-	background: #383840;
-	border-color: var(--accent-2);
-}
-.tl-tile-btn.active {
-	color: var(--accent);
-	border-color: var(--accent);
+	outline: 1px solid #9c8f82;
 }
 
 /* --- slot transform editor --- */

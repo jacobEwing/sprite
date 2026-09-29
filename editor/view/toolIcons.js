@@ -63,7 +63,7 @@ export function applyIcon(btn, frameName) {
 // measured, because rendered layout is unreliable when a button isn't
 // in the DOM yet — which is the case for freshly-created timeline tiles.
 function targetSizeFor(btn) {
-	if (btn.classList.contains('tl-tile-btn')) return 16;
+	if (btn.classList.contains('tl-tile-btn')) return 14;
 	if (btn.classList.contains('tsp-btn'))     return 28;
 	return 44;  // .tool-btn, the default
 }

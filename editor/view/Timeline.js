@@ -145,11 +145,10 @@ export class Timeline {
 		idx.textContent = index;
 		tile.appendChild(idx);
 
-		// Toolbar: transform for now; clone and delete land in a later
-		// pass using the same shape.
 		const toolbar = document.createElement('div');
 		toolbar.className = 'tl-tile-toolbar';
 
+		// Transform: opens the slot transform editor.
 		const tBtn = document.createElement('button');
 		tBtn.className = 'tl-tile-btn';
 		tBtn.dataset.icon = 'slot-transform';
@@ -165,8 +164,34 @@ export class Timeline {
 		applyIcon(tBtn, 'slot-transform');
 		toolbar.appendChild(tBtn);
 
+		// Duplicate: inserts a copy right after this slot.
+		const dBtn = document.createElement('button');
+		dBtn.className = 'tl-tile-btn';
+		dBtn.dataset.icon = 'slot-duplicate';
+		dBtn.textContent = '+';
+		dBtn.title = 'Duplicate slot';
+		dBtn.addEventListener('click', (e) => {
+			e.stopPropagation();
+			this._duplicateSlot(index);
+		});
+		applyIcon(dBtn, 'slot-duplicate');
+		toolbar.appendChild(dBtn);
+
+		// Delete: removes this slot from the sequence.
+		const xBtn = document.createElement('button');
+		xBtn.className = 'tl-tile-btn';
+		xBtn.dataset.icon = 'slot-delete';
+		xBtn.textContent = '×';
+		xBtn.title = 'Delete slot';
+		xBtn.addEventListener('click', (e) => {
+			e.stopPropagation();
+			this._deleteSlot(index);
+		});
+		applyIcon(xBtn, 'slot-delete');
+		toolbar.appendChild(xBtn);
+
 		tile.appendChild(toolbar);
-		return tile;
+		return tile;	
 	}
 
 	_drawThumb(canvas, sheet, frame, transform) {
@@ -309,6 +334,42 @@ export class Timeline {
 		const index = this.editingIndex;
 		if (!seq || index === null) return;
 		this.doc.editable.setSlotTransform(seq.name, index, null);
+	}
+
+	_duplicateSlot(index) {
+		const seq = this.doc.getSelectedSequence();
+		if (!seq) return;
+
+		// Track the open editor across the index shift. If it was
+		// pointing at a slot after the insertion point, its index moves
+		// up by one to stay on the same content. If it was on the source
+		// slot itself, it stays put.
+		if (this.editingIndex !== null && this.editingIndex > index) {
+			this.editingIndex += 1;
+		}
+		if (this.doc.selectedSlotIndex !== null && this.doc.selectedSlotIndex > index) {
+			this.doc.selectedSlotIndex += 1;
+		}
+
+		this.doc.editable.duplicateSequenceSlot(seq.name, index);
+	}
+
+	_deleteSlot(index) {
+		const seq = this.doc.getSelectedSequence();
+		if (!seq) return;
+
+		// If the editor is open on the slot being deleted, close it.
+		// Otherwise shift its index down if it was after the deletion.
+		if (this.editingIndex !== null) {
+			if (this.editingIndex === index)      this._closeEditor();
+			else if (this.editingIndex > index)   this.editingIndex -= 1;
+		}
+		if (this.doc.selectedSlotIndex !== null) {
+			if (this.doc.selectedSlotIndex === index)      this.doc.selectedSlotIndex = null;
+			else if (this.doc.selectedSlotIndex > index)   this.doc.selectedSlotIndex -= 1;
+		}
+
+		this.doc.editable.removeFrameFromSequence(seq.name, index);
 	}
 
 	_applyPivotPreset(which) {

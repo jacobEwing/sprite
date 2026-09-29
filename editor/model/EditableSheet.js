@@ -502,6 +502,24 @@ export class EditableSheet {
 		this.setSequence(seqName, { frames });
 	}
 
+	// Insert a copy of the slot at `index` immediately after it. The
+	// duplicate carries the same frame and a deep copy of its transform,
+	// so editing one doesn't affect the other.
+	duplicateSequenceSlot(seqName, index) {
+		const seq = this.sheet.sequences[seqName];
+		if (!seq) return;
+		if (index < 0 || index >= seq.frames.length) return;
+
+		const source = seq.frames[index];
+		const copy = {
+			frame: source.frame,
+			transform: source.transform ? { ...source.transform } : null,
+		};
+		const frames = seq.frames.slice();
+		frames.splice(index + 1, 0, copy);
+		this.setSequence(seqName, { frames });
+	}
+
 	moveSequenceFrame(seqName, from, to) {
 		const seq = this.sheet.sequences[seqName];
 		if (!seq) return;
