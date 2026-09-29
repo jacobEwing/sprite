@@ -179,17 +179,25 @@ export class EditableSheet {
 		if (patch === null) {
 			delete after.transform;
 		} else {
-			const fields = ['translateX', 'translateY', 'rotation', 'scaleX', 'scaleY'];
-			const next = { ...(current.transform || {
-				translateX: 0, translateY: 0, rotation: 0, scaleX: 1, scaleY: 1,
-			}) };
-			for (const k of fields) {
+			const defX = current.centerx;
+			const defY = current.centery;
+			const base = current.transform || {
+				translateX: 0, translateY: 0, rotation: 0,
+				scaleX: 1, scaleY: 1,
+				pivotX: defX, pivotY: defY,
+			};
+			const next = { ...base };
+			for (const k of [
+				'translateX', 'translateY', 'rotation', 'scaleX', 'scaleY',
+				'pivotX', 'pivotY',
+			]) {
 				if (patch[k] !== undefined) next[k] = Number(patch[k]);
 			}
 			const isIdentity =
 				next.translateX === 0 && next.translateY === 0 &&
 				next.rotation === 0 &&
-				next.scaleX === 1 && next.scaleY === 1;
+				next.scaleX === 1 && next.scaleY === 1 &&
+				next.pivotX === defX && next.pivotY === defY;
 			if (isIdentity) delete after.transform;
 			else            after.transform = next;
 		}
@@ -514,22 +522,32 @@ export class EditableSheet {
 		if (index < 0 || index >= seq.frames.length) return;
 
 		const slot = seq.frames[index];
+		const frame = this.sheet.frames[slot.frame];
+		const defX = frame ? frame.centerx : 0;
+		const defY = frame ? frame.centery : 0;
+
 		let nextTransform;
 
 		if (patch === null) {
 			nextTransform = null;
 		} else {
 			const base = slot.transform || {
-				translateX: 0, translateY: 0, rotation: 0, scaleX: 1, scaleY: 1,
+				translateX: 0, translateY: 0, rotation: 0,
+				scaleX: 1, scaleY: 1,
+				pivotX: defX, pivotY: defY,
 			};
 			const next = { ...base };
-			for (const k of ['translateX', 'translateY', 'rotation', 'scaleX', 'scaleY']) {
+			for (const k of [
+				'translateX', 'translateY', 'rotation', 'scaleX', 'scaleY',
+				'pivotX', 'pivotY',
+			]) {
 				if (patch[k] !== undefined) next[k] = Number(patch[k]);
 			}
 			const isIdentity =
 				next.translateX === 0 && next.translateY === 0 &&
 				next.rotation === 0 &&
-				next.scaleX === 1 && next.scaleY === 1;
+				next.scaleX === 1 && next.scaleY === 1 &&
+				next.pivotX === defX && next.pivotY === defY;
 			nextTransform = isIdentity ? null : next;
 		}
 

@@ -1,5 +1,6 @@
 import { makeEmitter } from '../lib/emitter.js';
 import { valueAdjuster } from '../lib/valueAdjuster.js';
+import { applyIcon } from './toolIcons.js';
 
 const THUMB_SIZE = 56;
 
@@ -50,6 +51,11 @@ export class Timeline {
 				<div class="tl-editor-body">
 					<div class="tl-editor-fields"></div>
 					<div class="tl-editor-actions">
+						<div class="tl-editor-actions-left">
+							<span class="tl-editor-hint">Pivot:</span>
+							<button class="tl-editor-pivot-btn" data-pivot="origin">Origin</button>
+							<button class="tl-editor-pivot-btn" data-pivot="centre">Centre</button>
+						</div>
 						<button class="tl-editor-reset">Reset transform</button>
 					</div>
 				</div>
@@ -69,6 +75,9 @@ export class Timeline {
 			.addEventListener('click', () => this._closeEditor());
 		this.editorResetBtn
 			.addEventListener('click', () => this._resetSlotTransform());
+		for (const btn of this.root.querySelectorAll('.tl-editor-pivot-btn')) {
+			btn.addEventListener('click', () => this._applyPivotPreset(btn.dataset.pivot));
+		}
 
 		document.addEventListener('keydown', (e) => {
 			if (e.key === 'Escape' && this.editingIndex !== null) this._closeEditor();
@@ -143,7 +152,8 @@ export class Timeline {
 
 		const tBtn = document.createElement('button');
 		tBtn.className = 'tl-tile-btn';
-		tBtn.textContent = '#';
+		tBtn.dataset.icon = 'slot-transform';
+		tBtn.textContent = '#';   // fallback until the icon sheet loads
 		tBtn.title = slot.transform
 			? 'Edit slot transform (currently set)'
 			: 'Add slot transform';
@@ -152,6 +162,7 @@ export class Timeline {
 			e.stopPropagation();
 			this._openEditor(index);
 		});
+		applyIcon(tBtn, 'slot-transform');
 		toolbar.appendChild(tBtn);
 
 		tile.appendChild(toolbar);
@@ -221,8 +232,14 @@ export class Timeline {
 		if (!seq || index === null || index >= seq.frames.length) return;
 
 		const slot = seq.frames[index];
+		const frame = this.doc.sheet.frames[slot.frame];
+		const defX = frame ? frame.centerx : 0;
+		const defY = frame ? frame.centery : 0;
+
 		const t = slot.transform || {
-			translateX: 0, translateY: 0, rotation: 0, scaleX: 1, scaleY: 1,
+			translateX: 0, translateY: 0, rotation: 0,
+			scaleX: 1, scaleY: 1,
+			pivotX: defX, pivotY: defY,
 		};
 
 		this.editorTitleEl.textContent = `Slot ${index}: ${slot.frame}`;
@@ -234,6 +251,8 @@ export class Timeline {
 			{ key: 'rotation',   label: 'Rotation °',  step: 1,   default: 0 },
 			{ key: 'scaleX',     label: 'Scale X',     step: 0.1, default: 1 },
 			{ key: 'scaleY',     label: 'Scale Y',     step: 0.1, default: 1 },
+			{ key: 'pivotX',     label: 'Pivot X',     step: 0.5, default: defX },
+			{ key: 'pivotY',     label: 'Pivot Y',     step: 0.5, default: defY },
 		];
 
 		for (const f of fields) {
@@ -245,27 +264,17 @@ export class Timeline {
 			label.textContent = f.label;
 			cell.appendChild(label);
 
-			// Visible, editable number field. Registered as the widget's
-			// displayElement, so the widget writes the current value
-			// here on every adjustment and reads it back when the user
-			// types. Sits above the slider so the readout is never
-			// obscured by the handle.
 			const visible = document.createElement('input');
 			visible.type = 'number';
 			visible.className = 'tl-editor-num';
 			visible.step = String(f.step);
-			visible.value = t[f.key];
+			visible.value = t[f.key] !== undefined ? t[f.key] : f.default;
 			cell.appendChild(visible);
 
-			// Hidden value store for the widget. It reads and writes
-			// this, and dispatches input/change on it when a value
-			// settles. Kept separate from the visible field so the
-			// widget's own event flow is the single source of updates
-			// through the model.
 			const raw = document.createElement('input');
 			raw.type = 'number';
 			raw.step = String(f.step);
-			raw.value = t[f.key];
+			raw.value = visible.value;
 			cell.appendChild(raw);
 
 			this.editorFieldsEl.appendChild(cell);
@@ -291,6 +300,29 @@ export class Timeline {
 		const index = this.editingIndex;
 		if (!seq || index === null) return;
 		this.doc.editable.setSlotTransform(seq.name, index, null);
+	}
+
+	_applyPivotPreset(which) {
+		const seq = this.doc.getSelectedSequence();
+		const index = this.editingIndex;
+		if (!seq || index === null) return;
+
+		const slot = seq.frames[index];
+		const frame = this.doc.sheet.frames[slot.frame];
+		if (!frame) return;
+
+		let px, py;
+		if (which === 'origin') {
+			px = frame.centerx;
+			py = frame.centery;
+		} else if (which === 'centre') {
+			px = frame.width  / 2;
+			py = frame.height / 2;
+		} else return;
+
+		this.doc.editable.setSlotTransform(seq.name, index, {
+			pivotX: px, pivotY: py,
+		});
 	}
 
 	_onSelectionChange() {

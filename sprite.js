@@ -49,6 +49,8 @@
  * @property {number} [transform.rotation]   Degrees, default 0.
  * @property {number} [transform.scaleX]     Default 1.
  * @property {number} [transform.scaleY]     Default 1.
+ * @property {number} [transform.pivotX]     Frame-local pivot X. Default: frame's centerx.
+ * @property {number} [transform.pivotY]     Frame-local pivot Y. Default: frame's centery.
  */
 
 /**
@@ -234,6 +236,9 @@ function parseTransform(raw) {
 		scaleX:     raw.scaleX !== undefined ? Number(raw.scaleX) : 1,
 		scaleY:     raw.scaleY !== undefined ? Number(raw.scaleY) : 1,
 	};
+	if (raw.pivotX !== undefined) t.pivotX = Number(raw.pivotX);
+	if (raw.pivotY !== undefined) t.pivotY = Number(raw.pivotY);
+
 	if (t.translateX === 0 && t.translateY === 0 && t.rotation === 0
 	    && t.scaleX === 1 && t.scaleY === 1) {
 		return null;
@@ -289,6 +294,33 @@ function formatCollisionForJSON(shape) {
 			radius:  c.radius,
 		})),
 	};
+}
+
+/**
+ * Apply a transform to the current context, pivoting around the
+ * transform's pivot point.
+ *
+ * `cx` and `cy` are the frame's origin in draw-local coordinates — the
+ * point the drawImage call places at (0, 0). The transform's pivot,
+ * when specified, is in frame-local coordinates: (0, 0) is the frame
+ * rect's top-left, so a 24×24 frame's centre is (12, 12).
+ *
+ * When pivot is not set, defaults to the frame's origin, which is what
+ * every transform did before pivots existed.
+ */
+function applyLocalTransform(ctx, tf, cx, cy) {
+	if (!tf) return;
+	const pivotX = tf.pivotX !== undefined ? tf.pivotX : cx;
+	const pivotY = tf.pivotY !== undefined ? tf.pivotY : cy;
+	const dx = pivotX - cx;
+	const dy = pivotY - cy;
+
+	const hasPivotShift = (dx !== 0 || dy !== 0);
+	if (hasPivotShift) ctx.translate(dx, dy);
+	if (tf.translateX || tf.translateY) ctx.translate(tf.translateX, tf.translateY);
+	if (tf.rotation) ctx.rotate(tf.rotation * Math.PI / 180);
+	if (tf.scaleX !== 1 || tf.scaleY !== 1) ctx.scale(tf.scaleX, tf.scaleY);
+	if (hasPivotShift) ctx.translate(-dx, -dy);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -865,36 +897,12 @@ class Sprite {
 
 			this._drawChildren(ctx, true);
 
-			// Per-frame transform. Applied between the sprite's own
-			// transform and the drawImage, so it acts in the sprite's
-			// local space, composes with sprite rotation/scale, and does
-			// not affect children.
-			//
-			// Order is scale, then rotate, then translate. Canvas
-			// transforms apply last-called first, so the calls run in
-			// reverse: translate, rotate, scale.
-			const t = frame?.transform;
-			if (t) {
-				if (t.translateX || t.translateY) ctx.translate(t.translateX, t.translateY);
-				if (t.rotation) ctx.rotate(t.rotation * Math.PI / 180);
-				if (t.scaleX !== 1 || t.scaleY !== 1) ctx.scale(t.scaleX, t.scaleY);
-			}
-
-			// Slot transform: applied after the frame transform, so it
-			// layers on top. Only set while playing a sequence whose
-			// current slot has a transform — otherwise null, and the
-			// block is skipped. Same call order as above.
-			const st = this._slotTransform;
-			if (st) {
-				if (st.translateX || st.translateY) ctx.translate(st.translateX, st.translateY);
-				if (st.rotation) ctx.rotate(st.rotation * Math.PI / 180);
-				if (st.scaleX !== 1 || st.scaleY !== 1) ctx.scale(st.scaleX, st.scaleY);
-			}
+			applyLocalTransform(ctx, frame?.transform, cx, cy);
+			applyLocalTransform(ctx, this._slotTransform, cx, cy);
 
 			ctx.drawImage(this.image, sx, sy, sw, sh, -cx, -cy, sw, sh);
 
 			this._drawChildren(ctx, false);
-
 
 		} finally {
 			ctx.restore();

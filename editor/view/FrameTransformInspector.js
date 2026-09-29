@@ -3,19 +3,21 @@
 // A transform is a small set of named fields applied at draw time: the
 // frame's pixels are translated, rotated, and scaled in the sprite's
 // local space. It doesn't affect collision, and it doesn't change the
-// frame's rect in the atlas — the pixels stay where they are; only the
-// rendered result moves.
+// frame's rect in the atlas.
 //
-// Values default to a no-op identity. Editing any field down to its
-// default drops the transform entirely, so unused transforms don't
-// linger in the saved JSON.
+// The pivot for rotation and scale is expressed in frame-local
+// coordinates — (0, 0) is the frame rect's top-left corner. It defaults
+// to the frame's origin (centerx, centery), which is what transforms
+// used before pivots existed.
 
 const FIELDS = [
-	{ key: 'translateX', label: 'Translate X', default: 0 },
-	{ key: 'translateY', label: 'Translate Y', default: 0 },
-	{ key: 'rotation',   label: 'Rotation °',  default: 0 },
-	{ key: 'scaleX',     label: 'Scale X',     default: 1 },
-	{ key: 'scaleY',     label: 'Scale Y',     default: 1 },
+	{ key: 'translateX', label: 'Translate X', default: 0,   step: 0.5 },
+	{ key: 'translateY', label: 'Translate Y', default: 0,   step: 0.5 },
+	{ key: 'rotation',   label: 'Rotation °',  default: 0,   step: 1 },
+	{ key: 'scaleX',     label: 'Scale X',     default: 1,   step: 0.1 },
+	{ key: 'scaleY',     label: 'Scale Y',     default: 1,   step: 0.1 },
+	{ key: 'pivotX',     label: 'Pivot X',     default: null, step: 0.5 },
+	{ key: 'pivotY',     label: 'Pivot Y',     default: null, step: 0.5 },
 ];
 
 export class FrameTransformInspector {
@@ -47,8 +49,13 @@ export class FrameTransformInspector {
 			return;
 		}
 
+		const defX = frame.centerx;
+		const defY = frame.centery;
+
 		const t = frame.transform || {
-			translateX: 0, translateY: 0, rotation: 0, scaleX: 1, scaleY: 1,
+			translateX: 0, translateY: 0, rotation: 0,
+			scaleX: 1, scaleY: 1,
+			pivotX: defX, pivotY: defY,
 		};
 
 		const grid = document.createElement('div');
@@ -60,11 +67,13 @@ export class FrameTransformInspector {
 			const input = document.createElement('input');
 			input.type = 'number';
 			input.className = 'insp-input';
-			input.step = f.key === 'rotation' ? '1' : '0.5';
-			input.value = t[f.key];
+			input.step = String(f.step);
+			input.value = t[f.key] !== undefined ? t[f.key] : f.default;
 			input.addEventListener('change', () => {
+				const v = parseFloat(input.value);
+				const fallback = f.default !== null ? f.default : 0;
 				this.doc.editable.setFrameTransform(this.currentName, {
-					[f.key]: parseFloat(input.value) || f.default,
+					[f.key]: Number.isFinite(v) ? v : fallback,
 				});
 			});
 			cell.appendChild(input);
@@ -72,6 +81,17 @@ export class FrameTransformInspector {
 			this.fields[f.key] = input;
 		}
 		this.root.appendChild(grid);
+
+		const presetRow = document.createElement('div');
+		presetRow.className = 'insp-preset-row';
+		for (const [key, label] of [['origin', 'Pivot: origin'], ['centre', 'Pivot: centre']]) {
+			const b = document.createElement('button');
+			b.className = 'insp-mini-wide';
+			b.textContent = label;
+			b.addEventListener('click', () => this._applyPivotPreset(key));
+			presetRow.appendChild(b);
+		}
+		this.root.appendChild(presetRow);
 
 		const resetBtn = document.createElement('button');
 		resetBtn.className = 'insp-add-btn';
@@ -84,21 +104,43 @@ export class FrameTransformInspector {
 
 		const hint = document.createElement('div');
 		hint.className = 'collision-hint';
-		hint.textContent = 'Rendering-only. Pivot is the frame origin.';
+		hint.textContent = 'Rendering-only. Pivot defaults to the frame origin.';
 		this.root.appendChild(hint);
+	}
+
+	_applyPivotPreset(which) {
+		const frame = this.doc.getSelectedFrame();
+		if (!frame) return;
+
+		let px, py;
+		if (which === 'origin') {
+			px = frame.centerx;
+			py = frame.centery;
+		} else if (which === 'centre') {
+			px = frame.width  / 2;
+			py = frame.height / 2;
+		} else return;
+
+		this.doc.editable.setFrameTransform(this.currentName, {
+			ivotX: px, pivotY: py,
+		});
 	}
 
 	refresh() {
 		const frame = this.doc.getSelectedFrame();
 		if (!frame) return;
+		const defX = frame.centerx;
+		const defY = frame.centery;
 		const t = frame.transform || {
-			translateX: 0, translateY: 0, rotation: 0, scaleX: 1, scaleY: 1,
+			translateX: 0, translateY: 0, rotation: 0,
+			scaleX: 1, scaleY: 1,
+			pivotX: defX, pivotY: defY,
 		};
 		for (const f of FIELDS) {
 			const input = this.fields[f.key];
 			if (!input) continue;
 			if (document.activeElement === input) continue;
-			input.value = t[f.key];
+			input.value = t[f.key] !== undefined ? t[f.key] : f.default;
 		}
 	}
 }

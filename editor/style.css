@@ -346,7 +346,8 @@ body {
 	margin-top: 2px;
 }
 .tl-tile-btn {
-	flex: 1;
+	flex: 1 1 0;
+	min-width: 0;
 	background: var(--panel);
 	border: 1px solid var(--rule);
 	border-radius: 3px;
@@ -357,6 +358,10 @@ body {
 	line-height: 1.2;
 	cursor: pointer;
 	min-height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
 }
 .tl-tile-btn:hover {
 	color: var(--ink);
@@ -414,7 +419,7 @@ body {
 }
 .tl-editor-fields {
 	display: grid;
-	grid-template-columns: repeat(5, 1fr);
+	grid-template-columns: repeat(7, 1fr);
 	gap: 10px;
 }
 .tl-editor-field {
@@ -439,7 +444,32 @@ body {
 }
 .tl-editor-actions {
 	display: flex;
-	justify-content: flex-end;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+}
+.tl-editor-actions-left {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.tl-editor-hint {
+	color: var(--muted);
+	font-size: 10.5px;
+}
+.tl-editor-pivot-btn {
+	background: var(--panel-2);
+	color: var(--ink);
+	border: 1px solid var(--rule);
+	border-radius: 3px;
+	padding: 3px 8px;
+	cursor: pointer;
+	font: inherit;
+	font-size: 11px;
+}
+.tl-editor-pivot-btn:hover {
+	background: #383840;
+	border-color: var(--accent-2);
 }
 .tl-editor-reset {
 	background: var(--panel-2);
@@ -1080,6 +1110,27 @@ body {
 	cursor: pointer;
 }
 .insp-checkbox input { margin: 0; cursor: pointer; }
+
+.insp-preset-row {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 6px;
+	margin-bottom: 8px;
+}
+.insp-mini-wide {
+	background: var(--panel-2);
+	color: var(--ink);
+	border: 1px solid var(--rule);
+	border-radius: 3px;
+	padding: 4px 6px;
+	cursor: pointer;
+	font: inherit;
+	font-size: 11px;
+}
+.insp-mini-wide:hover {
+	background: #383840;
+	border-color: var(--accent-2);
+}
 
 /* --- collision inspector --- */
 .collision-row {
