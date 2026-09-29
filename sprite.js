@@ -41,18 +41,45 @@
  * @property {CollisionShape} [collision] Per-frame override for the sheet's
  *   collision shape. Absent means "inherit the sheet"; `{ circles: [] }`
  *   means "no collision for this frame".
+ * @property {Object} [transform] Rendering-time transform for this frame.
+ *   Applied in the sprite's local space, on top of the sprite's own
+ *   rotation and scale, and does not affect collision.
+ * @property {number} [transform.translateX] Pixels, default 0.
+ * @property {number} [transform.translateY] Pixels, default 0.
+ * @property {number} [transform.rotation]   Degrees, default 0.
+ * @property {number} [transform.scaleX]     Default 1.
+ * @property {number} [transform.scaleY]     Default 1.
+ */
+
+/**
+ * A single slot in a sequence. `frame` names a frame in the sheet.
+ * `transform`, when present, is a rendering-time adjustment applied only
+ * when this slot is the current one — so the same frame can appear in a
+ * sequence several times with different transforms, animating without
+ * duplicating artwork.
+ *
+ * @typedef {Object} SequenceSlot
+ * @property {string} frame
+ * @property {Object|null} [transform]
+ * @property {number} [transform.translateX] Pixels, default 0.
+ * @property {number} [transform.translateY] Pixels, default 0.
+ * @property {number} [transform.rotation]   Degrees, default 0.
+ * @property {number} [transform.scaleX]     Default 1.
+ * @property {number} [transform.scaleY]     Default 1.
  */
 
 /**
  * @typedef {Object} Sequence
  * @property {string}   name
- * @property {string[]} frames       Frame names, in play order.
+ * @property {Array<string|SequenceSlot>} frames
+ *   Slot entries in play order. Bare strings are shorthand for a slot
+ *   with no transform. Stored in memory as normalised SequenceSlot
+ *   objects; serialised back to bare strings when no transform is set.
  * @property {number}   frameRate    Frames per second.
  * @property {number}   [iterations] 0/undefined = loop forever, n = play n times.
  * @property {'auto'|'manual'} [method] Legacy flag, preserved for
- *   round-tripping old sheets. The runtime is passive - animation only
- *   advances when `Sprite.update()` is called - so this no longer changes
- *   behaviour.
+ *   round-tripping old sheets. The runtime is passive, so this no longer
+ *   changes behaviour.
  * @property {number[]} [frameTimes] Per-frame durations in ms; overrides frameRate.
  * @property {Function} [callback]   Invoked when a finite sequence completes.
  */
@@ -139,6 +166,10 @@ function applyFrameParams(frame, params, tileW, tileH) {
 				// shorthand is normalised to the internal { circles } form.
 				frame.collision = parseCollision(value);
 				break;
+			case 'transform':
+				frame.transform = parseTransform(value);
+				if (!frame.transform) delete frame.transform;
+				break;
 		}
 	}
 	return frame;
@@ -173,6 +204,64 @@ function parseCollision(value) {
 	}
 
 	return null;
+}
+
+/**
+ * Normalise a sequence slot from JSON input. Accepts a bare frame name
+ * (shorthand for "no transform") or an object `{frame, transform}`.
+ * Returns a uniform `{frame, transform}` shape, or null if the input is
+ * malformed.
+ */
+function normaliseSequenceSlot(entry) {
+	if (typeof entry === 'string') return { frame: entry, transform: null };
+	if (entry && typeof entry === 'object' && typeof entry.frame === 'string') {
+		return { frame: entry.frame, transform: parseTransform(entry.transform) };
+	}
+	return null;
+}
+
+/**
+ * Normalise a transform object. Returns null for absent or identity
+ * transforms so callers can drop the key entirely — a transform whose
+ * fields all match their defaults is equivalent to no transform at all.
+ */
+function parseTransform(raw) {
+	if (!raw || typeof raw !== 'object') return null;
+	const t = {
+		translateX: Number(raw.translateX) || 0,
+		translateY: Number(raw.translateY) || 0,
+		rotation:   Number(raw.rotation)   || 0,
+		scaleX:     raw.scaleX !== undefined ? Number(raw.scaleX) : 1,
+		scaleY:     raw.scaleY !== undefined ? Number(raw.scaleY) : 1,
+	};
+	if (t.translateX === 0 && t.translateY === 0 && t.rotation === 0
+	    && t.scaleX === 1 && t.scaleY === 1) {
+		return null;
+	}
+	return t;
+}
+
+/**
+ * Normalise a frame transform from JSON input. Returns null when the
+ * transform is absent or equivalent to identity, so callers can drop the
+ * key entirely.
+ */
+function parseTransform(raw) {
+	if (!raw || typeof raw !== 'object') return null;
+
+	const t = {
+		translateX: Number(raw.translateX) || 0,
+		translateY: Number(raw.translateY) || 0,
+		rotation:   Number(raw.rotation)   || 0,
+		scaleX:     raw.scaleX !== undefined ? Number(raw.scaleX) : 1,
+		scaleY:     raw.scaleY !== undefined ? Number(raw.scaleY) : 1,
+	};
+
+	if (t.translateX === 0 && t.translateY === 0 && t.rotation === 0
+	    && t.scaleX === 1 && t.scaleY === 1) {
+		return null;
+	}
+	return t;
 }
 
 /**
@@ -409,6 +498,12 @@ class SpriteSheet {
 			method: 'auto',
 			...def,
 		};
+		// Normalise whatever shape the caller supplied.
+		if (Array.isArray(seq.frames)) {
+			seq.frames = seq.frames.map(normaliseSequenceSlot).filter(Boolean);
+		} else {
+			seq.frames = [];
+		}
 		this.sequences[name] = seq;
 		return seq;
 	}
@@ -431,7 +526,9 @@ class SpriteSheet {
 
 				switch (key) {
 					case 'frames':
-						seq.frames = Array.isArray(value) ? value.slice() : [];
+						seq.frames = Array.isArray(value)
+							? value.map(normaliseSequenceSlot).filter(Boolean)
+							: [];
 						break;
 					case 'framerate':
 						seq.frameRate = Number(value);
@@ -464,8 +561,10 @@ class SpriteSheet {
 	validate() {
 		const problems = [];
 		for (const [seqName, seq] of Object.entries(this.sequences)) {
-			for (const frameName of seq.frames) {
-				if (!this.frames[frameName]) problems.push({ sequence: seqName, frame: frameName });
+			for (const slot of seq.frames) {
+				if (!this.frames[slot.frame]) {
+					problems.push({ sequence: seqName, frame: slot.frame });
+				}
 			}
 		}
 		return problems;
@@ -484,12 +583,20 @@ class SpriteSheet {
 			};
 			const collision = formatCollisionForJSON(f.collision);
 			if (collision) out.collision = collision;
+			if (f.transform) out.transform = { ...f.transform };
 			frames[name] = out;
 		}
 
 		const sequences = {};
 		for (const [name, s] of Object.entries(this.sequences)) {
-			const out = { frames: s.frames.slice(), frameRate: s.frameRate };
+			// Compact serialisation: bare strings for slots with no
+			// transform, objects for the rest. Keeps hand-authored JSON
+			// readable and matches the pre-transform format.
+			const frames = s.frames.map(slot => {
+				if (!slot.transform) return slot.frame;
+				return { frame: slot.frame, transform: { ...slot.transform } };
+			});
+			const out = { frames, frameRate: s.frameRate };
 			if (s.iterations) out.iterations = s.iterations;
 			if (s.method && s.method !== 'auto') out.method = s.method;
 			if (s.frameTimes?.length) out.frameTimes = s.frameTimes.slice();
@@ -555,6 +662,12 @@ class Sprite {
 		this._elapsed        = 0;
 		this._iterationsLeft = 0;
 		this._onComplete     = null;
+
+		// Transform of the current sequence slot, or null when the sprite
+		// is not playing a sequence (or the slot has no transform). Applied
+		// at draw time on top of the frame transform; does not affect
+		// collision.
+		this._slotTransform = null;
 	}
 
 	/* ---- live getters ---------------------------------------------------- */
@@ -590,13 +703,27 @@ class Sprite {
 
 	/* ---- frames ---------------------------------------------------------- */
 
-	/** @param {string} name */
+	/**
+	 * Set the current frame directly. Clears any slot transform, since
+	 * setting a frame outside a sequence context means "no sequence is
+	 * animating this sprite right now".
+	 * @param {string} name
+	 */
 	setFrame(name) {
 		if (!this.sheet.frames[name]) {
 			throw new Error(`Sprite.setFrame: unknown frame "${name}"`);
 		}
 		this.frameName = name;
+		this._slotTransform = null;
 		return this;
+	}
+
+	// Internal: apply a sequence slot — sets the frame and installs the
+	// slot's transform (or clears it). Called from play() and _step().
+	_applySlot(slot) {
+		if (!slot || !this.sheet.frames[slot.frame]) return;
+		this.frameName = slot.frame;
+		this._slotTransform = slot.transform || null;
 	}
 
 	clearFrame() {
@@ -630,7 +757,7 @@ class Sprite {
 		this._iterationsLeft = seq.iterations ?? 0;
 		this._onComplete     = options.onComplete ?? seq.callback ?? null;
 
-		this.setFrame(seq.frames[0]);
+		this._applySlot(seq.frames[0]);
 		return this;
 	}
 
@@ -639,6 +766,7 @@ class Sprite {
 		this.animating = false;
 		this.sequenceName = null;
 		this._onComplete = null;
+		this._slotTransform = null;
 		return this;
 	}
 
@@ -680,8 +808,7 @@ class Sprite {
 		}
 
 		this._frameIndex = next;
-		const name = frames[next];
-		if (name) this.setFrame(name);
+		this._applySlot(frames[next]);
 	}
 
 	/**
@@ -737,8 +864,38 @@ class Sprite {
 			if (this.opacity !== 1) ctx.globalAlpha *= this.opacity;
 
 			this._drawChildren(ctx, true);
+
+			// Per-frame transform. Applied between the sprite's own
+			// transform and the drawImage, so it acts in the sprite's
+			// local space, composes with sprite rotation/scale, and does
+			// not affect children.
+			//
+			// Order is scale, then rotate, then translate. Canvas
+			// transforms apply last-called first, so the calls run in
+			// reverse: translate, rotate, scale.
+			const t = frame?.transform;
+			if (t) {
+				if (t.translateX || t.translateY) ctx.translate(t.translateX, t.translateY);
+				if (t.rotation) ctx.rotate(t.rotation * Math.PI / 180);
+				if (t.scaleX !== 1 || t.scaleY !== 1) ctx.scale(t.scaleX, t.scaleY);
+			}
+
+			// Slot transform: applied after the frame transform, so it
+			// layers on top. Only set while playing a sequence whose
+			// current slot has a transform — otherwise null, and the
+			// block is skipped. Same call order as above.
+			const st = this._slotTransform;
+			if (st) {
+				if (st.translateX || st.translateY) ctx.translate(st.translateX, st.translateY);
+				if (st.rotation) ctx.rotate(st.rotation * Math.PI / 180);
+				if (st.scaleX !== 1 || st.scaleY !== 1) ctx.scale(st.scaleX, st.scaleY);
+			}
+
 			ctx.drawImage(this.image, sx, sy, sw, sh, -cx, -cy, sw, sh);
+
 			this._drawChildren(ctx, false);
+
+
 		} finally {
 			ctx.restore();
 		}

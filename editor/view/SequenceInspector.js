@@ -26,7 +26,14 @@ export class SequenceInspector {
 
 	_sameFrames(a, b) {
 		if (!a || !b || a.length !== b.length) return false;
-		for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+		for (let i = 0; i < a.length; i++) {
+			if (a[i].frame !== b[i].frame) return false;
+			// Cheap transform comparison — these are small fixed-shape
+			// objects, so JSON stringify is fine.
+			if (JSON.stringify(a[i].transform) !== JSON.stringify(b[i].transform)) {
+				return false;
+			}
+		}
 		return true;
 	}
 
@@ -127,8 +134,10 @@ export class SequenceInspector {
 
 		const list = document.createElement('ol');
 		list.className = 'insp-frames';
-		seq.frames.forEach((frameName, i) => {
+		seq.frames.forEach((slot, i) => {
+			const frameName = slot.frame;
 			const li = document.createElement('li');
+			if (slot.transform) li.classList.add('has-transform');
 
 			const idx = document.createElement('span');
 			idx.className = 'insp-frame-index';
@@ -137,9 +146,8 @@ export class SequenceInspector {
 			const label = document.createElement('span');
 			label.className = 'insp-frame-name';
 			label.textContent = frameName;
-			label.title = frameName;
+			label.title = slot.transform ? `${frameName} (transformed)` : frameName;
 			label.addEventListener('click', () => this.doc.selectFrame(frameName, { focus: true }));
-
 
 			const up = this._miniButton('↑', i === 0, () =>
 				this.doc.editable.moveSequenceFrame(this.currentName, i, i - 1));

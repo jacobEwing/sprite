@@ -164,6 +164,41 @@ export class EditableSheet {
 		this.emit('changed', { type: 'frameUpdated', name });
 	}
 
+
+	// Update a frame's rendering transform. `patch` is a subset of
+	// { translateX, translateY, rotation, scaleX, scaleY }. Passing null
+	// clears the transform entirely. A transform whose fields all match
+	// their defaults is also cleared, so the JSON stays clean.
+	setFrameTransform(name, patch) {
+		const current = this.sheet.frames[name];
+		if (!current) return;
+
+		const before = { ...current };
+		const after  = { ...current };
+
+		if (patch === null) {
+			delete after.transform;
+		} else {
+			const fields = ['translateX', 'translateY', 'rotation', 'scaleX', 'scaleY'];
+			const next = { ...(current.transform || {
+				translateX: 0, translateY: 0, rotation: 0, scaleX: 1, scaleY: 1,
+			}) };
+			for (const k of fields) {
+				if (patch[k] !== undefined) next[k] = Number(patch[k]);
+			}
+			const isIdentity =
+				next.translateX === 0 && next.translateY === 0 &&
+				next.rotation === 0 &&
+				next.scaleX === 1 && next.scaleY === 1;
+			if (isIdentity) delete after.transform;
+			else            after.transform = next;
+		}
+
+		if (deepEqual(before, after)) return;
+		this.history.execute(new SetFrameCommand(this.sheet, name, before, after), 'data');
+		this.emit('changed', { type: 'frameUpdated', name });
+	}
+
 	// Move a frame's rect to a new position, optionally carrying its pixels
 	// along. When `moveContents` is false, this is just a metadata change
 	// (rect definition moves; the pixels at the old location stay put).
@@ -416,7 +451,14 @@ export class EditableSheet {
 		if (!current) return;
 		const before = { ...current, frames: current.frames.slice() };
 		const after  = { ...current, frames: current.frames.slice() };
-		if (patch.frames)          after.frames      = patch.frames.slice();
+		if (patch.frames) {
+			// Slots are objects now; shallow slice would share references
+			// and defeat the history snapshot.
+			after.frames = patch.frames.map(s => ({
+				frame: s.frame,
+				transform: s.transform ? { ...s.transform } : null,
+			}));
+		}
 		if (patch.frameRate  !== undefined) after.frameRate  = Number(patch.frameRate);
 		if (patch.iterations !== undefined) after.iterations = Number(patch.iterations);
 		if (patch.method     !== undefined) after.method     = String(patch.method);
@@ -435,8 +477,9 @@ export class EditableSheet {
 		if (!seq) return;
 		if (!this.sheet.frames[frameName]) return;
 		const frames = seq.frames.slice();
-		if (index < 0 || index >= frames.length) frames.push(frameName);
-		else frames.splice(index, 0, frameName);
+		const slot = { frame: frameName, transform: null };
+		if (index < 0 || index >= frames.length) frames.push(slot);
+		else frames.splice(index, 0, slot);
 		this.setSequence(seqName, { frames });
 	}
 
@@ -457,6 +500,41 @@ export class EditableSheet {
 		const frames = seq.frames.slice();
 		const [item] = frames.splice(from, 1);
 		frames.splice(to, 0, item);
+		this.setSequence(seqName, { frames });
+	}
+
+	// Update a single sequence slot's rendering transform. `patch` is a
+	// subset of { translateX, translateY, rotation, scaleX, scaleY };
+	// passing null clears the transform entirely. A transform whose fields
+	// all match their defaults is also cleared, so the saved JSON stays
+	// compact.
+	setSlotTransform(seqName, index, patch) {
+		const seq = this.sheet.sequences[seqName];
+		if (!seq) return;
+		if (index < 0 || index >= seq.frames.length) return;
+
+		const slot = seq.frames[index];
+		let nextTransform;
+
+		if (patch === null) {
+			nextTransform = null;
+		} else {
+			const base = slot.transform || {
+				translateX: 0, translateY: 0, rotation: 0, scaleX: 1, scaleY: 1,
+			};
+			const next = { ...base };
+			for (const k of ['translateX', 'translateY', 'rotation', 'scaleX', 'scaleY']) {
+				if (patch[k] !== undefined) next[k] = Number(patch[k]);
+			}
+			const isIdentity =
+				next.translateX === 0 && next.translateY === 0 &&
+				next.rotation === 0 &&
+				next.scaleX === 1 && next.scaleY === 1;
+			nextTransform = isIdentity ? null : next;
+		}
+
+		const frames = seq.frames.slice();
+		frames[index] = { frame: slot.frame, transform: nextTransform };
 		this.setSequence(seqName, { frames });
 	}
 

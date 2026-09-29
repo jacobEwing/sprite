@@ -511,6 +511,59 @@ export class Viewport {
 			}
 		}
 
+		// Transformed bounds of the selected frame, if it has a
+		// non-identity transform. Drawn as a faint dashed outline in the
+		// same cyan as the origin marker, so it reads as "the frame's
+		// footprint under its render-time transform" rather than as
+		// another frame.
+		if (this.selectedFrame) {
+			const f = this.frames[this.selectedFrame];
+			const t = f && f.transform;
+			if (t) {
+				const rad = (t.rotation || 0) * Math.PI / 180;
+				const cos = Math.cos(rad);
+				const sin = Math.sin(rad);
+				const sx = t.scaleX ?? 1;
+				const sy = t.scaleY ?? 1;
+				const tx = t.translateX || 0;
+				const ty = t.translateY || 0;
+
+				// The frame's origin in atlas coordinates.
+				const originX = f.x + f.centerx;
+				const originY = f.y + f.centery;
+
+				const localCorners = [
+					[-f.centerx,               -f.centery],
+					[f.width - f.centerx,      -f.centery],
+					[f.width - f.centerx,      f.height - f.centery],
+					[-f.centerx,               f.height - f.centery],
+				];
+
+				ctx.save();
+				ctx.strokeStyle = 'rgba(80, 208, 255, 0.65)';
+				ctx.lineWidth = 1.5;
+				ctx.setLineDash([4, 4]);
+				ctx.beginPath();
+				localCorners.forEach(([lx, ly], i) => {
+					// Scale, then rotate, then translate. Matches the
+					// draw-time order.
+					const scx = lx * sx;
+					const scy = ly * sy;
+					const rx  = scx * cos - scy * sin;
+					const ry  = scx * sin + scy * cos;
+					const ax  = originX + rx + tx;
+					const ay  = originY + ry + ty;
+					const screenX = this.offsetX + ax * this.zoom;
+					const screenY = this.offsetY + ay * this.zoom;
+					if (i === 0) ctx.moveTo(screenX, screenY);
+					else         ctx.lineTo(screenX, screenY);
+				});
+				ctx.closePath();
+				ctx.stroke();
+				ctx.setLineDash([]);
+				ctx.restore();
+			}
+		}
 	}
 	// --- sizing -----------------------------------------------------------
 

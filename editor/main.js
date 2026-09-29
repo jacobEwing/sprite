@@ -49,7 +49,7 @@ import { ToolSettingsPanel } from './view/ToolSettingsPanel.js';
 import { RecolourPanel } from './view/RecolourPanel.js';
 import { FilterPanel } from './view/FilterPanel.js';
 import { TransformPanel } from './view/TransformPanel.js';
-
+import { FrameTransformInspector } from './view/FrameTransformInspector.js';
 
 // --- wiring ---------------------------------------------------------------
 const viewOptions = { grid: false, snap: false };
@@ -79,6 +79,7 @@ new Timeline(document.getElementById('timeline'), doc, viewport);
 new SpritePreview(document.getElementById('spritePreview'), doc);
 const brushPicker = new BrushPicker(document.getElementById('brushPicker'));
 const toolSettingsPanel = new ToolSettingsPanel(document.getElementById('toolSettings'));
+new FrameTransformInspector(document.getElementById('frameTransformInspector'), doc);
 
 const TOOLS = {
 	pan:       new PanTool(toolLayer.context),

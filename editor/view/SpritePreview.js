@@ -105,13 +105,13 @@ export class SpritePreview {
 		const inSheet = !!frameName && !!this.doc.sheet.frames[frameName];
 		const inSeq = !this.staticFrameFollowsSequence
 			|| !seq
-			|| seq.frames.includes(frameName);
+			|| seq.frames.some(s => s.frame === frameName);
 
 		if (!frameName || !inSheet || !inSeq) {
 			// Fallback chain. Track which source supplied the replacement
 			// so the follow flag stays accurate for the *next* edit.
 			if (seq && seq.frames.length > 0) {
-				frameName = seq.frames[0];
+				frameName = seq.frames[0].frame;
 				this.staticFrameFollowsSequence = true;
 			} else if (this.doc.selectedFrame && this.doc.sheet.frames[this.doc.selectedFrame]) {
 				frameName = this.doc.selectedFrame;
@@ -167,7 +167,7 @@ export class SpritePreview {
 		    info.name === this.doc.selectedSequence) {
 			const seq = this.doc.sheet.sequences[this.doc.selectedSequence];
 			if (seq && this.staticFrameName &&
-			    !seq.frames.includes(this.staticFrameName)) {
+			    !seq.frames.some(s => s.frame === this.staticFrameName)) {
 				this.staticFrameName = null;
 			}
 		}
