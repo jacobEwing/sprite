@@ -3,6 +3,8 @@ import { PaintCommand } from '../history/PaintCommand.js';
 import { CompositeCommand } from '../model/sheetCommands.js';
 import { hexToRGBA, normalizeHex } from '../paint/pixelUtils.js';
 import { rgbToHsv, hsvToRgb } from '../paint/colorConvert.js';
+import { enableWheelStep } from '../lib/wheelStep.js';
+
 
 // Sidebar panel for colour replace, rendered inside the Modifiers tab.
 // Matches pixels by RGB distance from a source colour, then shifts the
@@ -49,6 +51,13 @@ export class RecolourPanel {
 		this._build();
 		this._bind();
 		this._sync();
+
+		// Mouse-wheel stepping on the four sliders. Uses each input's own
+		// step (all integers here).
+		enableWheelStep(this.tolSlider);
+		enableWheelStep(this.hueSlider);
+		enableWheelStep(this.satSlider);
+		enableWheelStep(this.valSlider);
 
 		doc.on('selectionChanged',  () => this._onTargetChange());
 		doc.on('selectionModified', () => this._onTargetChange());
@@ -314,10 +323,15 @@ export class RecolourPanel {
 			return;
 		}
 
+		this._computePreview();
+		this.viewport.invalidate();
+		this._syncHint();
+	}
+
+	_computePreview() {
 		const sheet = this.doc.sheet;
 		if (!sheet || !sheet.image) {
 			this.previewParts = [];
-			this.viewport.invalidate();
 			return;
 		}
 
@@ -343,8 +357,6 @@ export class RecolourPanel {
 		}
 
 		this.previewParts = parts;
-		this.viewport.invalidate();
-		this._syncHint();
 	}
 
 	_drawPreview(ctx) {
@@ -376,9 +388,14 @@ export class RecolourPanel {
 
 	_apply() {
 		const sheet = this.doc.sheet;
-		if (!sheet || this.previewParts.length === 0) {
+		if (!sheet) return;
+
+		if (this._previewStale || this.previewParts.length === 0) {
+			this._computePreview();
+		}
+
+		if (this.previewParts.length === 0) {
 			this._previewStale = true;
-			this.previewParts = [];
 			this._syncHint();
 			this.viewport.invalidate();
 			return;

@@ -65,6 +65,10 @@ const collisionOverlay = new CollisionOverlay(doc, viewport);
 const selectionOverlay = new SelectionOverlay(doc, viewport);
 const toolLayer = new ToolLayer({ viewport, document: doc, palette, history });
 const reshapeDialog = new ReshapeDialog();
+// Shared between the TransformPanel's "All frames" checkbox and the
+// transform keyboard shortcuts, so pressing R behaves the same whether
+// you're in the Modifiers tab or anywhere else.
+const transformScope = { applyToAll: false };
 
 new FrameList(document.getElementById('frameList'), doc);
 new SequenceList(document.getElementById('sequenceList'), doc);
@@ -349,6 +353,7 @@ const recolourPanel = new RecolourPanel(
 const transformPanel = new TransformPanel(
 	document.getElementById('modifierTransform'), doc, viewport, {
 		onTransform: (label, fn) => _transformOp(label, fn),
+		scope: transformScope,
 	});
 
 const modifierPanels = {
@@ -776,11 +781,14 @@ function doClearFrame() {
 
 function _transformOp(label, fn) {
 	if (!doc.sheet) return;
-	const rect = doc.currentOpRect();
-	if (!rect) return;
-	doc.editable.transformRegion(rect, fn);
-	const where = doc.selection.isEmpty ? 'frame' : 'selection';
-	$('statusMessage').textContent = `${label} ${where} (${rect.w}×${rect.h})`;
+	const entries = doc.opRectsFor({ allFrames: transformScope.applyToAll });
+	if (entries.length === 0) return;
+	const affected = doc.editable.transformRegions(entries, fn);
+	if (affected === 0) return;
+	const where = transformScope.applyToAll
+		? `all ${affected} frame${affected === 1 ? '' : 's'}`
+		: (doc.selection.isEmpty ? 'frame' : 'selection');
+	$('statusMessage').textContent = `${label} ${where}`;
 }
 
 const doRotateCW   = () => _transformOp('Rotated CW',       rotate90CW);

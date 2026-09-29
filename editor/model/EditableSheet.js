@@ -632,21 +632,45 @@ export class EditableSheet {
 		this.emit('changed', { type: 'regionUpdated' });
 	}
 
-	// Apply a pure transform to a region's pixels. `fn` takes an ImageData
-	// and returns a new ImageData of the same dimensions.
-	transformRegion(rect, fn) {
-		if (!rect || rect.w <= 0 || rect.h <= 0) return;
+	// Apply a transform to a set of regions in one atomic undo step.
+	// `entries` is the array returned by EditorDocument.opRectsFor — each
+	// has { name, frame, rect }. `fn(imageData, entry)` returns a new
+	// ImageData of the same dimensions, or null to skip the entry.
+	// Regions whose transform produces identical pixels are also skipped.
+	// Returns the number of regions actually written.
+	transformRegions(entries, fn) {
+		if (!entries || entries.length === 0) return 0;
 
 		const ctx = this.sheet.image.getContext('2d', { willReadFrequently: true });
-		const before = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
-		const after = fn(before);
-		if (!after) return;
+		const commands = [];
 
-		ctx.putImageData(after, rect.x, rect.y);
+		for (const entry of entries) {
+			const { rect } = entry;
+			if (!rect || rect.w <= 0 || rect.h <= 0) continue;
 
-		const cmd = new PaintCommand(ctx, rect.x, rect.y, rect.w, rect.h, before, after);
-		this.history.push(cmd, 'pixels');
+			const before = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
+			const after = fn(before, entry);
+			if (!after) continue;
+			if (imageDataEqual(before, after)) continue;
+
+			ctx.putImageData(after, rect.x, rect.y);
+			commands.push(new PaintCommand(ctx, rect.x, rect.y, rect.w, rect.h, before, after));
+		}
+
+		if (commands.length === 0) return 0;
+
+		const composite = commands.length === 1
+			? commands[0]
+			: new CompositeCommand(commands);
+		this.history.push(composite, 'pixels');
 		this.emit('changed', { type: 'regionUpdated' });
+		return commands.length;
+	}
+
+	// Single-region convenience wrapper. Kept for callers that just want
+	// to transform one rect.
+	transformRegion(rect, fn) {
+		return this.transformRegions([{ name: null, frame: null, rect }], fn);
 	}
 
 	pasteIntoFrame(frameName, imageData) {
@@ -905,6 +929,16 @@ function deepEqual(a, b) {
 	if (ka.length !== kb.length) return false;
 	for (const k of ka) {
 		if (!deepEqual(a[k], b[k])) return false;
+	}
+	return true;
+}
+
+// Byte-level equality on two ImageData buffers.
+function imageDataEqual(a, b) {
+	if (a.width !== b.width || a.height !== b.height) return false;
+	const ad = a.data, bd = b.data;
+	for (let i = 0; i < ad.length; i++) {
+		if (ad[i] !== bd[i]) return false;
 	}
 	return true;
 }

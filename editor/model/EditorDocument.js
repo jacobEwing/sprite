@@ -287,6 +287,43 @@ export class EditorDocument {
 		return { x: f.x, y: f.y, w: f.width, h: f.height };
 	}
 
+	// Returns one entry per frame the current operation should apply to.
+	// `allFrames` overrides the default scope (selected frames) with every
+	// frame in the sheet. Each entry carries:
+	//   { name, frame, rect }
+	// where `rect` is the region to process: the frame's bounds, or the
+	// intersection with the pixel selection when one exists. Frames whose
+	// intersection is empty are skipped.
+	opRectsFor({ allFrames = false } = {}) {
+		if (!this.sheet) return [];
+		const names = allFrames ? this.sheet.frameNames : this.selectedFrameList;
+		const sel = this.selection.rect;
+		const out = [];
+		for (const name of names) {
+			const f = this.sheet.frames[name];
+			if (!f) continue;
+			if (!sel) {
+				out.push({
+					name,
+					frame: f,
+					rect: { x: f.x, y: f.y, w: f.width, h: f.height },
+				});
+				continue;
+			}
+			const x1 = Math.max(sel.x, f.x);
+			const y1 = Math.max(sel.y, f.y);
+			const x2 = Math.min(sel.x + sel.w, f.x + f.width);
+			const y2 = Math.min(sel.y + sel.h, f.y + f.height);
+			if (x2 <= x1 || y2 <= y1) continue;
+			out.push({
+				name,
+				frame: f,
+				rect: { x: x1, y: y1, w: x2 - x1, h: y2 - y1 },
+			});
+		}
+		return out;
+	}
+
 	// --- frame selection --------------------------------------------------
 
 	// Options:

@@ -1,19 +1,19 @@
 import { applyConvolution, matrixSum, PRESETS, defaultMatrix } from '../paint/filters.js';
 import { PaintCommand } from '../history/PaintCommand.js';
+import { CompositeCommand } from '../model/sheetCommands.js';
 
 // Sidebar panel for the convolution filter, rendered inside the Modifiers
 // tab.
 //
-// Preview semantics: the preview shows what Apply would do *right now*.
-// After an Apply, the preview is disabled until the user touches any
-// control or changes the target — at that point the preview returns,
-// reflecting the new settings against the current pixels. Controls
-// themselves are never reset by Apply.
+// Scope matches RecolourPanel: the filter runs on every frame in the
+// current selection, or on every frame in the sheet when "All frames" is
+// checked. Within each frame, only the pixel selection is touched if one
+// exists.
 //
-// The preview lives on the viewport's overlay stack, not its single-slot
-// setPreview. That keeps it alive underneath transient tool previews
-// (frame-drag outlines, shape previews) instead of being cleared when the
-// tool clears its own.
+// Preview semantics match the other modifier panels: the preview shows
+// what Apply would do right now, is suppressed after an Apply, and comes
+// back when a control changes or the target changes. Preview lives on the
+// viewport overlay stack.
 
 export class FilterPanel {
 	constructor(root, doc, viewport) {
@@ -29,11 +29,11 @@ export class FilterPanel {
 		this.offset = 0;
 		this.convolveAlpha = false;
 		this.presetName = '';
+		this.applyToAll = false;
 
 		this._previewStale = false;
 
-		this.previewImageData = null;
-		this.previewFrame = null;
+		this.previewParts = [];
 		this._pending = null;
 
 		this._build();
@@ -66,14 +66,9 @@ export class FilterPanel {
 			this.viewport.removeOverlay(this._overlayToken);
 			this._overlayToken = null;
 		}
-		this.previewImageData = null;
-		this.previewFrame = null;
+		this.previewParts = [];
 	}
 
-	// The preview's target changed: a different frame is selected, the
-	// pixel selection was adjusted, or a new sheet loaded. Any of those is
-	// a signal of intent to see a fresh preview, so clear the stale flag
-	// that Apply set and let the recompute run.
 	_onTargetChange() {
 		if (!this.active) return;
 		this._previewStale = false;
@@ -117,6 +112,10 @@ export class FilterPanel {
 					<input type="checkbox" class="fp-alpha"> Convolve alpha
 				</label>
 
+				<label class="fp-checkbox">
+					<input type="checkbox" class="fp-all"> All frames
+				</label>
+
 				<p class="fp-hint"></p>
 			</div>
 			<div class="fp-footer">
@@ -130,6 +129,7 @@ export class FilterPanel {
 		this.divisorInput = this.root.querySelector('.fp-divisor');
 		this.offsetInput  = this.root.querySelector('.fp-offset');
 		this.alphaInput   = this.root.querySelector('.fp-alpha');
+		this.allInput     = this.root.querySelector('.fp-all');
 		this.hintEl       = this.root.querySelector('.fp-hint');
 		this.sizeButtons  = Array.from(this.root.querySelectorAll('.fp-size-btn'));
 
@@ -176,6 +176,10 @@ export class FilterPanel {
 			this.convolveAlpha = this.alphaInput.checked;
 			this._onControlChange();
 		});
+		this.allInput.addEventListener('change', () => {
+			this.applyToAll = this.allInput.checked;
+			this._onControlChange();
+		});
 
 		this.root.querySelector('.fp-reset').addEventListener('click', () => this._resetControls());
 		this.root.querySelector('.fp-apply').addEventListener('click', () => this._apply());
@@ -194,6 +198,7 @@ export class FilterPanel {
 		this.offset = 0;
 		this.convolveAlpha = false;
 		this.presetName = '';
+		this.applyToAll = false;
 		this._renderMatrix();
 		this._sync();
 		this._onControlChange();
@@ -235,17 +240,24 @@ export class FilterPanel {
 		this.divisorInput.value = formatNumber(this.divisor);
 		this.offsetInput.value = this.offset;
 		this.alphaInput.checked = this.convolveAlpha;
+		this.allInput.checked = this.applyToAll;
 		this._syncHint();
 	}
 
 	_syncHint() {
 		if (this._previewStale) {
 			this.hintEl.textContent = 'Applied. Adjust any control to preview again.';
-		} else {
-			this.hintEl.textContent =
-				'Applies to the pixel selection, or the current frame. ' +
-				'Pixels outside the region clamp to its edge.';
+			return;
 		}
+		const hasSel = !!this.doc.selection.rect;
+		const total = this.doc.sheet ? this.doc.sheet.frameNames.length : 0;
+
+		let scope;
+		if (this.applyToAll) scope = `all ${total} frame${total === 1 ? '' : 's'}`;
+		else                 scope = `${this.previewParts.length} selected frame${this.previewParts.length === 1 ? '' : 's'}`;
+		if (hasSel) scope += ', limited to the pixel selection';
+
+		this.hintEl.textContent = `Applies to ${scope}.`;
 	}
 
 	_setSize(size) {
@@ -284,73 +296,102 @@ export class FilterPanel {
 		if (!this.active) return;
 
 		if (this._previewStale) {
-			this.previewImageData = null;
-			this.previewFrame = null;
+			this.previewParts = [];
 			this.viewport.invalidate();
+			this._syncHint();
 			return;
 		}
 
-		const sheet = this.doc.sheet;
-		const rect = this.doc.currentOpRect();
-		if (!sheet || !rect) {
-			this.previewImageData = null;
-			this.previewFrame = null;
-			this.viewport.invalidate();
-			return;
-		}
-
-		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
-		const src = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
-		const result = applyConvolution(src, this._kernel());
-
-		this.previewImageData = result;
-		this.previewFrame = { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
-
-		if (!this.offscreen) {
-			this.offscreen = document.createElement('canvas');
-			this.offscreenCtx = this.offscreen.getContext('2d');
-		}
-		this.offscreen.width  = result.width;
-		this.offscreen.height = result.height;
-		this.offscreenCtx.putImageData(result, 0, 0);
-
+		this._computePreview();
 		this.viewport.invalidate();
+		this._syncHint();
+	}
+
+	// Compute the preview against the current canvas. Populates
+	// previewParts; does not touch the viewport or the hint — callers
+	// handle that. Called synchronously from _apply() when the cached
+	// preview is stale, so a second Apply works without a preview cycle.
+	_computePreview() {
+		const sheet = this.doc.sheet;
+		if (!sheet || !sheet.image) {
+			this.previewParts = [];
+			return;
+		}
+
+		const entries = this.doc.opRectsFor({ allFrames: this.applyToAll });
+		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
+
+		const parts = [];
+		for (const entry of entries) {
+			const { rect } = entry;
+			const src = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
+			const result = applyConvolution(src, this._kernel());
+
+			const offscreen = document.createElement('canvas');
+			offscreen.width  = result.width;
+			offscreen.height = result.height;
+			offscreen.getContext('2d').putImageData(result, 0, 0);
+
+			parts.push({ region: rect, offscreen, imageData: result });
+		}
+
+		this.previewParts = parts;
 	}
 
 	_drawPreview(ctx) {
-		const pf = this.previewFrame;
-		if (!pf || !this.offscreen) return;
-		this.viewport.redrawBackgroundInRegion(ctx, pf);
-		ctx.drawImage(this.offscreen, pf.x, pf.y, pf.w, pf.h);
+		for (const part of this.previewParts) {
+			this.viewport.redrawBackgroundInRegion(ctx, part.region);
+			ctx.drawImage(
+				part.offscreen,
+				part.region.x, part.region.y,
+				part.region.w, part.region.h
+			);
+		}
 	}
 
 	_apply() {
 		const sheet = this.doc.sheet;
-		const rect = this.doc.currentOpRect();
+		if (!sheet) return;
 
-		if (!sheet || !rect || !this.previewImageData) {
+		// The cached preview reflects pre-write pixels when stale. If
+		// that's the case (or there's nothing cached at all), recompute
+		// against the current canvas so a second Apply genuinely applies
+		// the filter again — just without the preview.
+		if (this._previewStale || this.previewParts.length === 0) {
+			this._computePreview();
+		}
+
+		if (this.previewParts.length === 0) {
 			this._previewStale = true;
-			this.previewImageData = null;
-			this.previewFrame = null;
 			this._syncHint();
 			this.viewport.invalidate();
 			return;
 		}
 
 		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
-		const before = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
-		const after  = this.previewImageData;
+		const commands = [];
 
-		const identity = imageDataEqual(before, after);
-		if (!identity) {
-			ctx.putImageData(after, rect.x, rect.y);
-			const cmd = new PaintCommand(ctx, rect.x, rect.y, rect.w, rect.h, before, after);
-			this.doc.history.push(cmd, 'pixels');
+		for (const part of this.previewParts) {
+			const { region } = part;
+			const before = ctx.getImageData(region.x, region.y, region.w, region.h);
+			const after  = part.imageData;
+			if (imageDataEqual(before, after)) continue;
+
+			ctx.putImageData(after, region.x, region.y);
+			commands.push(new PaintCommand(
+				ctx, region.x, region.y, region.w, region.h, before, after
+			));
+		}
+
+		if (commands.length > 0) {
+			const composite = commands.length === 1
+				? commands[0]
+				: new CompositeCommand(commands);
+			this.doc.history.push(composite, 'pixels');
 		}
 
 		this._previewStale = true;
-		this.previewImageData = null;
-		this.previewFrame = null;
+		this.previewParts = [];
 		this._syncHint();
 		this.viewport.invalidate();
 	}

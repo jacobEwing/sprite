@@ -1,23 +1,27 @@
 import { PaintCommand } from '../history/PaintCommand.js';
+import { CompositeCommand } from '../model/sheetCommands.js';
 import {
 	rotate90CW, rotate90CCW,
 	flipVertical, flipHorizontal,
 	translateWrapped, rotateArbitrary,
 } from '../model/transforms.js';
+import { enableWheelStep } from '../lib/wheelStep.js';
 
 // Sidebar panel for pixel transforms, rendered inside the Modifiers tab.
 //
-// Three sections:
-//   Rotate    — arbitrary angle with pivot, plus 90° CW/CCW buttons
+// Sections:
+//   Rotate    — arbitrary angle with frame-local pivot, plus 90° CW/CCW
 //   Flip      — vertical and horizontal
 //   Translate — four directions
 //
-// The arbitrary rotation is a preview-based operation: move the slider,
-// see the result, Apply to commit. The 90°, flip, and translate buttons
-// are instant — one click, one undo entry.
+// Scope matches the other modifier panels: selected frames by default,
+// every frame when "All frames" is checked. The pivot is expressed in
+// frame-local coordinates, so the same pivot applies to every processed
+// frame — a value of (12, 12) means "12 pixels right, 12 down from each
+// frame's own origin".
 //
-// Preview semantics match FilterPanel. Preview lives on the viewport
-// overlay stack.
+// Translate wraps within each frame's own rect, so pixels don't bleed
+// into neighbouring frames.
 
 export class TransformPanel {
 	constructor(root, doc, viewport, options = {}) {
@@ -25,7 +29,12 @@ export class TransformPanel {
 		this.doc = doc;
 		this.viewport = viewport;
 
+		// Callback into main.js so the instant transforms and their
+		// keyboard shortcuts share one implementation. Signature:
+		//   onTransform(label, fn)
+		// main.js applies fn to whatever scope transformScope says.
 		this.onTransform = options.onTransform || null;
+		this.scope = options.scope || { applyToAll: false };
 
 		this.active = false;
 		this._overlayToken = null;
@@ -36,13 +45,18 @@ export class TransformPanel {
 
 		this._previewStale = false;
 
-		this.previewImageData = null;
-		this.previewFrame = null;
+		this.previewParts = [];
 		this._pending = null;
 
 		this._build();
 		this._bind();
 		this._sync();
+
+		// Wheel stepping: the angle slider moves in 1° increments; the
+		// pivot inputs in 0.5-pixel increments (their own step values).
+		enableWheelStep(this.angleSlider);
+		enableWheelStep(this.pivotXIn);
+		enableWheelStep(this.pivotYIn);
 
 		doc.on('selectionChanged',  () => this._onTargetChange());
 		doc.on('selectionModified', () => this._onTargetChange());
@@ -55,14 +69,7 @@ export class TransformPanel {
 	activate() {
 		this.active = true;
 		this._overlayToken = this.viewport.addOverlay((ctx) => this._drawPreview(ctx));
-		const rect = this.doc.currentOpRect();
-		if (rect) {
-			this.pivotX = rect.w / 2;
-			this.pivotY = rect.h / 2;
-		} else {
-			this.pivotX = 0;
-			this.pivotY = 0;
-		}
+		this._resetPivotToRegionCentre();
 		this._sync();
 		this._schedule();
 	}
@@ -77,8 +84,7 @@ export class TransformPanel {
 			this.viewport.removeOverlay(this._overlayToken);
 			this._overlayToken = null;
 		}
-		this.previewImageData = null;
-		this.previewFrame = null;
+		this.previewParts = [];
 	}
 
 	_onTargetChange() {
@@ -105,14 +111,14 @@ export class TransformPanel {
 				</div>
 
 				<div class="tsp-subsection">
-					<div class="fp-label">Pivot</div>
+					<div class="fp-label">Pivot (frame-local)</div>
 					<div class="tsp-pivot-inputs">
 						<input type="number" class="tsp-pivot-x" step="0.5">
 						<input type="number" class="tsp-pivot-y" step="0.5">
 					</div>
 					<div class="tsp-pivot-presets">
 						<button type="button" class="tsp-preset-btn" data-preset="selection">Selection centre</button>
-						<button type="button" class="tsp-preset-btn" data-preset="frame">Frame centre</button>
+						<button type="button" class="tsp-preset-btn" data-preset="frame">Frame origin</button>
 					</div>
 				</div>
 
@@ -137,6 +143,10 @@ export class TransformPanel {
 					<button type="button" class="tsp-btn tsp-dir" data-action="move-right" title="Move right">→</button>
 				</div>
 
+				<label class="fp-checkbox">
+					<input type="checkbox" class="tsp-all"> All frames
+				</label>
+
 				<p class="fp-hint tsp-hint"></p>
 			</div>
 			<div class="fp-footer">
@@ -150,6 +160,7 @@ export class TransformPanel {
 		this.angleRead   = this.root.querySelector('.tsp-angle-readout');
 		this.pivotXIn    = this.root.querySelector('.tsp-pivot-x');
 		this.pivotYIn    = this.root.querySelector('.tsp-pivot-y');
+		this.allInput    = this.root.querySelector('.tsp-all');
 		this.hintEl      = this.root.querySelector('.tsp-hint');
 	}
 
@@ -181,6 +192,11 @@ export class TransformPanel {
 			btn.addEventListener('click', () => this._instantAction(btn.dataset.action));
 		}
 
+		this.allInput.addEventListener('change', () => {
+			this.scope.applyToAll = this.allInput.checked;
+			this._onControlChange();
+		});
+
 		this.root.querySelector('.fp-reset').addEventListener('click', () => this._resetControls());
 		this.root.querySelector('.fp-apply').addEventListener('click', () => this._applyRotation());
 	}
@@ -198,13 +214,33 @@ export class TransformPanel {
 
 	_resetControls() {
 		this.angle = 0;
-		const rect = this.doc.currentOpRect();
-		if (rect) {
-			this.pivotX = rect.w / 2;
-			this.pivotY = rect.h / 2;
-		}
+		this._resetPivotToRegionCentre();
+		this.scope.applyToAll = false;
 		this._sync();
 		this._onControlChange();
+	}
+
+	// Pivot defaults to the centre of the primary frame's pixel region,
+	// expressed in frame-local coordinates.
+	_resetPivotToRegionCentre() {
+		const primary = this.doc.getSelectedFrame();
+		if (!primary) {
+			this.pivotX = 0;
+			this.pivotY = 0;
+			return;
+		}
+		const sel = this.doc.selection.rect;
+		if (!sel) {
+			this.pivotX = primary.width / 2;
+			this.pivotY = primary.height / 2;
+		} else {
+			const x1 = Math.max(sel.x, primary.x);
+			const y1 = Math.max(sel.y, primary.y);
+			const x2 = Math.min(sel.x + sel.w, primary.x + primary.width);
+			const y2 = Math.min(sel.y + sel.h, primary.y + primary.height);
+			this.pivotX = (x1 + x2) / 2 - primary.x;
+			this.pivotY = (y1 + y2) / 2 - primary.y;
+		}
 	}
 
 	_sync() {
@@ -218,26 +254,49 @@ export class TransformPanel {
 		if (document.activeElement !== this.pivotXIn) this.pivotXIn.value = this.pivotX;
 		if (document.activeElement !== this.pivotYIn) this.pivotYIn.value = this.pivotY;
 
+		this.allInput.checked = this.scope.applyToAll;
 		this._syncHint();
 	}
 
 	_syncHint() {
-		this.hintEl.textContent = this._previewStale
-			? 'Applied. Adjust the rotation controls to preview again.'
-			: 'Rotation previews on the selection, or the current frame.';
+		if (this._previewStale) {
+			this.hintEl.textContent = 'Applied. Adjust the rotation controls to preview again.';
+			return;
+		}
+		const hasSel = !!this.doc.selection.rect;
+		const total = this.doc.sheet ? this.doc.sheet.frameNames.length : 0;
+
+		let scope;
+		if (this.scope.applyToAll) scope = `all ${total} frame${total === 1 ? '' : 's'}`;
+		else                       scope = `${this.previewParts.length} selected frame${this.previewParts.length === 1 ? '' : 's'}`;
+		if (hasSel) scope += ', limited to the pixel selection';
+
+		this.hintEl.textContent = `Rotation applies to ${scope}.`;
 	}
 
 	_applyPreset(which) {
-		const rect = this.doc.currentOpRect();
-		if (!rect) return;
+		const primary = this.doc.getSelectedFrame();
+		if (!primary) return;
+
 		if (which === 'selection') {
-			this.pivotX = rect.w / 2;
-			this.pivotY = rect.h / 2;
+			// Centre of the pixel selection ∩ the primary frame, in
+			// frame-local coordinates.
+			const sel = this.doc.selection.rect;
+			if (!sel) {
+				this.pivotX = primary.width / 2;
+				this.pivotY = primary.height / 2;
+			} else {
+				const x1 = Math.max(sel.x, primary.x);
+				const y1 = Math.max(sel.y, primary.y);
+				const x2 = Math.min(sel.x + sel.w, primary.x + primary.width);
+				const y2 = Math.min(sel.y + sel.h, primary.y + primary.height);
+				this.pivotX = (x1 + x2) / 2 - primary.x;
+				this.pivotY = (y1 + y2) / 2 - primary.y;
+			}
 		} else if (which === 'frame') {
-			const frame = this.doc.getSelectedFrame();
-			if (!frame) return;
-			this.pivotX = frame.x + frame.centerx - rect.x;
-			this.pivotY = frame.y + frame.centery - rect.y;
+			// Frame origin, already frame-local.
+			this.pivotX = primary.centerx;
+			this.pivotY = primary.centery;
 		}
 		this._sync();
 		this._onControlChange();
@@ -260,8 +319,7 @@ export class TransformPanel {
 		if (!entry) return;
 
 		this._previewStale = true;
-		this.previewImageData = null;
-		this.previewFrame = null;
+		this.previewParts = [];
 		this._syncHint();
 		this.viewport.invalidate();
 
@@ -282,82 +340,105 @@ export class TransformPanel {
 		if (!this.active) return;
 
 		if (this._previewStale || this.angle === 0) {
-			this.previewImageData = null;
-			this.previewFrame = null;
+			this.previewParts = [];
 			this.viewport.invalidate();
+			this._syncHint();
 			return;
 		}
 
-		const sheet = this.doc.sheet;
-		const rect = this.doc.currentOpRect();
-		if (!sheet || !rect) {
-			this.previewImageData = null;
-			this.previewFrame = null;
-			this.viewport.invalidate();
-			return;
-		}
-
-		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
-		const src = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
-		const result = rotateArbitrary(src, this.angle, this.pivotX, this.pivotY);
-
-		this.previewImageData = result;
-		this.previewFrame = { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
-
-		if (!this.offscreen) {
-			this.offscreen = document.createElement('canvas');
-			this.offscreenCtx = this.offscreen.getContext('2d');
-		}
-		this.offscreen.width  = result.width;
-		this.offscreen.height = result.height;
-		this.offscreenCtx.putImageData(result, 0, 0);
-
+		this._computePreview();
 		this.viewport.invalidate();
+		this._syncHint();
+	}
+
+	_computePreview() {
+		const sheet = this.doc.sheet;
+		if (!sheet || !sheet.image) {
+			this.previewParts = [];
+			return;
+		}
+
+		const entries = this.doc.opRectsFor({ allFrames: this.scope.applyToAll });
+		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
+
+		const parts = [];
+		for (const entry of entries) {
+			const { rect, frame } = entry;
+			const src = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
+
+			const lx = this.pivotX - (rect.x - frame.x);
+			const ly = this.pivotY - (rect.y - frame.y);
+			const result = rotateArbitrary(src, this.angle, lx, ly);
+
+			const offscreen = document.createElement('canvas');
+			offscreen.width  = result.width;
+			offscreen.height = result.height;
+			offscreen.getContext('2d').putImageData(result, 0, 0);
+
+			parts.push({ region: rect, offscreen, imageData: result });
+		}
+
+		this.previewParts = parts;
 	}
 
 	_drawPreview(ctx) {
-		const pf = this.previewFrame;
-		if (!pf || !this.offscreen) return;
-		this.viewport.redrawBackgroundInRegion(ctx, pf);
-		ctx.drawImage(this.offscreen, pf.x, pf.y, pf.w, pf.h);
+		for (const part of this.previewParts) {
+			this.viewport.redrawBackgroundInRegion(ctx, part.region);
+			ctx.drawImage(
+				part.offscreen,
+				part.region.x, part.region.y,
+				part.region.w, part.region.h
+			);
+		}
 	}
 
 	_applyRotation() {
 		if (this.angle === 0) {
 			this._previewStale = true;
-			this.previewImageData = null;
-			this.previewFrame = null;
+			this.previewParts = [];
 			this._syncHint();
 			this.viewport.invalidate();
 			return;
 		}
 
 		const sheet = this.doc.sheet;
-		const rect = this.doc.currentOpRect();
-		if (!sheet || !rect || !this.previewImageData) {
+		if (!sheet) return;
+
+		if (this._previewStale || this.previewParts.length === 0) {
+			this._computePreview();
+		}
+
+		if (this.previewParts.length === 0) {
 			this._previewStale = true;
-			this.previewImageData = null;
-			this.previewFrame = null;
 			this._syncHint();
 			this.viewport.invalidate();
 			return;
 		}
 
 		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
-		const before = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
-		const after  = this.previewImageData;
+		const commands = [];
 
-		if (!imageDataEqual(before, after)) {
-			ctx.putImageData(after, rect.x, rect.y);
-			const cmd = new PaintCommand(
-				ctx, rect.x, rect.y, rect.w, rect.h, before, after
-			);
-			this.doc.history.push(cmd, 'pixels');
+		for (const part of this.previewParts) {
+			const { region } = part;
+			const before = ctx.getImageData(region.x, region.y, region.w, region.h);
+			const after  = part.imageData;
+			if (imageDataEqual(before, after)) continue;
+
+			ctx.putImageData(after, region.x, region.y);
+			commands.push(new PaintCommand(
+				ctx, region.x, region.y, region.w, region.h, before, after
+			));
+		}
+
+		if (commands.length > 0) {
+			const composite = commands.length === 1
+				? commands[0]
+				: new CompositeCommand(commands);
+			this.doc.history.push(composite, 'pixels');
 		}
 
 		this._previewStale = true;
-		this.previewImageData = null;
-		this.previewFrame = null;
+		this.previewParts = [];
 		this._syncHint();
 		this.viewport.invalidate();
 	}
