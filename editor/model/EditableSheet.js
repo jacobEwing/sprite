@@ -434,6 +434,13 @@ export class EditableSheet {
 			method: 'auto',
 			...sequence,
 		};
+		// Normalise whatever shape the caller supplied. Bare frame names
+		// are the common case from main.js; objects pass through.
+		if (Array.isArray(seq.frames)) {
+			seq.frames = seq.frames.map(normaliseSlot).filter(Boolean);
+		} else {
+			seq.frames = [];
+		}
 		this.history.execute(new AddSequenceCommand(this.sheet, name, seq), 'data');
 		this.emit('changed', { type: 'sequenceAdded', name });
 		return name;
@@ -460,12 +467,7 @@ export class EditableSheet {
 		const before = { ...current, frames: current.frames.slice() };
 		const after  = { ...current, frames: current.frames.slice() };
 		if (patch.frames) {
-			// Slots are objects now; shallow slice would share references
-			// and defeat the history snapshot.
-			after.frames = patch.frames.map(s => ({
-				frame: s.frame,
-				transform: s.transform ? { ...s.transform } : null,
-			}));
+			after.frames = patch.frames.map(normaliseSlot).filter(Boolean);
 		}
 		if (patch.frameRate  !== undefined) after.frameRate  = Number(patch.frameRate);
 		if (patch.iterations !== undefined) after.iterations = Number(patch.iterations);
@@ -1027,6 +1029,20 @@ function deepEqual(a, b) {
 		if (!deepEqual(a[k], b[k])) return false;
 	}
 	return true;
+}
+
+// Normalise a slot entry from loose input. Accepts a bare frame name
+// (convenience for callers creating sequences) or a `{ frame, transform }`
+// object. Returns the uniform internal shape, or null for malformed input.
+function normaliseSlot(entry) {
+	if (typeof entry === 'string') return { frame: entry, transform: null };
+	if (entry && typeof entry === 'object' && typeof entry.frame === 'string') {
+		return {
+			frame: entry.frame,
+			transform: entry.transform ? { ...entry.transform } : null,
+		};
+	}
+	return null;
 }
 
 // Byte-level equality on two ImageData buffers.

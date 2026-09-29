@@ -42,6 +42,8 @@ export class EditorDocument {
 		this.primarySequence = null;
 		this._sequenceAnchor = null;
 
+		this.selectedSlotIndex = null;
+
 		this.selection = new Selection();
 		this.imageLoaded = false;
 
@@ -108,8 +110,11 @@ export class EditorDocument {
 		this._resetFrameSelection();
 		this._resetSequenceSelection();
 		this.selection.clear();
+		this.selectedSlotIndex = null;
 		this.imageLoaded = imageLoaded !== null ? imageLoaded : !keepImage;
 		this.history.clear();
+
+
 
 		this.emit('sheetChanged', { sheet });
 		this.emit('selectionChanged', { focus: false });
@@ -261,6 +266,10 @@ export class EditorDocument {
 			this.primarySequence = this.selectedSequenceList[0] ?? null;
 			this._sequenceAnchor = this.primarySequence;
 		}
+
+		// Slot indices are sequence-relative; after undo/redo they may
+		// point at a different slot. Clear and let the timeline re-derive.
+		this.selectedSlotIndex = null;
 	}
 
 	markSaved(which = 'all') { this.history.markSaved(which); }
@@ -386,6 +395,23 @@ export class EditorDocument {
 			this.selection.clear();
 			this.emit('selectionModified', {});
 		}
+
+		// Reconcile the shared slot index against the new frame. If the tracked slot
+		// no longer matches, forget it; then, if the new frame appears in the current
+		// sequence, promote its first occurrence to be the primary slot.
+		//
+		// Runs here rather than in a view so every listener sees a consistent value on
+		// the same event — the preview in particular reads it when paused.
+		const seq = this.getSelectedSequence();
+		if (this.selectedSlotIndex !== null) {
+			const slot = seq && seq.frames[this.selectedSlotIndex];
+			if (!slot || slot.frame !== name) this.selectedSlotIndex = null;
+		}
+		if (this.selectedSlotIndex === null && seq) {
+			const idx = seq.frames.findIndex(s => s.frame === name);
+			if (idx !== -1) this.selectedSlotIndex = idx;
+		}
+
 		this.emit('selectionChanged', {
 			frame: name,
 			changed: changed || prevPrimary !== this.primaryFrame,
@@ -486,6 +512,7 @@ export class EditorDocument {
 			this._sequenceAnchor = name;
 		}
 
+		if (changed) this.selectedSlotIndex = null;
 		this.emit('selectionChanged', {
 			sequence: name,
 			changed: changed || prevPrimary !== this.primarySequence,

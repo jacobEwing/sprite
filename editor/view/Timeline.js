@@ -22,7 +22,6 @@ export class Timeline {
 
 		this.drag = null;              // { index, working, moved, wasSelected } during a reorder
 		this.editingIndex = null;      // index of the slot whose transform is open, or null
-		this.selectedSlotIndex = null; // index of the last tile clicked in the timeline
 
 		this._build();
 		this._bind();
@@ -121,7 +120,7 @@ export class Timeline {
 		const tile = document.createElement('div');
 		tile.className = 'tl-tile';
 		const isSelectedFrame = frameName === this.doc.selectedFrame;
-		const isPrimarySlot   = isSelectedFrame && this.selectedSlotIndex === index;
+		const isPrimarySlot   = isSelectedFrame && this.doc.selectedSlotIndex === index;
 		if (isPrimarySlot)       tile.classList.add('selected');
 		else if (isSelectedFrame) tile.classList.add('same-frame');
 		tile.dataset.index = index;
@@ -327,7 +326,6 @@ export class Timeline {
 
 	_onSelectionChange() {
 		const seq = this.doc.getSelectedSequence();
-		const selectedFrame = this.doc.selectedFrame;
 
 		// Close the editor if the selected sequence changed or shrank
 		// past the slot we were editing.
@@ -335,26 +333,6 @@ export class Timeline {
 			if (!seq || this.editingIndex >= seq.frames.length) {
 				this._closeEditor();
 			}
-		}
-
-		// Reconcile the timeline's slot hint with the current frame
-		// selection. If the tracked slot no longer matches, forget it;
-		// then, if the selected frame appears in the sequence, promote
-		// its first occurrence to the primary slot.
-		//
-		// This keeps a bright highlight visible whenever the current
-		// frame is in the sequence, regardless of where the selection
-		// came from — timeline, sequence inspector, frame list, or
-		// canvas.
-		if (this.selectedSlotIndex !== null) {
-			const slot = seq && seq.frames[this.selectedSlotIndex];
-			if (!slot || slot.frame !== selectedFrame) {
-				this.selectedSlotIndex = null;
-			}
-		}
-		if (this.selectedSlotIndex === null && seq && selectedFrame) {
-			const idx = seq.frames.findIndex(s => s.frame === selectedFrame);
-			if (idx !== -1) this.selectedSlotIndex = idx;
 		}
 
 		this.render();
@@ -384,7 +362,7 @@ export class Timeline {
 
 		e.preventDefault();
 		const index = parseInt(tile.dataset.index, 10);
-		this.selectedSlotIndex = index;
+		this.doc.selectedSlotIndex = index;
 
 		const wasSelected = this.doc.selectedFrame === seq.frames[index].frame;
 

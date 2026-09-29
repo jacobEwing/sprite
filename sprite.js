@@ -763,6 +763,17 @@ class Sprite {
 		return this;
 	}
 
+	/**
+	 * Set the current frame from a sequence slot ({ frame, transform })
+	 * and install the slot's transform. Used externally when a caller
+	 * needs to display a specific slot without playing the sequence —
+	 * the editor's preview pane does this when paused.
+	 */
+	setSlot(slot) {
+		this._applySlot(slot);
+		return this;
+	}
+
 	/* ---- animation ------------------------------------------------------- */
 
 	/**

@@ -432,11 +432,10 @@ $('btnMoveFrameDown').addEventListener('click', () => {
 
 $('btnNewSequence').addEventListener('click', () => {
 	if (!doc.editable) return;
-	const base = doc.selectedFrame ? `seq_${doc.selectedFrame}` : 'new_sequence';
+	const frames = doc.selectedFrameList;
+	const base = frames.length > 0 ? `seq_${frames[0]}` : 'new_sequence';
 	const name = doc.editable.uniqueSequenceName(base);
-	doc.editable.addSequence(name, {
-		frames: doc.selectedFrame ? [doc.selectedFrame] : [],
-	});
+	doc.editable.addSequence(name, { frames });
 	doc.selectSequence(name);
 });
 

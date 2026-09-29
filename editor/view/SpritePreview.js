@@ -99,17 +99,27 @@ export class SpritePreview {
 		this._stopLoop();
 		if (this.sprite.sequenceName) this.sprite.stop();
 
-		// Validity: the frame must exist in the sheet, and - if it was
-		// chosen from the sequence - must still be a member of it.
+		// Paused with a sequence showing: if the timeline has a slot
+		// selected, show that slot's frame and transform. Clicking a
+		// different slot updates the preview to match.
+		const slotIdx = this.doc.selectedSlotIndex;
+		if (seq && slotIdx !== null && slotIdx >= 0 && slotIdx < seq.frames.length) {
+			const slot = seq.frames[slotIdx];
+			if (this.doc.sheet.frames[slot.frame]) {
+				this.sprite.setSlot(slot);
+				this._draw();
+				this._updateStatus();
+				return;
+			}
+		}
+
+		// Fall back: static frame based on the document's frame selection.
 		let frameName = this.staticFrameName;
 		const inSheet = !!frameName && !!this.doc.sheet.frames[frameName];
-		const inSeq = !this.staticFrameFollowsSequence
-			|| !seq
+		const inSeq = !this.staticFrameFollowsSequence || !seq
 			|| seq.frames.some(s => s.frame === frameName);
 
 		if (!frameName || !inSheet || !inSeq) {
-			// Fallback chain. Track which source supplied the replacement
-			// so the follow flag stays accurate for the *next* edit.
 			if (seq && seq.frames.length > 0) {
 				frameName = seq.frames[0].frame;
 				this.staticFrameFollowsSequence = true;
@@ -132,7 +142,6 @@ export class SpritePreview {
 		this._draw();
 		this._updateStatus();
 	}
-
 	_onSelectionChange(info = {}) {
 		if (!this.sprite) return;
 
@@ -288,7 +297,7 @@ export class SpritePreview {
 		}
 		const seq = this.doc.sheet.sequences[seqName];
 		if (!seq) { this.statusEl.textContent = name; return; }
-		const idx = seq.frames.indexOf(name);
+		const idx = seq.frames.findIndex(s => s.frame === name);
 		this.statusEl.textContent = idx >= 0
 			? `${name}  ${idx + 1}/${seq.frames.length}`
 			: name;
