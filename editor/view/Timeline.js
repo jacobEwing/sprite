@@ -295,6 +295,7 @@ export class Timeline {
 
 	_onSelectionChange() {
 		const seq = this.doc.getSelectedSequence();
+		const selectedFrame = this.doc.selectedFrame;
 
 		// Close the editor if the selected sequence changed or shrank
 		// past the slot we were editing.
@@ -304,14 +305,24 @@ export class Timeline {
 			}
 		}
 
-		// Forget the timeline's slot hint when the selection no longer
-		// matches it — e.g. the user picked a different frame from the
-		// Frame List.
+		// Reconcile the timeline's slot hint with the current frame
+		// selection. If the tracked slot no longer matches, forget it;
+		// then, if the selected frame appears in the sequence, promote
+		// its first occurrence to the primary slot.
+		//
+		// This keeps a bright highlight visible whenever the current
+		// frame is in the sequence, regardless of where the selection
+		// came from — timeline, sequence inspector, frame list, or
+		// canvas.
 		if (this.selectedSlotIndex !== null) {
 			const slot = seq && seq.frames[this.selectedSlotIndex];
-			if (!slot || slot.frame !== this.doc.selectedFrame) {
+			if (!slot || slot.frame !== selectedFrame) {
 				this.selectedSlotIndex = null;
 			}
+		}
+		if (this.selectedSlotIndex === null && seq && selectedFrame) {
+			const idx = seq.frames.findIndex(s => s.frame === selectedFrame);
+			if (idx !== -1) this.selectedSlotIndex = idx;
 		}
 
 		this.render();
