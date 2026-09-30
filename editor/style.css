@@ -9,7 +9,29 @@
 	--accent:    #d08040;
 	--accent-2:  #4a80c0;
 	--danger:    #d04040;
+
+	--font-ui:   'Abel', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	--font-mono: 'Calling Code', "SF Mono", Menlo, Consolas, monospace;
 }
+
+@font-face {
+	font-family: 'Abel';
+	src: url('assets/fonts/Abel-Regular.woff2') format('woff2'),
+	     url('assets/fonts/Abel-Regular.woff') format('woff');
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Calling Code';
+	src: url('assets/fonts/CallingCode-Regular.woff2') format('woff2'),
+	     url('assets/fonts/CallingCode-Regular.woff') format('woff');
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+
 
 [hidden] { display: none !important; }
 
@@ -43,7 +65,7 @@ html, body { height: 100%; margin: 0; }
 body {
 	background: var(--bg);
 	color: var(--ink);
-	font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	font: 13px/1.45 var(--font-ui);
 	display: grid;
 	grid-template-rows: auto 1fr auto;
 	overflow: hidden;
@@ -84,7 +106,7 @@ body {
 #toolbar button:disabled:hover { background: var(--panel-2); }
 #toolbar .readout {
 	color: var(--muted);
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	min-width: 56px;
 	text-align: right;
 }
@@ -136,7 +158,7 @@ body {
 }
 .pane .info {
 	color: var(--muted);
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 11px;
 	white-space: pre-wrap;
 }
@@ -158,7 +180,7 @@ body {
 	justify-content: space-between;
 	gap: 8px;
 	align-items: baseline;
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 12px;
 	white-space: nowrap;
 	overflow: hidden;
@@ -219,7 +241,7 @@ body {
 	padding: 0 24px;
 }
 #emptyMessage code {
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 12px;
 	background: var(--panel-2);
 	padding: 1px 5px;
@@ -329,7 +351,7 @@ body {
 	top: 2px;
 	left: 4px;
 	font-size: 9px;
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	color: rgba(255,255,255,0.7);
 	background: rgba(0,0,0,0.6);
 	padding: 0 3px;
@@ -433,7 +455,7 @@ body {
 	border-radius: 3px;
 	padding: 3px 6px;
 	color: var(--ink);
-	font: 11px "SF Mono", Menlo, Consolas, monospace;
+	font: 11px var(--font-mono);
 	width: 100%;
 	min-width: 0;
 }
@@ -549,7 +571,7 @@ body {
 	flex: 1;
 	min-width: 0;
 	color: var(--muted);
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 11px;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -622,7 +644,7 @@ body {
 	border-radius: 3px;
 	padding: 3px 6px;
 	color: var(--ink);
-	font: 11px "SF Mono", Menlo, Consolas, monospace;
+	font: 11px var(--font-mono);
 	width: 100%;
 	min-width: 0;
 	text-transform: lowercase;
@@ -721,7 +743,7 @@ body {
 }
 .cp-hash {
 	color: var(--muted);
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 12px;
 }
 .cp-hex {
@@ -732,7 +754,7 @@ body {
 	border-radius: 3px;
 	padding: 4px 6px;
 	color: var(--ink);
-	font: 12px "SF Mono", Menlo, Consolas, monospace;
+	font: 12px var(--font-mono);
 	text-transform: lowercase;
 }
 .cp-hex:focus {
@@ -747,7 +769,7 @@ body {
 }
 .cp-alpha-label {
 	color: var(--muted);
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 12px;
 	width: 12px;
 }
@@ -789,7 +811,7 @@ body {
 }
 .cp-alpha-value {
 	color: var(--muted);
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 11px;
 	width: 28px;
 	text-align: right;
@@ -975,7 +997,7 @@ body {
 	flex: 0 0 auto;
 	min-width: 32px;
 	text-align: right;
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 11px;
 	color: var(--muted);
 }
@@ -1002,7 +1024,7 @@ body {
 	border-radius: 3px;
 	padding: 3px 6px;
 	color: var(--ink);
-	font: 11px "SF Mono", Menlo, Consolas, monospace;
+	font: 11px var(--font-mono);
 	min-width: 0;
 	width: 100%;
 }
@@ -1051,7 +1073,7 @@ body {
 	gap: 4px;
 	padding: 3px 6px;
 	border-bottom: 1px solid var(--rule);
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 11px;
 }
 .insp-frames li:last-child { border-bottom: none; }
@@ -1339,7 +1361,7 @@ body {
 }
 .menu-shortcut {
 	color: var(--muted);
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 11px;
 	margin-left: 24px;
 	flex-shrink: 0;
@@ -1407,7 +1429,7 @@ body {
 	border-radius: 4px;
 	padding: 8px 10px;
 	color: var(--ink);
-	font: 13px "SF Mono", Menlo, Consolas, monospace;
+	font: 13px var(--font-mono);
 }
 .modal-field input:focus {
 	outline: none;
@@ -1597,7 +1619,7 @@ body {
 	border-radius: 3px;
 	padding: 3px 6px;
 	color: var(--ink);
-	font: 11px "SF Mono", Menlo, Consolas, monospace;
+	font: 11px var(--font-mono);
 }
 .fp-row select:focus,
 .fp-row input:focus {
@@ -1667,7 +1689,7 @@ body {
 	border-radius: 3px;
 	padding: 4px 2px;
 	color: var(--ink);
-	font: 11px "SF Mono", Menlo, Consolas, monospace;
+	font: 11px var(--font-mono);
 	text-align: center;
 }
 .fp-cell:focus {
@@ -1751,7 +1773,7 @@ body {
 	border-radius: 3px;
 	padding: 3px 6px;
 	color: var(--ink);
-	font: 11px "SF Mono", Menlo, Consolas, monospace;
+	font: 11px var(--font-mono);
 }
 .bg-texture:focus { outline: none; border-color: var(--accent-2); }
 .bg-swatch {
@@ -1812,7 +1834,7 @@ body {
 	text-overflow: ellipsis;
 }
 #statusBar #imageNotice code {
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 11px;
 	color: var(--ink);
 	background: var(--panel-2);
@@ -1837,7 +1859,7 @@ body {
 	padding: 1px 4px;
 	color: var(--ink);
 	font: inherit;
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 12px;
 }
 .list-rename-input:focus {
@@ -1876,7 +1898,7 @@ body {
 	flex: 0 0 auto;
 	min-width: 44px;
 	text-align: right;
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 11px;
 	color: var(--muted);
 }
@@ -1905,7 +1927,7 @@ body {
 	border-radius: 3px;
 	padding: 3px 6px;
 	color: var(--ink);
-	font: 11px "SF Mono", Menlo, Consolas, monospace;
+	font: 11px var(--font-mono);
 }
 .rp-pivot-inputs input:focus {
 	outline: none;
@@ -1980,7 +2002,7 @@ body {
 	border-radius: 3px;
 	padding: 3px 6px;
 	color: var(--ink);
-	font: 11px "SF Mono", Menlo, Consolas, monospace;
+	font: 11px var(--font-mono);
 	text-transform: lowercase;
 }
 .rc-hex:focus {
@@ -1991,7 +2013,7 @@ body {
 	flex: 0 0 auto;
 	min-width: 42px;
 	text-align: right;
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 11px;
 	color: var(--muted);
 }
@@ -2043,7 +2065,7 @@ body {
 	border-radius: 3px;
 	padding: 3px 6px;
 	color: var(--ink);
-	font: 11px "SF Mono", Menlo, Consolas, monospace;
+	font: 11px var(--font-mono);
 }
 .tsp-pivot-inputs input:focus {
 	outline: none;
@@ -2151,7 +2173,7 @@ body {
 .value-adjuster-display {
 	position: relative;
 	color: var(--ink);
-	font-family: "SF Mono", Menlo, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-size: 11px;
 	pointer-events: none;
 	z-index: 1;
