@@ -159,12 +159,12 @@ export class SequenceInspector {
 
 		const add = document.createElement('button');
 		add.className = 'insp-add-btn';
-		add.textContent = '+ Add current frame';
-		add.disabled = !this.doc.selectedFrame;
+		add.textContent = '+ Add selected frames';
+		add.disabled = this.doc.selectedFrameList.length === 0;
 		add.addEventListener('click', () => {
-			if (this.doc.selectedFrame) {
-				this.doc.editable.addFrameToSequence(this.currentName, this.doc.selectedFrame);
-			}
+			const frames = this.doc.selectedFrameList;
+			if (frames.length === 0) return;
+			this.doc.editable.addFramesToSequence(this.currentName, frames);
 		});
 		this.root.appendChild(add);
 	}

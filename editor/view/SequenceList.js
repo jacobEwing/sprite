@@ -7,6 +7,13 @@ function esc(s) {
 	}[c]));
 }
 
+// Left-sidebar sequence list.
+//
+// Interactions:
+//   click           — select; ctrl/cmd toggles, shift extends a range
+//   dblclick (row)  — focus the viewport on the sequence's first frame
+//   dblclick (name) — start rename
+//   right-click     — context menu
 export class SequenceList {
 	constructor(root, doc) {
 		this.root = root;
@@ -26,23 +33,42 @@ export class SequenceList {
 
 		for (const name of sheet.sequenceNames) {
 			const seq = sheet.sequences[name];
+
 			const li = document.createElement('li');
 			li.dataset.sequence = name;
-			const iters = seq.iterations === 0 ? '∞' : `×${seq.iterations}`;
-			li.innerHTML =
-				`<span class="name">${esc(name)}</span>` +
-				`<span class="meta">${seq.frames.length}f ${iters}</span>`;
 
+			const nameEl = document.createElement('span');
+			nameEl.className = 'name';
+			nameEl.textContent = name;
+			li.appendChild(nameEl);
+
+			const iters = seq.iterations === 0 ? '∞' : `×${seq.iterations}`;
+			const metaEl = document.createElement('span');
+			metaEl.className = 'meta';
+			metaEl.textContent = `${seq.frames.length}f ${iters}`;
+			li.appendChild(metaEl);
+
+			// --- selection ---------------------------------------------
 			li.addEventListener('click', (e) => {
 				const additive = e.ctrlKey || e.metaKey;
 				const range    = e.shiftKey;
 				this.doc.selectSequence(name, { additive, range });
 			});
+
+			// --- focus viewport on double-click, unless the dblclick
+			//     landed on the name (which starts a rename instead).
 			li.addEventListener('dblclick', (e) => {
+				if (e.target.closest && e.target.closest('.name')) return;
+				const sequence = this.doc.sheet.sequences[name];
+				if (!sequence || sequence.frames.length === 0) return;
+				const firstFrame = sequence.frames[0].frame;
+				if (firstFrame) this.viewportFocusFrame(firstFrame);
+			});
+
+			// --- rename on double-click of the name --------------------
+			nameEl.addEventListener('dblclick', (e) => {
 				e.preventDefault();
 				e.stopPropagation();
-				const nameEl = li.querySelector('.name');
-				if (!nameEl) return;
 				inlineRename(nameEl, name, (newName) => {
 					try {
 						this.doc.editable.renameSequence(name, newName);
@@ -53,6 +79,8 @@ export class SequenceList {
 					}
 				});
 			});
+
+			// --- context menu ------------------------------------------
 			li.addEventListener('contextmenu', (e) => {
 				e.preventDefault();
 				this._showContextMenu(name, e.clientX, e.clientY);
@@ -61,6 +89,13 @@ export class SequenceList {
 			this.root.appendChild(li);
 		}
 		this._sync();
+	}
+
+	// The SequenceList doesn't hold a viewport reference (it isn't wired
+	// with one in main.js). Instead, push the request through the
+	// document's frame selection, matching the frame-list behaviour.
+	viewportFocusFrame(frameName) {
+		this.doc.selectFrame(frameName, { focus: true });
 	}
 
 	_showContextMenu(name, x, y) {

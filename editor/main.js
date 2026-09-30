@@ -291,11 +291,10 @@ doc.on('imageChanged', () => {
 	updateImageNotice();
 });
 
-doc.on('selectionChanged', ({ focus, changed }) => {
+doc.on('selectionChanged', ({ focus }) => {
 	viewport.setSelectedFrame(doc.selectedFrame);
 	viewport.setSelectedFrames(doc.selectedFrames);
-	if (!focus || !doc.selectedFrame) return;
-	if (!viewport.sheetFits || !changed) {
+	if (focus && doc.selectedFrame) {
 		viewport.focusFrame(doc.selectedFrame);
 	}
 });

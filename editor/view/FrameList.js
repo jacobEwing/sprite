@@ -1,3 +1,4 @@
+import { makeEmitter } from '../lib/emitter.js';
 import { Menu } from './Menu.js';
 import { inlineRename } from '../lib/inlineRename.js';
 
@@ -7,8 +8,16 @@ function esc(s) {
 	}[c]));
 }
 
+// Left-sidebar frame list.
+//
+// Interactions:
+//   click            — select; ctrl/cmd toggles, shift extends a range
+//   dblclick (name)  — start rename
+//   zoom button      — select and focus the viewport on the frame
+//   right-click      — context menu
 export class FrameList {
 	constructor(root, doc) {
+		makeEmitter(this);
 		this.root = root;
 		this.doc = doc;
 
@@ -26,29 +35,42 @@ export class FrameList {
 
 		for (const name of sheet.frameNames) {
 			const frame = sheet.frames[name];
+
 			const li = document.createElement('li');
 			li.dataset.frame = name;
-			li.innerHTML =
-				`<span class="name">${esc(name)}</span>` +
-				`<span class="meta">${frame.width}×${frame.height}</span>`;
 
+			const nameEl = document.createElement('span');
+			nameEl.className = 'name';
+			nameEl.textContent = name;
+			li.appendChild(nameEl);
+
+			const metaEl = document.createElement('span');
+			metaEl.className = 'meta';
+			metaEl.textContent = `${frame.width}×${frame.height}`;
+			li.appendChild(metaEl);
+
+			// --- zoom to frame -----------------------------------------
+			const zoomBtn = document.createElement('button');
+			zoomBtn.className = 'list-zoom-btn';
+			zoomBtn.textContent = '⌕';
+			zoomBtn.title = 'Zoom to this frame';
+			zoomBtn.addEventListener('click', (e) => {
+				e.stopPropagation();
+				this.doc.selectFrame(name, { focus: true });
+			});
+			li.appendChild(zoomBtn);
+
+			// --- selection ---------------------------------------------
 			li.addEventListener('click', (e) => {
 				const additive = e.ctrlKey || e.metaKey;
 				const range    = e.shiftKey;
-				this.doc.selectFrame(name, {
-					// Focus only on plain clicks; modifiers mean the user
-					// is building a selection and doesn't want the camera
-					// jumping between items.
-					focus: !additive && !range,
-					additive,
-					range,
-				});
+				this.doc.selectFrame(name, { additive, range });
 			});
-			li.addEventListener('dblclick', (e) => {
+
+			// --- rename on double-click of the name --------------------
+			nameEl.addEventListener('dblclick', (e) => {
 				e.preventDefault();
 				e.stopPropagation();
-				const nameEl = li.querySelector('.name');
-				if (!nameEl) return;
 				inlineRename(nameEl, name, (newName) => {
 					try {
 						this.doc.editable.renameFrame(name, newName);
@@ -59,6 +81,8 @@ export class FrameList {
 					}
 				});
 			});
+
+			// --- context menu ------------------------------------------
 			li.addEventListener('contextmenu', (e) => {
 				e.preventDefault();
 				this._showContextMenu(name, e.clientX, e.clientY);
@@ -66,6 +90,7 @@ export class FrameList {
 
 			this.root.appendChild(li);
 		}
+
 		this._sync();
 	}
 
@@ -106,14 +131,11 @@ export class FrameList {
 		const selected = this.doc.selectedFrames;
 		for (const li of this.root.children) {
 			const name = li.dataset.frame;
-			const isPrimary = name === primary;
-			li.classList.toggle('selected', isPrimary);
-			li.classList.toggle('multi-selected', !isPrimary && selected.has(name));
+			li.classList.toggle('selected', name === primary);
+			li.classList.toggle('multi-selected',
+				name !== primary && selected.has(name));
 
-			// scrollIntoView with block:'nearest' is a no-op when the item
-			// is already on screen, which is exactly what we want: canvas
-			// clicks pull the list to the item, list clicks don't jitter it.
-			if (isPrimary) li.scrollIntoView({ block: 'nearest' });
+			if (name === primary) li.scrollIntoView({ block: 'nearest' });
 		}
 	}
 }

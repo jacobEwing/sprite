@@ -32,6 +32,7 @@ export class Timeline {
 
 		this.drag = null;              // see _onDown for the shape
 		this.editingIndex = null;      // non-null when the transform editor is open
+		this.scaleLocked = false;
 
 		this._build();
 		this._bind();
@@ -64,6 +65,9 @@ export class Timeline {
 							<span class="tl-editor-hint">Pivot:</span>
 							<button class="tl-editor-pivot-btn" data-pivot="origin">Origin</button>
 							<button class="tl-editor-pivot-btn" data-pivot="centre">Centre</button>
+							<label class="tl-editor-lock">
+								<input type="checkbox" class="tl-editor-lock-input"> Lock scale
+							</label>
 						</div>
 						<button class="tl-editor-reset">Reset transform</button>
 					</div>
@@ -80,6 +84,7 @@ export class Timeline {
 
 	_bind() {
 		this.stripEl.addEventListener('mousedown', (e) => this._onDown(e));
+		this.stripEl.addEventListener('dblclick', (e) => this._onDoubleClick(e));
 		this.root.querySelector('.tl-editor-close')
 			.addEventListener('click', () => this._closeEditor());
 		this.editorResetBtn
@@ -87,6 +92,13 @@ export class Timeline {
 		for (const btn of this.root.querySelectorAll('.tl-editor-pivot-btn')) {
 			btn.addEventListener('click', () => this._applyPivotPreset(btn.dataset.pivot));
 		}
+
+		this.scaleLockInput = this.root.querySelector('.tl-editor-lock-input');
+		this.scaleLockInput.checked = this.scaleLocked;
+		this.scaleLockInput.addEventListener('change', () => {
+			this.scaleLocked = this.scaleLockInput.checked;
+			this._renderEditor();
+		});
 
 		document.addEventListener('keydown', (e) => {
 			if (e.key === 'Escape' && this.editingIndex !== null) this._closeEditor();
@@ -284,11 +296,11 @@ export class Timeline {
 		this.editorFieldsEl.innerHTML = '';
 
 		const fieldSpecs = [
-			{ key: 'translateX', label: 'Translate X', step: 0.5, default: 0 },
-			{ key: 'translateY', label: 'Translate Y', step: 0.5, default: 0 },
+			{ key: 'translateX', label: 'Translate X', step: 1, default: 0 },
+			{ key: 'translateY', label: 'Translate Y', step: 1, default: 0 },
 			{ key: 'rotation',   label: 'Rotation °',  step: 1,   default: 0 },
-			{ key: 'scaleX',     label: 'Scale X',     step: 0.1, default: 1 },
-			{ key: 'scaleY',     label: 'Scale Y',     step: 0.1, default: 1 },
+			{ key: 'scaleX',     label: 'Scale X',     step: 0.5,   default: 1 },
+			{ key: 'scaleY',     label: 'Scale Y',     step: 0.5,   default: 1 },
 			{ key: 'pivotX',     label: 'Pivot X',     step: 0.5, default: defX },
 			{ key: 'pivotY',     label: 'Pivot Y',     step: 0.5, default: defY },
 		];
@@ -326,11 +338,14 @@ export class Timeline {
 				input.addEventListener('change', () => {
 					const v = parseFloat(input.value);
 					if (!Number.isFinite(v)) return;
-					this.doc.editable.setSlotTransforms(
-						seq.name, indices,
-						{ [f.key]: v }
-					);
+					const patch = { [f.key]: v };
+					if (this.scaleLocked && (f.key === 'scaleX' || f.key === 'scaleY')) {
+						patch.scaleX = v;
+						patch.scaleY = v;
+					}
+					this.doc.editable.setSlotTransforms(seq.name, indices, patch);
 				});
+
 				escapeBlurs(input);
 				cell.appendChild(input);
 			} else {
@@ -353,10 +368,12 @@ export class Timeline {
 					displayElement: visible,
 					onAdjust: (v) => {
 						const num = Number.isFinite(v) ? v : f.default;
-						this.doc.editable.setSlotTransforms(
-							seq.name, indices,
-							{ [f.key]: num }
-						);
+						const patch = { [f.key]: num };
+						if (this.scaleLocked && (f.key === 'scaleX' || f.key === 'scaleY')) {
+							patch.scaleX = num;
+							patch.scaleY = num;
+						}
+						this.doc.editable.setSlotTransforms(seq.name, indices, patch);
 					},
 				});
 
@@ -615,6 +632,17 @@ export class Timeline {
 		}
 	}
 
+	_onDoubleClick(e) {
+		if (e.target.closest && e.target.closest('.tl-tile-btn')) return;
+		const tile = e.target.closest && e.target.closest('.tl-tile');
+		if (!tile || !this.stripEl.contains(tile)) return;
+		const index = parseInt(tile.dataset.index, 10);
+		const seq = this.doc.getSelectedSequence();
+		if (!seq || index < 0 || index >= seq.frames.length) return;
+		const frameName = seq.frames[index].frame;
+		if (frameName) this.viewport.focusFrame(frameName);
+	}
+
 	_shiftBlock(direction) {
 		const w = this.drag.working;
 		const { blockStart, blockEnd } = this.drag;
@@ -649,17 +677,12 @@ export class Timeline {
 	_onUp() {
 		if (!this.drag) return;
 		const {
-			working, moved, wasSelectedBefore, grabIndex,
+			working, moved, grabIndex,
 			blockStart, originalBlockStart, originalBlockEnd,
 		} = this.drag;
-		const slotName = working[grabIndex] ? working[grabIndex].frame : null;
 		this.drag = null;
 
 		if (!moved) {
-			const singleSlotSelected = this.doc.selectedSlotIndices.size === 1;
-			if (singleSlotSelected && (wasSelectedBefore || !this.viewport.sheetFits)) {
-				if (slotName) this.viewport.focusFrame(slotName);
-			}
 			if (this.editingIndex !== null) this._renderEditor();
 			this.render();
 			return;

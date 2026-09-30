@@ -16,6 +16,7 @@ export class AirbrushTool extends Tool {
 		this.currentX = null;
 		this.currentY = null;
 		this.rafId = null;
+		this.onlyOpaque = false;
 
 		// Slider value, 1–30. The actual deposit rate is computed from
 		// this quadratically (see _depositRate), so the low end — where
@@ -110,6 +111,7 @@ export class AirbrushTool extends Tool {
 	_blendPixel(x, y, color, a) {
 		const existing = this.transaction.getPixel(x, y);
 		if (!existing) return;
+		if (this.onlyOpaque && existing[3] === 0) return;
 
 		const da = existing[3] / 255;
 		const outA = a + da * (1 - a);
@@ -136,28 +138,30 @@ export class AirbrushTool extends Tool {
 	}
 
 	getSettings() {
-		return [{
-			key: 'flow',
-			label: 'Flow',
-			type: 'range',
-			min: 1,
-			max: 30,
-			step: 1,
-			format: (v) => {
-				const pct = (v / 30) ** 2 * 30;
-				return pct < 1
-					? pct.toFixed(2) + '%'
-					: pct.toFixed(1) + '%';
+		return [
+			{
+				key: 'flow',
+				label: 'Flow',
+				type: 'range',
+				min: 1, max: 30, step: 1,
+				format: (v) => {
+					const pct = (v / 30) ** 2 * 30;
+					return pct < 1 ? pct.toFixed(2) + '%' : pct.toFixed(1) + '%';
+				},
 			},
-		}];
+			{ key: 'onlyOpaque', label: 'Opaque only', type: 'checkbox' },
+		];
 	}
 
 	getSettingValue(key) {
-		if (key === 'flow') return this.flow;
+		if (key === 'flow')       return this.flow;
+		if (key === 'onlyOpaque') return this.onlyOpaque;
 		return undefined;
 	}
 
 	setSettingValue(key, value) {
 		if (key === 'flow') this.flow = Math.max(1, Math.min(30, Number(value) || 1));
+		else if (key === 'onlyOpaque') this.onlyOpaque = !!value;
 	}
+
 }

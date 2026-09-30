@@ -102,6 +102,7 @@ export class FilterPanel {
 					<label class="fp-row">
 						<span class="fp-label">Divisor</span>
 						<input type="number" class="fp-divisor" step="0.01">
+						<button type="button" class="fp-divisor-sum" title="Set to the sum of the matrix values">Σ</button>
 					</label>
 					<label class="fp-row">
 						<span class="fp-label">Offset</span>
@@ -187,6 +188,11 @@ export class FilterPanel {
 
 		this.root.querySelector('.fp-reset').addEventListener('click', () => this._resetControls());
 		this.root.querySelector('.fp-apply').addEventListener('click', () => this._apply());
+		this.root.querySelector('.fp-divisor-sum').addEventListener('click', () => {
+			this.divisor = matrixSum(this.matrix);
+			this._sync();
+			this._onControlChange();
+		});
 	}
 
 	_onControlChange() {

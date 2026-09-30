@@ -493,6 +493,26 @@ export class EditableSheet {
 		this.setSequence(seqName, { frames });
 	}
 
+	// Append several frames to a sequence in one undo step. Order follows
+	// the input array.
+	addFramesToSequence(seqName, frameNames, index = -1) {
+		const seq = this.sheet.sequences[seqName];
+		if (!seq) return;
+		if (!Array.isArray(frameNames) || frameNames.length === 0) return;
+
+		const valid = frameNames.filter(n => this.sheet.frames[n]);
+		if (valid.length === 0) return;
+
+		const frames = seq.frames.slice();
+		const slots = valid.map(n => ({ frame: n, transform: null }));
+		if (index < 0 || index >= frames.length) {
+			frames.push(...slots);
+		} else {
+			frames.splice(index, 0, ...slots);
+		}
+		this.setSequence(seqName, { frames });
+	}
+
 	removeFrameFromSequence(seqName, index) {
 		const seq = this.sheet.sequences[seqName];
 		if (!seq) return;

@@ -99,9 +99,6 @@ export class SpritePreview {
 		this._stopLoop();
 		if (this.sprite.sequenceName) this.sprite.stop();
 
-		// Paused with a sequence showing: if the timeline has a slot
-		// selected, show that slot's frame and transform. Clicking a
-		// different slot updates the preview to match.
 		const slotIdx = this.doc.selectedSlotIndex;
 		if (seq && slotIdx !== null && slotIdx >= 0 && slotIdx < seq.frames.length) {
 			const slot = seq.frames[slotIdx];
@@ -142,23 +139,18 @@ export class SpritePreview {
 		this._draw();
 		this._updateStatus();
 	}
+
 	_onSelectionChange(info = {}) {
-		if (!this.sprite) return;
-
-		// Selecting a sequence always starts playing. Without this, a
-		// finite sequence that has run to completion leaves the preview
-		// paused, and a subsequently-selected sequence wouldn't animate.
-		if (info.sequence !== undefined) {
-			this.playing = true;
-			this.toggleBtn.textContent = '⏸';
-			this.staticFrameName = null;
-			this.staticFrameFollowsSequence = false;
-		} else if (!this.playing && info.frame !== undefined) {
-			// Paused: track the explicitly-selected frame.
-			this.staticFrameName = info.frame;
-			this.staticFrameFollowsSequence = false;
+		if (!this.playing) {
+			if (info.sequence !== undefined) {
+				const seq = this.doc.sheet.sequences[info.sequence];
+				this.staticFrameName = (seq && seq.frames[0]?.frame) || null;
+				this.staticFrameFollowsSequence = true;
+			} else if (info.frame !== undefined) {
+				this.staticFrameName = info.frame;
+				this.staticFrameFollowsSequence = false;
+			}
 		}
-
 		this._recompute();
 	}
 
