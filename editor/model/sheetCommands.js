@@ -37,21 +37,28 @@ export class RemoveFrameCommand {
 		// frame, so revert() can restore the sequences intact.
 		this.affectedSequences = {};
 		for (const [seqName, seq] of Object.entries(sheet.sequences)) {
-			if (seq.frames.includes(name)) {
-				this.affectedSequences[seqName] = seq.frames.slice();
+			if (seq.frames.some(s => s.frame === name)) {
+				this.affectedSequences[seqName] = seq.frames.map(s => ({
+					frame: s.frame,
+					transform: s.transform ? { ...s.transform } : null,
+				}));
 			}
 		}
 	}
 	apply() {
 		delete this.sheet.frames[this.name];
 		for (const [seqName, frames] of Object.entries(this.affectedSequences)) {
-			this.sheet.sequences[seqName].frames = frames.filter(f => f !== this.name);
+			this.sheet.sequences[seqName].frames =
+				frames.filter(s => s.frame !== this.name);
 		}
 	}
 	revert() {
 		this.sheet.frames[this.name] = clone(this.frame);
 		for (const [seqName, frames] of Object.entries(this.affectedSequences)) {
-			this.sheet.sequences[seqName].frames = frames.slice();
+			this.sheet.sequences[seqName].frames = frames.map(s => ({
+				frame: s.frame,
+				transform: s.transform ? { ...s.transform } : null,
+			}));
 		}
 	}
 }
@@ -65,21 +72,15 @@ export class RenameFrameCommand {
 		this.affectedSequences = {};
 		for (const [seqName, seq] of Object.entries(sheet.sequences)) {
 			const idxs = [];
-			seq.frames.forEach((f, i) => { if (f === oldName) idxs.push(i); });
+			seq.frames.forEach((s, i) => { if (s.frame === oldName) idxs.push(i); });
 			if (idxs.length) this.affectedSequences[seqName] = idxs;
 		}
 	}
-
-	apply()  { this._swap(this.oldName, this.newName); }
-	revert() { this._swap(this.newName, this.oldName); }
-
 	_swap(from, to) {
 		const frames = this.sheet.frames;
 		if (!frames[from]) return;
 
-		// Rebuild the entry in its original position. We rebuild into the
-		// same object rather than reassigning sheet.frames, so external
-		// references stay valid and the surrounding key order is preserved.
+		// Rebuild the frame map in place, preserving key order.
 		const oldFrame = frames[from];
 		const keys = Object.keys(frames);
 		const ordered = {};
@@ -90,11 +91,20 @@ export class RenameFrameCommand {
 		for (const key of keys) delete frames[key];
 		for (const key of Object.keys(ordered)) frames[key] = ordered[key];
 
+		// Update every sequence slot that referenced the old name,
+		// preserving the slot's transform.
 		for (const [seqName, idxs] of Object.entries(this.affectedSequences)) {
 			const seq = this.sheet.sequences[seqName];
-			for (const i of idxs) seq.frames[i] = to;
+			for (const i of idxs) {
+				const slot = seq.frames[i];
+				if (slot && typeof slot === 'object') {
+					seq.frames[i] = { ...slot, frame: to };
+				}
+			}
 		}
 	}
+	apply()  { this._swap(this.oldName, this.newName); }
+	revert() { this._swap(this.newName, this.oldName); }
 }
 
 // Sets one frame's numeric/metadata fields (rect, origin). `before` and

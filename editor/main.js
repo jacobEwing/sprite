@@ -70,7 +70,6 @@ const reshapeDialog = new ReshapeDialog();
 // you're in the Modifiers tab or anywhere else.
 const transformScope = { applyToAll: false };
 
-new FrameList(document.getElementById('frameList'), doc);
 new SequenceList(document.getElementById('sequenceList'), doc);
 new FrameInspector(document.getElementById('frameInspector'), doc);
 new SequenceInspector(document.getElementById('sequenceInspector'), doc);
@@ -80,7 +79,9 @@ new SpritePreview(document.getElementById('spritePreview'), doc);
 const brushPicker = new BrushPicker(document.getElementById('brushPicker'));
 const toolSettingsPanel = new ToolSettingsPanel(document.getElementById('toolSettings'));
 new FrameTransformInspector(document.getElementById('frameTransformInspector'), doc);
-
+new FrameList(document.getElementById('frameList'), doc, {
+	onDeleteRequest: (names) => confirmAndDeleteFrames(names),
+});
 const TOOLS = {
 	pan:       new PanTool(toolLayer.context),
 	select:    new SelectionTool(toolLayer.context),
@@ -405,6 +406,30 @@ document.querySelectorAll('[data-modifier-panel]').forEach(p => {
 	p.classList.toggle('hidden', p.dataset.modifierPanel !== currentModifier);
 });
 
+// Delete the given frames, first warning if any are referenced by
+// sequences. The warning names the sequences so the user can back out.
+function confirmAndDeleteFrames(names) {
+	if (!names || names.length === 0) return;
+
+	const refs = doc.editable.framesReferencedBySequences(names);
+	const refNames = Object.keys(refs);
+
+	if (refNames.length > 0) {
+		const totalSequences = refNames.reduce((sum, n) => sum + refs[n].length, 0);
+		const frameWord = refNames.length === 1 ? 'frame' : 'frames';
+		const seqWord   = totalSequences === 1 ? 'sequence' : 'sequences';
+		const verb      = refNames.length === 1 ? 'is' : 'are';
+		const ok = window.confirm(
+			`${refNames.length} ${frameWord} ${verb} used in ` +
+			`${totalSequences} ${seqWord}.\n\n` +
+			`Deleting will also remove them from those sequences. Continue?`
+		);
+		if (!ok) return;
+	}
+
+	doc.editable.removeFrames(names);
+}
+
 // --- list actions --------------------------------------------------------
 
 $('btnNewFrame').addEventListener('click', () => {
@@ -432,7 +457,7 @@ $('btnDuplicateFrame').addEventListener('click', () => {
 
 $('btnDeleteFrames').addEventListener('click', () => {
 	if (!doc.editable) return;
-	doc.editable.removeFrames(doc.selectedFrameList);
+	confirmAndDeleteFrames(doc.selectedFrameList);
 });
 
 $('btnMoveFrameUp').addEventListener('click', () => {

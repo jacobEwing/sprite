@@ -16,10 +16,11 @@ function esc(s) {
 //   zoom button      — select and focus the viewport on the frame
 //   right-click      — context menu
 export class FrameList {
-	constructor(root, doc) {
+	constructor(root, doc, options = {}) {
 		makeEmitter(this);
 		this.root = root;
 		this.doc = doc;
+		this.onDeleteRequest = options.onDeleteRequest || null;
 
 		doc.on('sheetChanged',     () => this.render());
 		doc.on('selectionChanged', () => this._sync());
@@ -121,7 +122,11 @@ export class FrameList {
 			{ separator: true },
 			{
 				label: 'Delete',
-				action: () => ed.removeFrames([...this.doc.selectedFrames]),
+				action: () => {
+					const names = [...this.doc.selectedFrames];
+					if (this.onDeleteRequest) this.onDeleteRequest(names);
+					else this.doc.editable.removeFrames(names);
+				},
 			},
 		]).showAt(x, y);
 	}

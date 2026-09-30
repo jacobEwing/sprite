@@ -135,6 +135,21 @@ export class EditableSheet {
 		}
 		return true;
 	}
+	// For each name in `names`, list the sequences that reference it.
+	// Frames not referenced by any sequence are omitted from the result.
+	// Callers use this to decide whether to warn before deleting.
+	framesReferencedBySequences(names) {
+		const result = {};
+		if (!names || names.length === 0) return result;
+		for (const name of names) {
+			const seqs = [];
+			for (const [seqName, seq] of Object.entries(this.sheet.sequences)) {
+				if (seq.frames.some(s => s.frame === name)) seqs.push(seqName);
+			}
+			if (seqs.length > 0) result[name] = seqs;
+		}
+		return result;
+	}
 
 	removeFrame(name) {
 		if (!this.sheet.frames[name]) return;
