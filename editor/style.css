@@ -10,13 +10,13 @@
 	--accent-2:  #4a80c0;
 	--danger:    #d04040;
 
-	--font-ui:   'Abel', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	--font-ui:   -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 	--font-mono: 'Calling Code', "SF Mono", Menlo, Consolas, monospace;
 
 
 	/* Font size scale — tweak --fs-scale to resize the whole UI at once,
 	   or adjust the individual sizes for finer control. */
-	--fs-scale:      1.4;
+	--fs-scale:      1.1;
 	--fs-body:       calc(13px * var(--fs-scale));
 	--fs-ui:         calc(12px * var(--fs-scale));
 	--fs-ui-sm:      calc(11px * var(--fs-scale));

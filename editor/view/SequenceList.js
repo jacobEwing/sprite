@@ -102,6 +102,20 @@ export class SequenceList {
 		const ed = this.doc.editable;
 		new Menu(null, [
 			{
+				label: 'Duplicate',
+				action: () => {
+					try {
+						const created = ed.duplicateSequences(
+							[...this.doc.selectedSequences]
+						);
+						if (created.length > 0) {
+							this.doc.selectSequence(created[0]);
+						}
+					} catch (err) { console.warn(err.message); }
+				},
+			},
+			{ separator: true },
+			{
 				label: 'Delete',
 				action: () => ed.removeSequences([...this.doc.selectedSequences]),
 			},

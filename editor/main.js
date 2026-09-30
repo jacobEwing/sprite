@@ -241,12 +241,14 @@ function updateListActionState() {
 
 	const seqs = doc.selectedSequenceList;
 	if (seqs.length === 0) {
+		$('btnDuplicateSequences').disabled = true;
 		$('btnDeleteSequences').disabled = true;
 		$('btnMoveSequenceUp').disabled = true;
 		$('btnMoveSequenceDown').disabled = true;
 	} else {
 		const minIdx = Math.min(...seqs.map(n => seqOrder.indexOf(n)));
 		const maxIdx = Math.max(...seqs.map(n => seqOrder.indexOf(n)));
+		$('btnDuplicateSequences').disabled = false;
 		$('btnDeleteSequences').disabled = false;
 		$('btnMoveSequenceUp').disabled = minIdx === 0;
 		$('btnMoveSequenceDown').disabled = maxIdx === seqOrder.length - 1;
@@ -441,6 +443,14 @@ $('btnNewSequence').addEventListener('click', () => {
 $('btnDeleteSequences').addEventListener('click', () => {
 	if (!doc.editable) return;
 	doc.editable.removeSequences(doc.selectedSequenceList);
+});
+
+$('btnDuplicateSequences').addEventListener('click', () => {
+	if (!doc.editable) return;
+	const created = doc.editable.duplicateSequences(doc.selectedSequenceList);
+	if (created.length > 0) {
+		doc.selectSequence(created[0]);
+	}
 });
 
 $('btnMoveSequenceUp').addEventListener('click', () => {

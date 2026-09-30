@@ -460,6 +460,40 @@ export class EditableSheet {
 		this.emit('changed', { type: 'sequenceRenamed', from: oldName, to: newName });
 	}
 
+	// Duplicate one or more sequences. Each copy carries the source's
+	// slot layout (frames and per-slot transforms), frameRate, iterations,
+	// and method. frameTimes is copied when present. Function callbacks
+	// are not copied — they don't survive JSON and are meant to be
+	// re-attached at the play() call site.
+	//
+	// All copies are one undo step. Returns the new sequence names in the
+	// order they were created.
+	duplicateSequences(names) {
+		if (!names || names.length === 0) return [];
+
+		const created = [];
+		for (const name of names) {
+			const source = this.sheet.sequences[name];
+			if (!source) continue;
+
+			const newName = this.uniqueSequenceName(name);
+			const copy = {
+				frames: source.frames.map(s => ({
+					frame: s.frame,
+					transform: s.transform ? { ...s.transform } : null,
+				})),
+				frameRate: source.frameRate,
+				iterations: source.iterations,
+				method: source.method,
+			};
+			if (source.frameTimes) copy.frameTimes = source.frameTimes.slice();
+
+			this.addSequence(newName, copy);
+			created.push(newName);
+		}
+		return created;
+	}
+
 	// patch: any subset of { frames, frameRate, iterations, method, frameTimes }.
 	setSequence(name, patch) {
 		const current = this.sheet.sequences[name];
