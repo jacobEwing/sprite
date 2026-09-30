@@ -222,11 +222,6 @@ function normaliseSequenceSlot(entry) {
 	return null;
 }
 
-/**
- * Normalise a transform object. Returns null for absent or identity
- * transforms so callers can drop the key entirely — a transform whose
- * fields all match their defaults is equivalent to no transform at all.
- */
 function parseTransform(raw) {
 	if (!raw || typeof raw !== 'object') return null;
 	const t = {
@@ -239,29 +234,10 @@ function parseTransform(raw) {
 	if (raw.pivotX !== undefined) t.pivotX = Number(raw.pivotX);
 	if (raw.pivotY !== undefined) t.pivotY = Number(raw.pivotY);
 
-	if (t.translateX === 0 && t.translateY === 0 && t.rotation === 0
-	    && t.scaleX === 1 && t.scaleY === 1) {
-		return null;
-	}
-	return t;
-}
-
-/**
- * Normalise a frame transform from JSON input. Returns null when the
- * transform is absent or equivalent to identity, so callers can drop the
- * key entirely.
- */
-function parseTransform(raw) {
-	if (!raw || typeof raw !== 'object') return null;
-
-	const t = {
-		translateX: Number(raw.translateX) || 0,
-		translateY: Number(raw.translateY) || 0,
-		rotation:   Number(raw.rotation)   || 0,
-		scaleX:     raw.scaleX !== undefined ? Number(raw.scaleX) : 1,
-		scaleY:     raw.scaleY !== undefined ? Number(raw.scaleY) : 1,
-	};
-
+	// Identity test: T/R/S at defaults means no visible effect, regardless
+	// of pivot. A pivot-only transform has no visual consequence, so
+	// dropping it as null is safe — and matches what the editor produces
+	// anyway, since it also treats a default pivot as identity.
 	if (t.translateX === 0 && t.translateY === 0 && t.rotation === 0
 	    && t.scaleX === 1 && t.scaleY === 1) {
 		return null;
