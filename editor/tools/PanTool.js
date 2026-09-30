@@ -1,23 +1,25 @@
 import { Tool } from './Tool.js';
 
-// Drag to pan the viewport, or — when "Drag frames" is on and the press
-// lands on a selected frame — drag the selected frame (or frames) instead.
+// Drag to pan the viewport, or — when a frame is under the cursor and at
+// least one drag mode is enabled — move something.
+//
+// The two drag modes are independent:
+//   dragFrames   — the frame's rect moves
+//   dragContents — the frame's pixels move (may leave the frame's rect,
+//                  landing in neighbouring cells or empty atlas space)
+//
+// Both on: the frame and its contents travel together, which is what
+// most users want for "moving a cell".
 //
 // Middle-drag always pans, regardless of what's active, because ToolLayer
 // routes middle-button gestures here directly.
-//
-// Settings:
-//   dragFrames       — when on, left-drag on a selected frame moves it.
-//                      When off, left-drag always pans.
-//   includeContents  — when on, a frame drag carries the frame's pixels
-//                      along with its rect. When off, only the rect moves.
 export class PanTool extends Tool {
 	constructor(context) {
 		super(context);
 		this.start = null;
 
-		this.dragFrames = true;
-		this.includeContents = false;
+		this.dragFrames   = true;
+		this.dragContents = false;
 
 		this.frameDrag = null;
 		this._pendingDx = 0;
@@ -29,10 +31,10 @@ export class PanTool extends Tool {
 	}
 
 	onPointerDown(ev) {
-		// Frame-drag branch: only on left-button, only when enabled, and
-		// only when the press lands inside a currently-selected frame.
-		// Anything else falls through to the pan.
-		if (this.dragFrames && ev.button === 0) {
+		// Frame-drag branch: only on left-button, only when at least one
+		// drag mode is enabled, and only when the press lands inside a
+		// currently-selected frame.
+		if ((this.dragFrames || this.dragContents) && ev.button === 0) {
 			const x = Math.floor(ev.imageX);
 			const y = Math.floor(ev.imageY);
 			const hitName = this.context.viewport.getFrameAt(x, y);
@@ -108,10 +110,16 @@ export class PanTool extends Tool {
 			const names = this.frameDrag.snapshot.map(s => s.name);
 			this.frameDrag = null;
 			this.context.viewport.setPreview(null);
+
 			if (dx !== 0 || dy !== 0) {
-				this.context.document.editable.moveFramesWithContents(
-					names, dx, dy, this.includeContents
-				);
+				const ed = this.context.document.editable;
+				if (this.dragFrames && this.dragContents) {
+					ed.translateFramesWithContents(names, dx, dy);
+				} else if (this.dragFrames) {
+					ed.translateFrames(names, dx, dy);
+				} else if (this.dragContents) {
+					ed.translateFramesContents(names, dx, dy);
+				}
 			}
 			return;
 		}
@@ -149,19 +157,19 @@ export class PanTool extends Tool {
 
 	getSettings() {
 		return [
-			{ key: 'dragFrames',      label: 'Drag frames',      type: 'checkbox' },
-			{ key: 'includeContents', label: 'Include contents', type: 'checkbox' },
+			{ key: 'dragFrames',   label: 'Drag frames',   type: 'checkbox' },
+			{ key: 'dragContents', label: 'Drag contents', type: 'checkbox' },
 		];
 	}
 
 	getSettingValue(key) {
-		if (key === 'dragFrames')      return this.dragFrames;
-		if (key === 'includeContents') return this.includeContents;
+		if (key === 'dragFrames')   return this.dragFrames;
+		if (key === 'dragContents') return this.dragContents;
 		return undefined;
 	}
 
 	setSettingValue(key, value) {
-		if (key === 'dragFrames')           this.dragFrames = !!value;
-		else if (key === 'includeContents') this.includeContents = !!value;
+		if (key === 'dragFrames')        this.dragFrames = !!value;
+		else if (key === 'dragContents') this.dragContents = !!value;
 	}
 }

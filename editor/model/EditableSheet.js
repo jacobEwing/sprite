@@ -222,75 +222,41 @@ export class EditableSheet {
 		this.emit('changed', { type: 'frameUpdated', name });
 	}
 
-	// Move a frame's rect to a new position, optionally carrying its pixels
-	// along. When `moveContents` is false, this is just a metadata change
-	// (rect definition moves; the pixels at the old location stay put).
-	// When true, the frame's pixels are moved from the old rect to the new
-	// one in the same undo step.
-	//
-	// The undo entry is one command either way. Overlap with other frames
-	// is the user's concern - no special handling beyond the swap order
-	// documented in swapFrames.
-	moveFrameWithContents(name, newX, newY, moveContents) {
-		const frame = this.sheet.frames[name];
-		if (!frame) return;
-
-		const oldX = frame.x;
-		const oldY = frame.y;
-
-		if (!moveContents) {
-			return this.setFrame(name, { x: newX, y: newY });
-		}
-
-		const ctx = this.sheet.image.getContext('2d', { willReadFrequently: true });
-		const w = frame.width;
-		const h = frame.height;
-
-		// Union of old and new rects, clipped to canvas bounds, defines the
-		// region the PaintCommand will snapshot.
-		const ux  = Math.max(0, Math.min(oldX, newX));
-		const uy  = Math.max(0, Math.min(oldY, newY));
-		const ux2 = Math.min(this.sheet.imageWidth,  Math.max(oldX + w, newX + w));
-		const uy2 = Math.min(this.sheet.imageHeight, Math.max(oldY + h, newY + h));
-		const uw = ux2 - ux;
-		const uh = uy2 - uy;
-		if (uw <= 0 || uh <= 0) return;
-
-		const before = ctx.getImageData(ux, uy, uw, uh);
-		const pixels = ctx.getImageData(oldX, oldY, w, h);
-
-		ctx.clearRect(oldX, oldY, w, h);
-		ctx.putImageData(pixels, newX, newY);
-
-		const after = ctx.getImageData(ux, uy, uw, uh);
-
-		const paintCmd = new PaintCommand(ctx, ux, uy, uw, uh, before, after);
-
-		const beforeFrame = { ...frame };
-		const afterFrame  = { ...frame, x: newX, y: newY };
-		const frameCmd = new SetFrameCommand(this.sheet, name, beforeFrame, afterFrame);
-
-		// The pixel half is already applied - the buffers were written
-		// directly so the "after" snapshot could be captured. Apply the
-		// frame half now so both sides of the composite are in their
-		// post-command state before the entry is recorded.
-		const composite = new CompositeCommand([paintCmd, frameCmd]);
-		frameCmd.apply();
-		this.history.push(composite, 'both');
-
-		this.emit('changed', { type: 'frameUpdated', name });
-	}
-
 	// Shift every named frame by (dx, dy). When `moveContents` is true the
 	// pixels travel with the rects; otherwise only the rects move. One
 	// undo step regardless of frame count.
-	moveFramesWithContents(names, dx, dy, moveContents) {
+		// --- frame movement ---------------------------------------------------
+	//
+	// Three public entry points, all built on one shared implementation:
+	//
+	//   translateFrames            — rects move, pixels stay where they are
+	//   translateFramesContents    — pixels move, rects stay where they are
+	//   translateFramesWithContents — both move together
+	//
+	// Each is a single undo step regardless of how many frames are moved.
+
+	translateFrames(names, dx, dy) {
+		this._translateFrames(names, dx, dy, true, false);
+	}
+
+	translateFramesContents(names, dx, dy) {
+		this._translateFrames(names, dx, dy, false, true);
+	}
+
+	translateFramesWithContents(names, dx, dy) {
+		this._translateFrames(names, dx, dy, true, true);
+	}
+
+	// Shared implementation. `moveRects` updates each frame's x/y;
+	// `moveContents` moves its pixels from old to new position. At least
+	// one must be true.
+	_translateFrames(names, dx, dy, moveRects, moveContents) {
 		if (!names || names.length === 0 || (dx === 0 && dy === 0)) return;
+		if (!moveRects && !moveContents) return;
 
 		const sheet = this.sheet;
 		const ctx = sheet.image.getContext('2d', { willReadFrequently: true });
 
-		// Snapshot everything before touching the canvas.
 		const items = [];
 		for (const name of names) {
 			const frame = sheet.frames[name];
@@ -310,8 +276,7 @@ export class EditableSheet {
 		}
 		if (items.length === 0) return;
 
-		// Rect-only moves are pure metadata. Straight to a composite of
-		// frame commands.
+		// --- rect-only: pure metadata ---------------------------------
 		if (!moveContents) {
 			const commands = [];
 			for (const it of items) {
@@ -332,9 +297,8 @@ export class EditableSheet {
 			return;
 		}
 
-		// Content moves: work out the union region that the before/after
-		// snapshot must cover.
-		let ux  = Infinity, uy  = Infinity;
+		// --- content is moving ----------------------------------------
+		let ux = Infinity, uy = Infinity;
 		let ux2 = -Infinity, uy2 = -Infinity;
 		for (const it of items) {
 			ux  = Math.min(ux,  it.oldX, it.newX);
@@ -363,17 +327,19 @@ export class EditableSheet {
 		const paintCmd = new PaintCommand(ctx, ux, uy, uw, uh, before, after);
 
 		const commands = [paintCmd];
-		for (const it of items) {
-			const frame = sheet.frames[it.name];
-			const beforeFrame = { ...frame, x: it.oldX, y: it.oldY };
-			const afterFrame  = { ...frame, x: it.newX, y: it.newY };
-			const cmd = new SetFrameCommand(sheet, it.name, beforeFrame, afterFrame);
-			cmd.apply();
-			commands.push(cmd);
+		if (moveRects) {
+			for (const it of items) {
+				const frame = sheet.frames[it.name];
+				const beforeFrame = { ...frame, x: it.oldX, y: it.oldY };
+				const afterFrame  = { ...frame, x: it.newX, y: it.newY };
+				const cmd = new SetFrameCommand(sheet, it.name, beforeFrame, afterFrame);
+				cmd.apply();
+				commands.push(cmd);
+			}
 		}
 
 		const composite = new CompositeCommand(commands);
-		this.history.push(composite, 'both');
+		this.history.push(composite, moveRects ? 'both' : 'pixels');
 		for (const it of items) {
 			this.emit('changed', { type: 'frameUpdated', name: it.name });
 		}
@@ -425,9 +391,6 @@ export class EditableSheet {
 		const cmdB = new SetFrameCommand(this.sheet, nameB,
 			{ ...b }, { ...b, x: ax, y: ay });
 
-		// Same pattern as moveFrameWithContents: the pixel half of the
-		// composite has been applied directly; apply the two frame
-		// commands now so the recorded state matches the canvas.
 		const composite = new CompositeCommand([paintCmd, cmdA, cmdB]);
 		cmdA.apply();
 		cmdB.apply();

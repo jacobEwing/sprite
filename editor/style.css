@@ -948,8 +948,9 @@ body {
 .tool-options {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 12px;
-	padding-top: 2px;
+	gap: 8px;
+	padding-top: 0;
+	margin-bottom: 8px;
 }
 .tool-icon {
 	display: block;
@@ -1005,10 +1006,13 @@ body {
 
 /* --- tool settings --- */
 .tool-setting {
-	margin-bottom: 10px;
+	margin-bottom: 8px;
 }
 .tool-setting:last-child {
 	margin-bottom: 0;
+}
+.tool-setting-checkbox {
+	margin-bottom: 8px;
 }
 .tool-setting-label {
 	font-size: var(--fs-ui-xs);
