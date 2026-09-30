@@ -96,47 +96,48 @@
 				<button class="sidebar-tab" data-tab="modifiers">Modifiers</button>
 			</div>
 
-			<div class="tab-panel" data-panel="image">
+			<div class="tab-panel" data-panel="draw">
 				<section class="pane">
 					<h2>Colours</h2>
 					<div id="palettePanel"></div>
 				</section>
 
-				<section class="pane">
-					<h2>Tools</h2>
-					<div id="toolGrid" class="tool-grid">
-						<button class="tool-btn" data-tool="pan"       title="Pan (P)">Pan</button>
-						<button class="tool-btn" data-tool="pencil"    title="Pencil (N)">Pencil</button>
-						<button class="tool-btn" data-tool="airbrush"  title="Airbrush (A)">Air</button>
-						<button class="tool-btn" data-tool="eraser"    title="Eraser (E)">Eraser</button>
-						<button class="tool-btn" data-tool="line"      title="Line (L)">Line</button>
-						<button class="tool-btn" data-tool="box"       title="Box (B)">Box</button>
-						<button class="tool-btn" data-tool="ellipse"   title="Ellipse (O)">Oval</button>
-						<button class="tool-btn" data-tool="fill"      title="Flood fill (G)">Fill</button>
-						<button class="tool-btn" data-tool="picker"    title="Eyedropper (I)">Pick</button>
-						<button class="tool-btn" data-tool="select"    title="Select (S)">Select</button>
-						<button class="tool-btn" data-tool="collision" title="Collision (K)">Hit</button>
+				<section class="pane" id="toolsPane">
+					<div class="sub-tabs">
+						<button class="sub-tab selected" data-subtab="tools">Tools</button>
+						<button class="sub-tab" data-subtab="brushes">Brushes</button>
 					</div>
+					<div class="sub-panel" data-subpanel="tools">
+						<div id="toolGrid" class="tool-grid">
+							<button class="tool-btn" data-tool="pan"       title="Pan (P)">Pan</button>
+							<button class="tool-btn" data-tool="pencil"    title="Pencil (N)">Pencil</button>
+							<button class="tool-btn" data-tool="airbrush"  title="Airbrush (A)">Air</button>
+							<button class="tool-btn" data-tool="eraser"    title="Eraser (E)">Eraser</button>
+							<button class="tool-btn" data-tool="line"      title="Line (L)">Line</button>
+							<button class="tool-btn" data-tool="box"       title="Box (B)">Box</button>
+							<button class="tool-btn" data-tool="ellipse"   title="Ellipse (O)">Oval</button>
+							<button class="tool-btn" data-tool="fill"      title="Flood fill (G)">Fill</button>
+							<button class="tool-btn" data-tool="picker"    title="Eyedropper (I)">Pick</button>
+							<button class="tool-btn" data-tool="select"    title="Select (S)">Select</button>
+							<button class="tool-btn" data-tool="collision" title="Collision (K)">Hit</button>
+						</div>
+					</div>
+					<div class="sub-panel hidden" data-subpanel="brushes">
+						<div id="brushPicker" class="brush-picker"></div>
+					</div>
+				</section>
+
+				<section class="pane" id="optionsPane">
+					<h2>Options</h2>
 					<div class="tool-options">
-						<label class="checkbox" title="Fill new boxes and ellipses">
+						<label class="checkbox" id="fillShapesOption" title="Fill new boxes and ellipses">
 							<input type="checkbox" id="fillShapes"> Fill shape
 						</label>
 						<label class="checkbox" title="Confine strokes to the selected frame">
 							<input type="checkbox" id="clipToFrame" checked> Clip to frame
 						</label>
 					</div>
-				</section>
-				<section class="pane" id="brushSection">
-					<div class="sub-tabs">
-						<button class="sub-tab selected" data-subtab="brush">Brush</button>
-						<button class="sub-tab" data-subtab="tool">Tool</button>
-					</div>
-					<div class="sub-panel" data-subpanel="brush">
-						<div id="brushPicker" class="brush-picker"></div>
-					</div>
-					<div class="sub-panel hidden" data-subpanel="tool">
-						<div id="toolSettings"></div>
-					</div>
+					<div id="toolSettings"></div>
 				</section>
 			</div>
 

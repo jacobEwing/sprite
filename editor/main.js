@@ -133,6 +133,9 @@ viewport.on('frameHover', ({ frameName }) => {
 });
 
 // --- tool switching -------------------------------------------------------
+// Tools that use the Fill shape option.
+const SHAPE_TOOLS = new Set(['box', 'ellipse']);
+
 
 const toolButtons = document.querySelectorAll('.tool-btn');
 
@@ -144,6 +147,12 @@ function activateTool(name) {
 		btn.classList.toggle('selected', btn.dataset.tool === name);
 	}
 	viewport.canvas.style.cursor = name === 'pan' ? 'grab' : 'crosshair';
+
+	const fillShapeOption = document.getElementById('fillShapesOption');
+
+	if (fillShapeOption) {
+		fillShapeOption.hidden = !SHAPE_TOOLS.has(name);
+	}
 
 	toolSettingsPanel.showFor(tool);
 	updateCollisionOverlay();
@@ -221,10 +230,15 @@ function _wireImageNoticeLink() {
 }
 
 function updateListActionState() {
+	// Keep the counts current. Adding/removing frames emits 'edit', not
+	// 'sheetChanged', so these can't rely on the other handler.
+	$('frameCount').textContent    = doc.sheet ? doc.sheet.frameNames.length    : '';
+	$('sequenceCount').textContent = doc.sheet ? doc.sheet.sequenceNames.length : '';
+
 	const frameOrder = doc.sheet ? doc.sheet.frameNames : [];
 	const seqOrder = doc.sheet ? doc.sheet.sequenceNames : [];
-
 	const frames = doc.selectedFrameList;
+
 	if (frames.length === 0) {
 		$('btnDuplicateFrame').disabled = true;
 		$('btnDeleteFrames').disabled = true;
@@ -1062,8 +1076,8 @@ setupTabs(document.getElementById('rightSidebar'), (name) => {
 });
 // --- sub-tabs (Brush | Tool) ---------------------------------------------
 
-(function setupBrushSubTabs() {
-	const section = document.getElementById('brushSection');
+function setupSubTabs(sectionId) {
+	const section = document.getElementById(sectionId);
 	if (!section) return;
 	const tabs = section.querySelectorAll('.sub-tab');
 	const panels = section.querySelectorAll('.sub-panel');
@@ -1074,7 +1088,9 @@ setupTabs(document.getElementById('rightSidebar'), (name) => {
 			panels.forEach((p) => p.classList.toggle('hidden', p.dataset.subpanel !== name));
 		});
 	});
-})();
+}
+
+setupSubTabs('toolsPane');
 
 // --- clipboard events ----------------------------------------------------
 //
