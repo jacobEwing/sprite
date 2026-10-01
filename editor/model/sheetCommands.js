@@ -160,6 +160,11 @@ export class RenameSequenceCommand {
 		if (!sequences[from]) return;
 
 		const oldSeq = sequences[from];
+		// Keep the sequence's own `name` field in sync with its key.
+		// Without this, code that keys off seq.name (duplicate, delete,
+		// setSlotTransforms) would look up a key that no longer exists.
+		oldSeq.name = to;
+
 		const keys = Object.keys(sequences);
 		const ordered = {};
 		for (const key of keys) {
