@@ -185,6 +185,41 @@ export class Viewport {
 		this.invalidate();
 	}
 
+	// Pan the viewport so the named frame is fully in view, without
+	// changing the current zoom. If the frame is already fully visible
+	// (with a small margin), this is a no-op — so arrow-key navigation
+	// across a visible row doesn't jitter the camera.
+	scrollFrameIntoView(name) {
+		const f = this.frames && this.frames[name];
+		if (!f) return;
+
+		const rect = this.canvas.getBoundingClientRect();
+		const z = this.zoom;
+		const pad = 12;
+
+		const sx = this.offsetX + f.x * z;
+		const sy = this.offsetY + f.y * z;
+		const sw = f.width  * z;
+		const sh = f.height * z;
+
+		if (sx >= pad && sy >= pad &&
+		    sx + sw <= rect.width  - pad &&
+		    sy + sh <= rect.height - pad) {
+			return;
+		}
+
+		// Centre on the frame. If it's larger than the viewport, its
+		// edges will fall off-screen, which is the best we can do
+		// without changing zoom.
+		const frameCx = sx + sw / 2;
+		const frameCy = sy + sh / 2;
+		this.offsetX -= frameCx - rect.width  / 2;
+		this.offsetY -= frameCy - rect.height / 2;
+
+		this.emit('view', { zoom: this.zoom });
+		this.invalidate();
+	}
+
 	// --- grid setters -------------------------------------------
 	setShowGrid(on) {
 		this.showGrid = !!on;

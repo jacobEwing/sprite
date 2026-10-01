@@ -64,6 +64,12 @@ export class ToolSettingsPanel {
 		box.checked = !!this.tool.getSettingValue(setting.key);
 		box.addEventListener('change', () => {
 			this.tool.setSettingValue(setting.key, box.checked);
+			// A checkbox toggle can change which other settings apply
+			// (e.g. airbrush "Random pixels" swaps the flow readout).
+			// Rebuild the panel so the schema stays in sync. Range
+			// inputs use 'input', not 'change', for their live updates,
+			// so this doesn't fire during a slider drag.
+			this.showFor(this.tool);
 		});
 
 		label.appendChild(box);

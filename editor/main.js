@@ -270,6 +270,36 @@ function updateListActionState() {
 	}
 }
 
+// Arrow-key navigation between frames. Left/right moves one position in
+// the frame list; up/down moves by one atlas row (the column count is
+// derived from the atlas and tile dimensions). Clamped at the ends —
+// no wrap. The viewport pans to follow, but only when the target isn't
+// already fully visible, so short hops don't jolt the view.
+function navigateByArrow(dx, dy) {
+	if (!doc.sheet) return;
+	const names = doc.sheet.frameNames;
+	if (names.length === 0) return;
+
+	const sheet = doc.sheet;
+	let step = dx;
+	if (dy !== 0) {
+		const cols = Math.max(1, Math.floor(sheet.imageWidth / (sheet.frameWidth || 1)));
+		step = dy * cols;
+	}
+
+	const current = doc.selectedFrame;
+	let idx = names.indexOf(current);
+	if (idx === -1) idx = 0;
+	else idx += step;
+	if (idx < 0) idx = 0;
+	if (idx >= names.length) idx = names.length - 1;
+
+	const target = names[idx];
+	if (target === current) return;
+	doc.selectFrame(target);
+	viewport.scrollFrameIntoView(target);
+}
+
 doc.on('sheetChanged',     updateListActionState);
 doc.on('selectionChanged', updateListActionState);
 doc.on('edit',             updateListActionState);
@@ -1022,6 +1052,12 @@ window.addEventListener('keydown', (e) => {
 
 	if (inField) return;
 	if (e.altKey) return;
+
+	if (key === 'arrowleft')  { e.preventDefault(); navigateByArrow(-1, 0); return; }
+	if (key === 'arrowright') { e.preventDefault(); navigateByArrow( 1, 0); return; }
+	if (key === 'arrowup')    { e.preventDefault(); navigateByArrow( 0, -1); return; }
+	if (key === 'arrowdown')  { e.preventDefault(); navigateByArrow( 0,  1); return; }
+
 	if (key === 'delete') {
 		e.preventDefault();
 		doClearFrame();

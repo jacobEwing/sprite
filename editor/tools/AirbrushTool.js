@@ -1,10 +1,19 @@
 import { Tool } from './Tool.js';
 import { hexToRGBA, linePoints } from '../paint/pixelUtils.js';
 
-// Accumulative brush. Deposits a small fraction of the colour on every
-// animation frame while the button is held. Dwelling builds up; fast
-// strokes leave a light trail. Brush mask weights scale the deposit
-// per-cell, so soft brushes fade at the edges.
+// Accumulative brush with two deposit modes.
+//
+// Smooth (default): every pixel under the brush receives a small
+// fraction of the palette colour per animation tick. Dwelling builds
+// up; fast strokes leave a light trail. Brush mask weights scale the
+// per-cell deposit, so soft brushes feather at the edges.
+//
+// Random pixels: each tick picks `flow` pixel positions at random from
+// the brush mask (weighted, so soft brushes still concentrate in the
+// centre) and composites the palette colour onto each. Repeated hits
+// accumulate, matching a classic spray-can airbrush. No interpolation
+// between ticks — dwelling in one spot hammers it; sweeping spreads
+// the deposits over a wider area.
 
 export class AirbrushTool extends Tool {
 	constructor(context) {
@@ -17,10 +26,12 @@ export class AirbrushTool extends Tool {
 		this.currentY = null;
 		this.rafId = null;
 		this.onlyOpaque = false;
+		this.randomMode = false;
+		this._randomAccumulator = 0;
 
-		// Slider value, 1–30. The actual deposit rate is computed from
-		// this quadratically (see _depositRate), so the low end — where
-		// fine control matters — gets more slider travel.
+		// Slider value, 1–30. In smooth mode this drives a quadratic
+		// deposit rate (see _depositRate); in random mode it's the number
+		// of pixel attempts per animation tick.
 		this.flow = 8;
 	}
 
@@ -31,6 +42,7 @@ export class AirbrushTool extends Tool {
 		this.color = this._colorFor(ev.button);
 		this.currentX = this.lastX = ev.imageX;
 		this.currentY = this.lastY = ev.imageY;
+		this._randomAccumulator = 0;
 		this._startLoop();
 	}
 
@@ -63,18 +75,34 @@ export class AirbrushTool extends Tool {
 
 	_startLoop() {
 		if (this.rafId) return;
-		const tick = () => {
+		let lastTime = 0;
+
+		const tick = (time) => {
 			this.rafId = null;
 			if (!this.transaction) return;
 
-			linePoints(this.lastX, this.lastY, this.currentX, this.currentY, (x, y) => {
-				this._stampAt(x, y);
-			});
-			this.transaction.flush();
+			const dtMs = lastTime ? Math.min(time - lastTime, 100) : 16;
+			lastTime = time;
 
-			// Let the viewport know the sheet's pixels changed, so it
-			// redraws. Without this, stationary buildup is invisible until
-			// the next mouse move triggers a redraw.
+			if (this.randomMode) {
+				// Accumulate the desired number of pixels since the
+				// previous tick. Emit the integer part now, carry the
+				// remainder to the next tick. Keeps long-run average
+				// exactly at the requested rate, regardless of frame
+				// timing.
+				this._randomAccumulator += this._pixelsPerSecond() * (dtMs / 1000);
+				const attempts = Math.floor(this._randomAccumulator);
+				if (attempts > 0) {
+					this._randomAccumulator -= attempts;
+					this._stampRandom(this.currentX, this.currentY, attempts);
+				}
+			} else {
+				linePoints(this.lastX, this.lastY, this.currentX, this.currentY, (x, y) => {
+					this._stampAt(x, y);
+				});
+			}
+
+			this.transaction.flush();
 			this.context.viewport.invalidate();
 
 			this.lastX = this.currentX;
@@ -91,6 +119,7 @@ export class AirbrushTool extends Tool {
 
 	// --- painting ---------------------------------------------------------
 
+	// Smooth mode: deposit on every pixel under the brush.
 	_stampAt(x, y) {
 		const brush = this.context.brush;
 		const color = this.color;
@@ -105,9 +134,61 @@ export class AirbrushTool extends Tool {
 		});
 	}
 
-	// Composite `color` over the existing pixel at (x, y) with source
-	// alpha `a`. Reads the working buffer, so consecutive stamps within
-	// the same tick accumulate.
+	// Random mode: pick `flow` pixel positions from the mask at random,
+	// weighted by mask value, and composite the palette colour onto each.
+	// The colour's own alpha governs how strongly each deposit mixes in.
+	//
+	// Attempt count follows a quadratic curve against the slider value,
+	// matching smooth mode: the low end (where fine control matters) gets
+	// far more slider travel than it would on a linear mapping. At
+	// slider=30 the rate is the maximum; at slider=1 it's one pixel per
+	// tick, the sparsest setting that still produces output.
+	_stampRandom(cx, cy, attempts) {
+		const brush = this.context.brush;
+		const color = this.color;
+		if (!color) return;
+
+		const cells = [];
+		let total = 0;
+		for (let my = 0; my < brush.height; my++) {
+			for (let mx = 0; mx < brush.width; mx++) {
+				const w = brush.mask[my][mx];
+				if (w > 0) { cells.push({ mx, my, w }); total += w; }
+			}
+		}
+		if (total <= 0) return;
+
+		const ox = Math.floor(cx) - brush.anchorX;
+		const oy = Math.floor(cy) - brush.anchorY;
+		const sourceAlpha = color[3] / 255;
+
+		for (let i = 0; i < attempts; i++) {
+			let r = Math.random() * total;
+			let pick = cells[cells.length - 1];
+			for (const c of cells) {
+				r -= c.w;
+				if (r <= 0) { pick = c; break; }
+			}
+			this._blendPixel(ox + pick.mx, oy + pick.my, color, sourceAlpha);
+		}
+	}
+
+	// Emission rate in random mode, in pixels per second. Quadratic in
+	// the slider value, with a floor of 1 so the minimum setting still
+	// produces output. At slider 30 the rate is 300 px/s — roughly five
+	// pixels per animation frame at 60Hz, which reads as a dense spray
+	// without being instant.
+	_pixelsPerSecond(sliderValue = this.flow) {
+		const t = sliderValue / 30;
+		return Math.max(1, t * t * 300);
+	}
+
+	// Pixels per tick in random mode. Quadratic in the slider value, with
+	// a floor of 1 so the minimum setting still produces output.
+	_randomAttempts() {
+		return this._attemptsFor(this.flow);
+	}
+
 	_blendPixel(x, y, color, a) {
 		const existing = this.transaction.getPixel(x, y);
 		if (!existing) return;
@@ -138,8 +219,15 @@ export class AirbrushTool extends Tool {
 	}
 
 	getSettings() {
-		return [
-			{
+		const flowSetting = this.randomMode
+			? {
+				key: 'flow',
+				label: 'Flow',
+				type: 'range',
+				min: 1, max: 30, step: 1,
+				format: (v) => `${Math.round(this._pixelsPerSecond(v))} px/s`,
+			}
+			: {
 				key: 'flow',
 				label: 'Flow',
 				type: 'range',
@@ -148,20 +236,32 @@ export class AirbrushTool extends Tool {
 					const pct = (v / 30) ** 2 * 30;
 					return pct < 1 ? pct.toFixed(2) + '%' : pct.toFixed(1) + '%';
 				},
-			},
+			};
+
+		return [
+			{ key: 'randomMode', label: 'Random pixels', type: 'checkbox' },
+			flowSetting,
 			{ key: 'onlyOpaque', label: 'Opaque only', type: 'checkbox' },
 		];
+	}
+
+	// Pure helper for the readout: attempt count for a hypothetical slider
+	// value, so the format function doesn't need to poke at this.flow.
+	_attemptsFor(sliderValue) {
+		const t = sliderValue / 30;
+		return Math.max(1, Math.round(t * t * 30));
 	}
 
 	getSettingValue(key) {
 		if (key === 'flow')       return this.flow;
 		if (key === 'onlyOpaque') return this.onlyOpaque;
+		if (key === 'randomMode') return this.randomMode;
 		return undefined;
 	}
 
 	setSettingValue(key, value) {
-		if (key === 'flow') this.flow = Math.max(1, Math.min(30, Number(value) || 1));
+		if (key === 'flow')            this.flow = Math.max(1, Math.min(30, Number(value) || 1));
 		else if (key === 'onlyOpaque') this.onlyOpaque = !!value;
+		else if (key === 'randomMode') this.randomMode = !!value;
 	}
-
 }
