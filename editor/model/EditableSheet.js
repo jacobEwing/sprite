@@ -43,6 +43,19 @@ export class EditableSheet {
 		this.history = history;
 	}
 
+	// All mutations go through these wrappers so History can distinguish
+	// EditableSheet-originated pushes from tool/panel pushes. EditableSheet
+	// emits its own typed 'changed' event for every mutation, so the
+	// generic pixelsPushed notification is skipped for these (see
+	// EditorDocument's history listener).
+	_execute(command, kind) {
+		return this.history.execute(command, kind, { cause: 'editable' });
+	}
+
+	_push(command, kind) {
+		return this.history.push(command, kind, { cause: 'editable' });
+	}
+
 	get frames()    { return this.sheet.frames; }
 	get sequences() { return this.sheet.sequences; }
 
@@ -77,7 +90,7 @@ export class EditableSheet {
 		const y = slot ? slot.y : src.y;
 
 		const frame = { ...src, x, y };
-		this.history.execute(new AddFrameCommand(this.sheet, name, frame), 'data');
+		this._execute(new AddFrameCommand(this.sheet, name, frame), 'data');
 		this.emit('changed', { type: 'frameAdded', name });
 		return name;
 	}
@@ -102,7 +115,7 @@ export class EditableSheet {
 			// No collision key: the frame inherits the sheet's default shape.
 		};
 
-		this.history.execute(new AddFrameCommand(sheet, name, frame), 'data');
+		this._execute(new AddFrameCommand(sheet, name, frame), 'data');
 		this.emit('changed', { type: 'frameAdded', name });
 		return name;
 	}
@@ -153,7 +166,7 @@ export class EditableSheet {
 
 	removeFrame(name) {
 		if (!this.sheet.frames[name]) return;
-		this.history.execute(new RemoveFrameCommand(this.sheet, name), 'data');
+		this._execute(new RemoveFrameCommand(this.sheet, name), 'data');
 		this.emit('changed', { type: 'frameRemoved', name });
 	}
 
@@ -161,7 +174,7 @@ export class EditableSheet {
 		if (oldName === newName) return;
 		if (!this.sheet.frames[oldName]) throw new Error(`No such frame: ${oldName}`);
 		if (this.sheet.frames[newName]) throw new Error(`Frame already exists: ${newName}`);
-		this.history.execute(new RenameFrameCommand(this.sheet, oldName, newName), 'data');
+		this._execute(new RenameFrameCommand(this.sheet, oldName, newName), 'data');
 		this.emit('changed', { type: 'frameRenamed', from: oldName, to: newName });
 	}
 
@@ -182,7 +195,7 @@ export class EditableSheet {
 		if (!Number.isFinite(after.height) || after.height < 1) after.height = before.height;
 		if (deepEqual(before, after)) return;
 
-		this.history.execute(new SetFrameCommand(this.sheet, name, before, after), 'data');
+		this._execute(new SetFrameCommand(this.sheet, name, before, after), 'data');
 		this.emit('changed', { type: 'frameUpdated', name });
 	}
 
@@ -225,7 +238,7 @@ export class EditableSheet {
 		}
 
 		if (deepEqual(before, after)) return;
-		this.history.execute(new SetFrameCommand(this.sheet, name, before, after), 'data');
+		this._execute(new SetFrameCommand(this.sheet, name, before, after), 'data');
 		this.emit('changed', { type: 'frameUpdated', name });
 	}
 
@@ -297,7 +310,7 @@ export class EditableSheet {
 			const composite = commands.length === 1
 				? commands[0]
 				: new CompositeCommand(commands);
-			this.history.push(composite, 'data');
+			this._push(composite, 'data');
 			for (const it of items) {
 				this.emit('changed', { type: 'frameUpdated', name: it.name });
 			}
@@ -346,7 +359,7 @@ export class EditableSheet {
 		}
 
 		const composite = new CompositeCommand(commands);
-		this.history.push(composite, moveRects ? 'both' : 'pixels');
+		this._push(composite, moveRects ? 'both' : 'pixels');
 		for (const it of items) {
 			this.emit('changed', { type: 'frameUpdated', name: it.name });
 		}
@@ -401,7 +414,7 @@ export class EditableSheet {
 		const composite = new CompositeCommand([paintCmd, cmdA, cmdB]);
 		cmdA.apply();
 		cmdB.apply();
-		this.history.push(composite, 'both');
+		this._push(composite, 'both');
 
 		this.emit('changed', { type: 'frameUpdated', name: nameA });
 		this.emit('changed', { type: 'frameUpdated', name: nameB });
@@ -426,14 +439,14 @@ export class EditableSheet {
 		} else {
 			seq.frames = [];
 		}
-		this.history.execute(new AddSequenceCommand(this.sheet, name, seq), 'data');
+		this._execute(new AddSequenceCommand(this.sheet, name, seq), 'data');
 		this.emit('changed', { type: 'sequenceAdded', name });
 		return name;
 	}
 
 	removeSequence(name) {
 		if (!this.sheet.sequences[name]) return;
-		this.history.execute(new RemoveSequenceCommand(this.sheet, name), 'data');
+		this._execute(new RemoveSequenceCommand(this.sheet, name), 'data');
 		this.emit('changed', { type: 'sequenceRemoved', name });
 	}
 
@@ -441,7 +454,7 @@ export class EditableSheet {
 		if (oldName === newName) return;
 		if (!this.sheet.sequences[oldName]) throw new Error(`No such sequence: ${oldName}`);
 		if (this.sheet.sequences[newName]) throw new Error(`Sequence already exists: ${newName}`);
-		this.history.execute(new RenameSequenceCommand(this.sheet, oldName, newName), 'data');
+		this._execute(new RenameSequenceCommand(this.sheet, oldName, newName), 'data');
 		this.emit('changed', { type: 'sequenceRenamed', from: oldName, to: newName });
 	}
 
@@ -496,7 +509,7 @@ export class EditableSheet {
 			else after.frameTimes = patch.frameTimes.slice();
 		}
 		if (deepEqual(before, after)) return;
-		this.history.execute(new SetSequenceCommand(this.sheet, name, before, after), 'data');
+		this._execute(new SetSequenceCommand(this.sheet, name, before, after), 'data');
 		this.emit('changed', { type: 'sequenceUpdated', name });
 	}
 
@@ -644,7 +657,7 @@ export class EditableSheet {
 		if (newWidth === this.sheet.imageWidth && newHeight === this.sheet.imageHeight) {
 			return;
 		}
-		this.history.execute(
+		this._execute(
 			new ResizeCanvasCommand(this.sheet, newWidth, newHeight),
 			'pixels'
 		);
@@ -706,7 +719,7 @@ export class EditableSheet {
 		const kind = settingsChanged && resizeChanged ? 'both'
 			: resizeChanged ? 'pixels'
 			: 'data';
-		this.history.execute(cmd, kind);
+		this._execute(cmd, kind);
 		this.emit('changed', {
 			type: 'settingsUpdated',
 			resized: resizeChanged,
@@ -731,7 +744,7 @@ export class EditableSheet {
 		const after = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
 
 		const cmd = new PaintCommand(ctx, rect.x, rect.y, rect.w, rect.h, before, after);
-		this.history.push(cmd, 'pixels');
+		this._push(cmd, 'pixels');
 		this.emit('changed', { type: 'regionUpdated' });
 	}
 
@@ -800,7 +813,7 @@ export class EditableSheet {
 		const after = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
 
 		const cmd = new PaintCommand(ctx, rect.x, rect.y, rect.w, rect.h, before, after);
-		this.history.push(cmd, 'pixels');
+		this._push(cmd, 'pixels');
 		this.emit('changed', { type: 'regionUpdated' });
 	}
 
@@ -834,7 +847,7 @@ export class EditableSheet {
 		const composite = commands.length === 1
 			? commands[0]
 			: new CompositeCommand(commands);
-		this.history.push(composite, 'pixels');
+		this._push(composite, 'pixels');
 		this.emit('changed', { type: 'regionUpdated' });
 		return commands.length;
 	}
@@ -878,7 +891,7 @@ export class EditableSheet {
 
 		if (deepEqual(before, after)) return;
 
-		this.history.execute(new SetFrameCommand(this.sheet, frameName, before, after), 'data');
+		this._execute(new SetFrameCommand(this.sheet, frameName, before, after), 'data');
 		this.emit('changed', { type: 'frameUpdated', name: frameName });
 	}
 
@@ -923,7 +936,7 @@ export class EditableSheet {
 		const composite = commands.length === 1
 			? commands[0]
 			: new CompositeCommand(commands);
-		this.history.push(composite, 'data');
+		this._push(composite, 'data');
 
 		for (const name of affected) {
 			this.emit('changed', { type: 'frameUpdated', name });
@@ -954,7 +967,7 @@ export class EditableSheet {
 			newPositions[name] = { x: col * cellW, y: row * cellH };
 		});
 
-		this.history.execute(
+		this._execute(
 			new ReshapeCommand(this.sheet, newPositions, canvasW, canvasH, cellW, cellH),
 			'both'
 		);
@@ -1011,7 +1024,7 @@ export class EditableSheet {
 		const composite = commands.length === 1
 			? commands[0]
 			: new CompositeCommand(commands);
-		this.history.push(composite, 'data');
+		this._push(composite, 'data');
 		for (const n of newNames) {
 			this.emit('changed', { type: 'frameAdded', name: n });
 		}
@@ -1038,7 +1051,7 @@ export class EditableSheet {
 		const composite = commands.length === 1
 			? commands[0]
 			: new CompositeCommand(commands);
-		this.history.push(composite, 'data');
+		this._push(composite, 'data');
 		for (const name of removed) {
 			this.emit('changed', { type: 'frameRemoved', name });
 		}
@@ -1063,7 +1076,7 @@ export class EditableSheet {
 		const composite = commands.length === 1
 			? commands[0]
 			: new CompositeCommand(commands);
-		this.history.push(composite, 'data');
+		this._push(composite, 'data');
 		for (const name of removed) {
 			this.emit('changed', { type: 'sequenceRemoved', name });
 		}
@@ -1077,7 +1090,7 @@ export class EditableSheet {
 		const current = this.sheet.frameNames;
 		const newOrder = moveInOrder(current, names, direction);
 		if (!newOrder) return;
-		this.history.execute(new ReorderFramesCommand(this.sheet, newOrder), 'data');
+		this._execute(new ReorderFramesCommand(this.sheet, newOrder), 'data');
 		this.emit('changed', { type: 'framesReordered' });
 	}
 
@@ -1085,7 +1098,7 @@ export class EditableSheet {
 		const current = this.sheet.sequenceNames;
 		const newOrder = moveInOrder(current, names, direction);
 		if (!newOrder) return;
-		this.history.execute(new ReorderSequencesCommand(this.sheet, newOrder), 'data');
+		this._execute(new ReorderSequencesCommand(this.sheet, newOrder), 'data');
 		this.emit('changed', { type: 'sequencesReordered' });
 	}
 }

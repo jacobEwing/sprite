@@ -21,9 +21,27 @@ export class SequenceList {
 
 		doc.on('sheetChanged',     () => this.render());
 		doc.on('selectionChanged', () => this._sync());
-		doc.on('edit',             () => this.render());
+		doc.on('edit',             (info) => this._onEdit(info));
 
 		this.render();
+	}
+
+	// Only rebuild for edits that affect the sequence list's contents.
+	// Sequence *content* changes (frame reorders inside a sequence, etc.)
+	// emit sequenceUpdated; pixel pushes and frame geometry changes don't
+	// touch the list at all.
+	_onEdit(info) {
+		const type = info && info.type;
+		if (type === 'sequenceAdded' ||
+		    type === 'sequenceRemoved' ||
+		    type === 'sequenceRenamed' ||
+		    type === 'sequenceUpdated' ||
+		    type === 'sequencesReordered' ||
+		    type === 'frameRemoved' ||
+		    type === 'frameRenamed' ||
+		    type === 'history') {
+			this.render();
+		}
 	}
 
 	render() {

@@ -703,6 +703,10 @@ class Sprite {
 	get frameWidth()  { return this.frame?.width  ?? this.sheet.frameWidth; }
 	get frameHeight() { return this.frame?.height ?? this.sheet.frameHeight; }
 
+	// Current slot index within the active sequence, or 0 when not
+	// animating. Read-only: the runtime advances it via update().
+	get frameIndex()  { return this._frameIndex; }
+
 	/* ---- transforms ------------------------------------------------------ */
 
 	setPosition(x, y) { this.position.x = x; this.position.y = y; return this; }

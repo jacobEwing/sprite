@@ -28,12 +28,17 @@ export class CollisionInspector {
 
 		doc.on('sheetChanged',     () => this.rebuild());
 		doc.on('selectionChanged', () => this.rebuild());
-		doc.on('edit',             () => this._onEdit());
+		doc.on('edit',             (info) => this._onEdit(info));
 
 		this.rebuild();
 	}
 
-	_onEdit() {
+	_onEdit(info) {
+		const type = info && info.type;
+		// Collision edits come through as frameUpdated - that covers
+		// add/remove/modify circle. Everything else is irrelevant here.
+		if (type !== 'frameUpdated' && type !== 'history') return;
+
 		if (this.doc.selectedFrame !== this.currentName) {
 			this.rebuild();
 		} else {

@@ -50,17 +50,21 @@ export class EditorDocument {
 		this.selection = new Selection();
 		this.imageLoaded = false;
 
-		history.on('change', ({ source }) => {
+		history.on('change', ({ source, cause }) => {
 			if (source === 'undo' || source === 'redo') {
 				this._reconcileSelection();
 				this.emit('selectionChanged', { changed: true });
 				this.emit('edit', { type: 'history', source });
 			} else if (source === 'push') {
-				// A commit happened. Operations that go through EditableSheet
-				// already emit 'edit' via the 'changed' path, but pixel
-				// operations that push directly to history would otherwise
-				// be invisible to views that re-render from sheet state.
-				this.emit('edit', { type: 'pixelsPushed' });
+				// EditableSheet tags its pushes with cause 'editable' and
+				// follows them immediately with a typed 'changed' event,
+				// which _onEdit forwards as 'edit'. Emitting pixelsPushed
+				// here too would double-fire. Only untagged pushes (tool
+				// stroke commits, modifier panel applies) need the
+				// generic notification.
+				if (cause !== 'editable') {
+					this.emit('edit', { type: 'pixelsPushed' });
+				}
 			}
 			this._emitDirty();
 		});

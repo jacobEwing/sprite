@@ -18,7 +18,16 @@ export class FrameInspector {
 		this.rebuild();
 	}
 
-	_onEdit() {
+	_onEdit(info) {
+		const type = info && info.type;
+		// Selection changes are handled by the selectionChanged listener
+		// above - we only care about edits that touch the selected frame's
+		// fields.
+		if (type !== 'frameUpdated' &&
+		    type !== 'reshaped' &&
+		    type !== 'history') {
+			return;
+		}
 		if (this.doc.selectedFrame !== this.currentName) {
 			this.rebuild();
 		} else {

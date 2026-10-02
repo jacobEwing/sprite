@@ -34,7 +34,13 @@ export class FrameTransformInspector {
 		this.rebuild();
 	}
 
-	_onEdit() {
+	_onEdit(info) {
+		const type = info && info.type;
+		if (type !== 'frameUpdated' &&
+		    type !== 'reshaped' &&
+		    type !== 'history') {
+			return;
+		}
 		if (this.doc.selectedFrame !== this.currentName) this.rebuild();
 		else this.refresh();
 	}

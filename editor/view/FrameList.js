@@ -24,9 +24,26 @@ export class FrameList {
 
 		doc.on('sheetChanged',     () => this.render());
 		doc.on('selectionChanged', () => this._sync());
-		doc.on('edit',             () => this.render());
+		doc.on('edit',             (info) => this._onEdit(info));
 
 		this.render();
+	}
+
+	// Only rebuild for edits that change what the list displays: frame
+	// set, order, or names. Pixel pushes, canvas resizes, and sequence
+	// changes don't affect the frame list, so we skip the full DOM
+	// rebuild on those.
+	_onEdit(info) {
+		const type = info && info.type;
+		if (type === 'frameAdded' ||
+		    type === 'frameRemoved' ||
+		    type === 'frameRenamed' ||
+		    type === 'frameUpdated' ||
+		    type === 'framesReordered' ||
+		    type === 'reshaped' ||
+		    type === 'history') {
+			this.render();
+		}
 	}
 
 	render() {

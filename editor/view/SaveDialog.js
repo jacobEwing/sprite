@@ -18,6 +18,8 @@ export class SaveDialog {
 			this._resolve = resolve;
 			this.jsonInput.value  = defaults.jsonFilename;
 			this.imageInput.value = defaults.imageFilename;
+			this.jsonInput.setCustomValidity('');
+			this.imageInput.setCustomValidity('');
 			this.backdrop.classList.add('visible');
 			requestAnimationFrame(() => {
 				this.jsonInput.focus();
@@ -79,10 +81,30 @@ export class SaveDialog {
 	}
 
 	_confirm() {
+		// Clear any previous validity message so a repeat confirm
+		// re-checks fresh.
+		this.jsonInput.setCustomValidity('');
+		this.imageInput.setCustomValidity('');
+
 		const jsonFilename  = this.jsonInput.value.trim();
 		const imageFilename = this.imageInput.value.trim();
-		if (!jsonFilename || !imageFilename) return;
-		if (jsonFilename === imageFilename) return;
+
+		if (!jsonFilename) {
+			this.jsonInput.setCustomValidity('Please enter a filename.');
+			this.jsonInput.reportValidity();
+			return;
+		}
+		if (!imageFilename) {
+			this.imageInput.setCustomValidity('Please enter a filename.');
+			this.imageInput.reportValidity();
+			return;
+		}
+		if (jsonFilename === imageFilename) {
+			this.imageInput.setCustomValidity('The two filenames must be different.');
+			this.imageInput.reportValidity();
+			return;
+		}
+
 		this.close({ jsonFilename, imageFilename });
 	}
 }

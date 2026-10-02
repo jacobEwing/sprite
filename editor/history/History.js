@@ -35,7 +35,7 @@ export class History {
 	// this when the operation mutates pixels directly (putImageData,
 	// drawImage) and then wraps the before/after state in a command - the
 	// command's own apply() would be a redundant re-application.
-	push(command, kind = 'pixels') {
+	push(command, kind = 'pixels', options = {}) {
 		command._historyKind = kind;
 		this.undoStack.push(command);
 
@@ -46,15 +46,15 @@ export class History {
 		this._incKind(kind);
 
 		this.redoStack.length = 0;
-		this._emit('push', kind);
+		this._emit('push', kind, options);
 	}
 
 	// Apply a command and record it. Use this when the command itself
 	// performs the mutation - data commands like AddFrameCommand,
 	// SetFrameCommand, and ResizeCanvasCommand are written this way.
-	execute(command, kind = 'pixels') {
+	execute(command, kind = 'pixels', options = {}) {
 		command.apply();
-		this.push(command, kind);
+		this.push(command, kind, options);
 		return command;
 	}
 
@@ -128,13 +128,14 @@ export class History {
 		return null;
 	}
 
-	_emit(source, kind = null) {
+	_emit(source, kind = null, extras = {}) {
 		this.emit('change', {
 			canUndo: this.canUndo,
 			canRedo: this.canRedo,
 			depth: this.undoStack.length,
 			source,
 			kind,
+			...extras,
 			dirtyImage: this.imageDirty,
 			dirtyData:  this.dataDirty,
 			anyDirty:   this.anyDirty,

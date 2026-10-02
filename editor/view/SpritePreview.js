@@ -14,6 +14,7 @@ export class SpritePreview {
 		this.playing = true;
 		this.staticFrameName = null;
 		this.staticFrameFollowsSequence = false;
+		this.loopAnyway = false;
 		this.rafId = null;
 		this.lastTime = 0;
 		this.loopAnyway = false;
@@ -285,13 +286,27 @@ export class SpritePreview {
 		const name = this.sprite.frameName;
 		const seqName = this.sprite.sequenceName;
 		if (!seqName) {
+			// Paused / static: read the position from the document's
+			// slot selection, which is what a paused preview shows.
+			const seq = this.doc.selectedSequence
+				? this.doc.sheet.sequences[this.doc.selectedSequence]
+				: null;
+			const slotIdx = this.doc.selectedSlotIndex;
+			if (seq && slotIdx !== null && seq.frames[slotIdx]) {
+				this.statusEl.textContent =
+					`${name}  ${slotIdx + 1}/${seq.frames.length}`;
+				return;
+			}
 			this.statusEl.textContent = name;
 			return;
 		}
+		// Playing: read the runtime's current slot index, so a frame
+		// that appears more than once in the sequence shows the position
+		// the animation is actually on.
 		const seq = this.doc.sheet.sequences[seqName];
 		if (!seq) { this.statusEl.textContent = name; return; }
-		const idx = seq.frames.findIndex(s => s.frame === name);
-		this.statusEl.textContent = idx >= 0
+		const idx = this.sprite.frameIndex;
+		this.statusEl.textContent = idx >= 0 && idx < seq.frames.length
 			? `${name}  ${idx + 1}/${seq.frames.length}`
 			: name;
 	}

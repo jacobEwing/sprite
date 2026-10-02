@@ -12,10 +12,19 @@ export class SequenceInspector {
 
 		doc.on('selectionChanged', () => this.rebuild());
 		doc.on('sheetChanged',     () => this.rebuild());
-		doc.on('edit',             () => this._onEdit());
+		doc.on('edit',             (info) => this._onEdit(info));
 	}
 
-	_onEdit() {
+	_onEdit(info) {
+		const type = info && info.type;
+		// Anything that changes the sequence's frames list, its own
+		// properties, or the names of frames it references.
+		if (type !== 'sequenceUpdated' &&
+		    type !== 'frameRemoved' &&
+		    type !== 'frameRenamed' &&
+		    type !== 'history') {
+			return;
+		}
 		const seq = this.doc.getSelectedSequence();
 		const nameChanged = this.doc.selectedSequence !== this.currentName;
 		if (!seq || nameChanged || !this._sameFrames(seq.frames, this.renderedFrames)) {

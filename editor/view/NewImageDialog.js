@@ -44,11 +44,11 @@ export class NewImageDialog {
 				<div class="modal-row">
 					<label class="modal-field">
 						<span>Width</span>
-						<input type="number" data-field="w" min="1">
+						<input type="number" data-field="w" min="1" required>
 					</label>
 					<label class="modal-field">
 						<span>Height</span>
-						<input type="number" data-field="h" min="1">
+						<input type="number" data-field="h" min="1" required>
 					</label>
 				</div>
 				<p class="modal-hint">
@@ -83,6 +83,12 @@ export class NewImageDialog {
 	}
 
 	_confirm() {
+		// Surface the browser's native "must be at least 1" / "required"
+		// message when a field is empty or too small, rather than
+		// silently ignoring the click.
+		if (!this.inputW.reportValidity()) return;
+		if (!this.inputH.reportValidity()) return;
+
 		const w = parseInt(this.inputW.value, 10);
 		const h = parseInt(this.inputH.value, 10);
 		if (!Number.isFinite(w) || !Number.isFinite(h) || w < 1 || h < 1) return;
