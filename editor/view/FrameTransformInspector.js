@@ -69,10 +69,12 @@ export class FrameTransformInspector {
 			input.type = 'number';
 			input.className = 'insp-input';
 			input.step = String(f.step);
-			input.value = t[f.key] !== undefined ? t[f.key] : f.default;
+			input.value = t[f.key] !== undefined
+				? t[f.key]
+				: this._defaultFor(f, defX, defY);
 			input.addEventListener('change', () => {
 				const v = parseFloat(input.value);
-				const fallback = f.default !== null ? f.default : 0;
+				const fallback = this._defaultFor(f, defX, defY);
 				this.doc.editable.setFrameTransform(this.currentName, {
 					[f.key]: Number.isFinite(v) ? v : fallback,
 				});
@@ -142,7 +144,18 @@ export class FrameTransformInspector {
 			const input = this.fields[f.key];
 			if (!input) continue;
 			if (document.activeElement === input) continue;
-			input.value = t[f.key] !== undefined ? t[f.key] : f.default;
+			input.value = t[f.key] !== undefined
+				? t[f.key]
+				: this._defaultFor(f, defX, defY);
 		}
+		if (this.resetBtn) this.resetBtn.disabled = !frame.transform;
+	}
+
+	// The pivot fields' effective default is the frame's origin. The
+	// other fields have literal defaults defined in FIELDS.
+	_defaultFor(f, defX, defY) {
+		if (f.key === 'pivotX') return defX;
+		if (f.key === 'pivotY') return defY;
+		return f.default;
 	}
 }

@@ -69,8 +69,15 @@ export class FrameInspector {
 			input.type = 'number';
 			input.className = 'insp-input';
 			input.value = frame[key];
+			input.step = '1';
+			if (key === 'width' || key === 'height') input.min = '1';
 			input.addEventListener('change', () => {
 				this.doc.editable.setFrame(this.currentName, { [key]: input.value });
+				// The model clamps width/height to >= 1 and may reject the
+				// value outright (no-op). Re-read so the field always
+				// reflects what's actually stored.
+				const frame = this.doc.getSelectedFrame();
+				if (frame) input.value = frame[key];
 			});
 			escapeBlurs(input);
 			cell.appendChild(input);

@@ -174,7 +174,14 @@ export class EditableSheet {
 		for (const key of ['x', 'y', 'width', 'height', 'centerx', 'centery']) {
 			if (patch[key] !== undefined) after[key] = Number(patch[key]);
 		}
+		// Frame dimensions must be at least 1. Non-finite values (empty
+		// input, NaN) fall back to the existing value. x/y/centerx/centery
+		// are unconstrained - a frame can legitimately sit or originate
+		// outside the visible image.
+		if (!Number.isFinite(after.width)  || after.width  < 1) after.width  = before.width;
+		if (!Number.isFinite(after.height) || after.height < 1) after.height = before.height;
 		if (deepEqual(before, after)) return;
+
 		this.history.execute(new SetFrameCommand(this.sheet, name, before, after), 'data');
 		this.emit('changed', { type: 'frameUpdated', name });
 	}
