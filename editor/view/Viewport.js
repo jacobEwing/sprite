@@ -637,12 +637,33 @@ export class Viewport {
 		return { x: e.clientX - r.left, y: e.clientY - r.top };
 	}
 
+	// Plain wheel zooms at the cursor. Ctrl/Cmd + wheel also zooms (and
+	// suppresses the browser's own Ctrl+wheel page-zoom on the canvas).
+	// Shift + wheel pans horizontally, for quick nudges along long sheets.
 	_onWheel(e) {
 		e.preventDefault();
 		if (!this.source) return;
-		const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
-		const { x, y } = this._eventPos(e);
-		this.zoomAt(this.zoom * factor, x, y);
+
+		if (e.ctrlKey || e.metaKey) {
+			const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+			const { x, y } = this._eventPos(e);
+			this.zoomAt(this.zoom * factor, x, y);
+			return;
+		}
+		if (e.shiftKey) {
+			// Shift+wheel on a traditional mouse produces deltaY, not
+			// deltaX, on Chromium/Linux. Trackpads produce deltaX. Prefer
+			// whichever is nonzero.
+			const dx = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+			this.offsetX -= dx;
+			this.emit('view', { zoom: this.zoom });
+			this.invalidate();
+			return;
+		}
+
+		this.offsetY -= e.deltaY;
+		this.emit('view', { zoom: this.zoom });
+		this.invalidate();
 	}
 
 	_onMouseDown(e) {
