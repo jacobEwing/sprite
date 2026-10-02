@@ -1216,8 +1216,40 @@ document.addEventListener('paste', (e) => {
 	doPasteIntoFrame();
 });
 
-// --- view toolbar ---------------------------------------------------------
+// --- text field focus behaviour ------------------------------------------
+//
+// Select the whole value when a text or number input is focused, so the
+// user can immediately overwrite. Two handlers because click-focus and
+// tab-focus take different paths:
+//
+//   • Tab focuses the input, then focusin fires. Select there.
+//   • Click focuses the input, then the browser places the cursor at the
+//     click point - which would cancel any selection. To prevent that, we
+//     stop the mousedown's default, focus manually (which fires focusin),
+//     and let the focusin handler do the select.
+//
+// If the input is already focused, we don't preventDefault, so a
+// second click places the cursor normally inside the text.
 
+function isTextField(el) {
+	if (!el || el.tagName !== 'INPUT') return false;
+	if (el.type !== 'text' && el.type !== 'number') return false;
+	return !el.readOnly && !el.disabled;
+}
+
+document.addEventListener('focusin', (e) => {
+	if (isTextField(e.target)) e.target.select();
+});
+
+document.addEventListener('mousedown', (e) => {
+	const el = e.target;
+	if (!isTextField(el)) return;
+	if (document.activeElement === el) return;   // already focused - place cursor normally
+	e.preventDefault();
+	el.focus();                                  // fires focusin → select
+});
+
+// --- view toolbar ---------------------------------------------------------
 $('btnFit').addEventListener('click',    () => viewport.fit());
 $('btnZoomIn').addEventListener('click', () => viewport.zoomBy(1.25));
 $('btnZoomOut').addEventListener('click',() => viewport.zoomBy(1 / 1.25));
