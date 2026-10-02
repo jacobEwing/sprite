@@ -27,12 +27,20 @@ function colorsEqual(a, b) {
 	return a.hex === b.hex && a.alpha === b.alpha;
 }
 
+function colorKey(c) {
+	return `${c.hex}|${c.alpha}`;
+}
+
 export class Palette {
 	constructor() {
 		makeEmitter(this);
 		this.primary = cloneColor(DEFAULT_PRIMARY);
 		this.secondary = cloneColor(DEFAULT_SECONDARY);
 		this.recent = [];
+		// Signatures of recents that were auto-seeded from an image.
+		// Removed and refreshed when a new image loads; anything the user
+		// has since picked is no longer in this set, so it survives.
+		this._autoRecentKeys = new Set();
 	}
 
 	setPrimary(hex, alpha, { pushRecent = true } = {}) {
@@ -74,9 +82,42 @@ export class Palette {
 	}
 
 	_pushRecent(color) {
+		// A user pick is no longer "auto" - if it came from seeding, drop
+		// the auto marker so it survives the next image load.
+		this._autoRecentKeys.delete(colorKey(color));
+
 		const i = this.recent.findIndex(c => colorsEqual(c, color));
 		if (i >= 0) this.recent.splice(i, 1);
 		this.recent.unshift(cloneColor(color));
 		if (this.recent.length > MAX_RECENT) this.recent.length = MAX_RECENT;
+	}
+
+	// Merge auto-derived colours into the recents list. Existing user
+	// picks stay put; previously auto-seeded entries are removed and
+	// replaced with the incoming set. Called by main.js after a sheet or
+	// image load. No-op if `colors` is empty, so loading a blank sheet
+	// doesn't wipe the previous auto entries.
+	seedRecents(colors) {
+		if (!Array.isArray(colors) || colors.length === 0) return;
+
+		// Drop any surviving auto entries. Any that the user has since
+		// picked are no longer in the set, so they stay.
+		this.recent = this.recent.filter(
+			c => !this._autoRecentKeys.has(colorKey(c))
+		);
+		this._autoRecentKeys.clear();
+
+		// Append the new auto entries below the user's picks, skipping
+		// any that duplicate an existing entry.
+		for (const c of colors) {
+			if (this.recent.length >= MAX_RECENT) break;
+			const key = colorKey(c);
+			if (this._autoRecentKeys.has(key)) continue;
+			if (this.recent.some(existing => colorsEqual(existing, c))) continue;
+			this.recent.push(cloneColor(c));
+			this._autoRecentKeys.add(key);
+		}
+
+		this.emit('change', this);
 	}
 }

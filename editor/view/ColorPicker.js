@@ -23,6 +23,7 @@ export class ColorPicker {
 
 		this._onLive   = null;
 		this._onCommit = null;
+		this._onClose  = null;
 		this._anchor   = null;
 		this._drag     = null;
 
@@ -32,6 +33,7 @@ export class ColorPicker {
 
 	onLiveChange(fn) { this._onLive   = fn; return this; }
 	onCommit(fn)     { this._onCommit = fn; return this; }
+	onClose(fn)      { this._onClose  = fn; return this; }
 
 	get isOpen() { return this.root.style.display !== 'none'; }
 
@@ -48,9 +50,11 @@ export class ColorPicker {
 	}
 
 	hide() {
+		if (!this.isOpen) return;
 		this.root.style.display = 'none';
 		this._anchor = null;
 		this._drag = null;
+		if (this._onClose) this._onClose(this._currentHex(), this.alpha);
 	}
 
 	// --- construction -----------------------------------------------------

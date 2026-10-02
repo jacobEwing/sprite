@@ -23,7 +23,8 @@ export class PalettePanel {
 
 		this.picker = new ColorPicker();
 		this.picker.onLiveChange((hex, alpha) => this._applySlot(hex, alpha, false));
-		this.picker.onCommit((hex, alpha)     => this._applySlot(hex, alpha, true));
+		this.picker.onCommit((hex, alpha)     => this._applySlot(hex, alpha, false));
+		this.picker.onClose(()                => this._commitSlotToRecents());
 
 		this._build();
 		this.palette.on('change', () => this._sync());
@@ -98,9 +99,30 @@ export class PalettePanel {
 
 	_openPicker(slot) {
 		this._openSlot = slot;
+		// Snapshot the colour as it stands when the picker opens, so the
+		// close handler can tell whether the user actually changed it.
+		this._openColor = { ...this.palette[slot] };
 		const color = this.palette[slot];
 		const anchor = slot === 'primary' ? this.swatchPrimary : this.swatchSecondary;
 		this.picker.show(color.hex, color.alpha, anchor);
+	}
+
+	// Called once when the picker closes. Pushes the final colour to
+	// recents only if the user changed it during the session - opening
+	// and closing without editing leaves recents alone.
+	_commitSlotToRecents() {
+		const slot = this._openSlot;
+		const original = this._openColor;
+		this._openSlot = null;
+		this._openColor = null;
+		if (!slot || !original) return;
+
+		const current = this.palette[slot];
+		if (!current) return;
+		if (current.hex === original.hex && current.alpha === original.alpha) return;
+
+		if (slot === 'primary')        this.palette.setPrimary(current.hex, current.alpha, { pushRecent: true });
+		else if (slot === 'secondary') this.palette.setSecondary(current.hex, current.alpha, { pushRecent: true });
 	}
 
 	_buildPresetGrid(container, hexes) {

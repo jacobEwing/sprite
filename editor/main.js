@@ -51,6 +51,7 @@ import { RecolourPanel } from './view/RecolourPanel.js';
 import { FilterPanel } from './view/FilterPanel.js';
 import { TransformPanel } from './view/TransformPanel.js';
 import { FrameTransformInspector } from './view/FrameTransformInspector.js';
+import { topColors } from './paint/colorFrequency.js';
 
 // --- wiring ---------------------------------------------------------------
 const viewOptions = { grid: false, snap: false };
@@ -394,6 +395,20 @@ $('btnRedo').addEventListener('click', () => {
 // --- palette --------------------------------------------------------------
 
 new PalettePanel(document.getElementById('palettePanel'), palette);
+
+// Seed the recents list from the loaded image's most-used colours. Runs
+// on every sheet or image load; user picks stay at the top of the list
+// and auto-populated entries fill in below, refreshed each load.
+function seedPaletteFromImage() {
+	const image = doc.sheet && doc.sheet.image;
+	if (!image || typeof image.getContext !== 'function') return;
+	palette.seedRecents(topColors(image, 16));
+}
+
+doc.on('sheetChanged', () => {
+	if (doc.sheet) seedPaletteFromImage();
+});
+doc.on('imageChanged', () => seedPaletteFromImage());
 
 // --- modifiers tab -------------------------------------------------------
 
