@@ -182,6 +182,10 @@ $('clipToFrame').addEventListener('change', (e) => {
 });
 
 // --- document events ------------------------------------------------------
+// Set when a sprite is loaded whose JSON names an image different from the
+// one currently loaded. Cleared on image load, new sprite, new image, or
+// when Sheet Settings brings imageSrc in line. Purely UI state.
+let imageMismatch = null;  // { expected, loaded } or nulla
 
 // Update the footer's image notice. Handles two cases, in priority order:
 //   1. No image loaded - sprite references a filename we haven't got.
@@ -543,12 +547,18 @@ let savedFilenames = null;
 let savedDirectory = null;
 let saveMode = null;  // 'directory' | 'download' | null
 
-// Set when a sprite is loaded whose JSON names an image different from the
-// one currently loaded. Cleared on image load, new sprite, new image, or
-// when Sheet Settings brings imageSrc in line. Purely UI state.
-let imageMismatch = null;  // { expected, loaded } or nulla
+
+// Shared guard for actions that will discard the current sheet's state.
+// Returns true if it's safe to proceed.
+function confirmDiscard(what) {
+	if (!doc.anyDirty) return true;
+	return window.confirm(
+		`You have unsaved changes. ${what}?`
+	);
+}
 
 async function doLoadSprite() {
+	if (!confirmDiscard('Discard them and load a sprite')) return;
 	$('statusMessage').textContent = 'Choose a sprite JSON…';
 	let file;
 	try {
@@ -600,6 +610,7 @@ async function doLoadSprite() {
 }
 
 async function doLoadImage() {
+	if (!confirmDiscard('Discard them and load an image')) return;
 	$('statusMessage').textContent = 'Choose an image…';
 	let file;
 	try {
@@ -689,7 +700,7 @@ async function doNewImage() {
 	imageMismatch = null;
 	updateImageNotice();
 
-	$('statusMessage').textContent = `New image: ${values.width}×${values.heht}`;
+	$('statusMessage').textContent = `New image: ${values.width}×${values.height}`;
 }
 
 async function doEditSheet() {
@@ -885,12 +896,12 @@ const fileMenu = new Menu(document.getElementById('fileMenuBtn'), [
 	{ label: 'New Sprite',   action: doNewSprite },
 	{ label: 'New Image',    action: doNewImage },
 	{ separator: true },
-	{ label: 'Load Sprite…', action: doLoadSprite },
-	{ label: 'Load Image…',  action: doLoadImage },
-	{ separator: true },
 	{ label: 'Save Image',         shortcut: 'Ctrl+S',       action: doSaveImage },
 	{ label: 'Save Sprite Data',   shortcut: 'Ctrl+Shift+S', action: doSaveData },
 	{ label: 'Save All',           shortcut: 'Ctrl+Alt+S',   action: doSave },
+	{ separator: true },
+	{ label: 'Load Sprite…', action: doLoadSprite },
+	{ label: 'Load Image…',  action: doLoadImage },
 ]);
 
 function updateFileMenuState() {
@@ -960,23 +971,6 @@ new Menu(document.getElementById('editMenuBtn'), [
 		items.find(i => i.label === 'Cut').disabled   = !hasFrame;
 		items.find(i => i.label === 'Paste').disabled = !hasFrame || !hasClip;
 		items.find(i => i.label === 'Clear').disabled = !hasFrame;
-	},
-});
-
-new Menu(document.getElementById('transformMenuBtn'), [
-	{ label: 'Rotate 90° CW',   shortcut: 'R',       action: doRotateCW },
-	{ label: 'Rotate 90° CCW',  shortcut: 'Shift+R', action: doRotateCCW },
-	{ label: 'Flip Vertical',   shortcut: 'F',       action: doFlipV },
-	{ label: 'Flip Horizontal', shortcut: 'Shift+F', action: doFlipH },
-	{ separator: true },
-	{ label: 'Move Up',    shortcut: 'Ctrl+↑', action: doMoveUp },
-	{ label: 'Move Down',  shortcut: 'Ctrl+↓', action: doMoveDown },
-	{ label: 'Move Left',  shortcut: 'Ctrl+←', action: doMoveLeft },
-	{ label: 'Move Right', shortcut: 'Ctrl+→', action: doMoveRight },
-], {
-	onShow: (items) => {
-		const enabled = !!(doc.sheet && doc.selectedFrame);
-		for (const i of items) if (!i.separator) i.disabled = !enabled;
 	},
 });
 

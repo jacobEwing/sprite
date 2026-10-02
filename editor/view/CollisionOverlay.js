@@ -2,10 +2,9 @@ import { makeEmitter } from '../lib/emitter.js';
 
 // Draws the collision circles over the selected frame.
 //
-// Reads the resolved collision (frame override if present, sheet default
-// otherwise) so inherited shapes are visible read-only. The tool can
-// override the drawn position of one circle during a drag, or supply a
-// pending shape that hasn't been committed yet.
+// Reads the resolved collision so inherited shapes are visible read-only. The
+// tool can override the drawn position of one circle during a drag, or supply
+// a pending shape that hasn't been committed yet.
 export class CollisionOverlay {
 	constructor(doc, viewport) {
 		makeEmitter(this);

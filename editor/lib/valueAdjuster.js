@@ -215,6 +215,8 @@ export function valueAdjuster(inputElement, options) {
 	}
 
 	function pointerDown(e) {
+		if(e.button !== 0) return;
+		if(dragging) return;
 		dragging = true;
 		startX = e.clientX;
 		accum = 0;
@@ -232,7 +234,9 @@ export function valueAdjuster(inputElement, options) {
 
 	function pointerUp() {
 		if (!dragging) return;
+		const wasChanged = accum !== 0;
 		dragging = false;
+
 		shiftHeld = false;
 		window.removeEventListener('keydown', onKeyDownGlobal);
 		window.removeEventListener('keyup', onKeyUpGlobal);
@@ -246,9 +250,12 @@ export function valueAdjuster(inputElement, options) {
 			dot.style.opacity = '0';
 			dot.style.left = '50%';
 		}
-		inputElement.dispatchEvent(new Event('input', { bubbles: true }));
-		inputElement.dispatchEvent(new Event('change', { bubbles: true }));
-		notifyAdjust();
+
+		if(wasChanged){
+			inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+			inputElement.dispatchEvent(new Event('change', { bubbles: true }));
+			notifyAdjust();
+		}
 	}
 
 	var dragSurface = handle || track;

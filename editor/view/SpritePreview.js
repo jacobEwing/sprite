@@ -16,9 +16,9 @@ export class SpritePreview {
 		this.staticFrameFollowsSequence = false;
 		this.rafId = null;
 		this.lastTime = 0;
+		this.loopAnyway = false;
 
 		this._build();
-
 		doc.on('sheetChanged', () => this._rebuild());
 		doc.on('selectionChanged', (info) => this._onSelectionChange(info));
 		doc.on('edit', () => this._onEdit());
@@ -51,6 +51,7 @@ export class SpritePreview {
 		});
 
 		const dpr = window.devicePixelRatio || 1;
+		this.dpr = dpr;
 		this.canvas.width = CANVAS_SIZE * dpr;
 		this.canvas.height = CANVAS_SIZE * dpr;
 		this.canvas.style.width = CANVAS_SIZE + 'px';

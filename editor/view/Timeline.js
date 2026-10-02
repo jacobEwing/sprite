@@ -37,6 +37,8 @@ export class Timeline {
 		this._build();
 		this._bind();
 
+		this._adjusters = [];
+
 		doc.on('sheetChanged',     () => { this._closeEditor(); this.render(); });
 		doc.on('selectionChanged', () => this._onSelectionChange());
 		doc.on('edit',             () => this._onEdit());
@@ -101,6 +103,7 @@ export class Timeline {
 		});
 
 		document.addEventListener('keydown', (e) => {
+			if (document.activeElement !== document.body) return;
 			if (e.key === 'Escape' && this.editingIndex !== null) this._closeEditor();
 		});
 	}
@@ -113,6 +116,7 @@ export class Timeline {
 	}
 
 	_renderFrames(workingList) {
+		const scrollLeft = this.stripEl.scrollLeft;
 		const sheet = this.doc.sheet;
 		const seq = this.doc.getSelectedSequence();
 		this.stripEl.innerHTML = '';
@@ -135,6 +139,7 @@ export class Timeline {
 			}
 			this.stripEl.appendChild(tile);
 		});
+		this.stripEl.scrollLeft = scrollLeft;
 	}
 
 	_makeTile(slot, index, sheet, seq) {
@@ -290,6 +295,9 @@ export class Timeline {
 		const defX = primaryFrame ? primaryFrame.centerx : 0;
 		const defY = primaryFrame ? primaryFrame.centery : 0;
 
+		for (const w of this._adjusters) w.destroy();
+		this._adjusters = [];
+
 		this.editorTitleEl.textContent = indices.length === 1
 			? `Slot ${primaryIdx}: ${primarySlot.frame}`
 			: `${indices.length} slots selected`;
@@ -362,8 +370,7 @@ export class Timeline {
 				raw.step = String(f.step);
 				raw.value = first;
 				cell.appendChild(raw);
-
-				valueAdjuster(raw, {
+				this._adjusters.push(valueAdjuster(raw, {
 					stepSize: f.step,
 					displayElement: visible,
 					onAdjust: (v) => {
@@ -375,7 +382,7 @@ export class Timeline {
 						}
 						this.doc.editable.setSlotTransforms(seq.name, indices, patch);
 					},
-				});
+				}));
 
 				const handle = raw.nextElementSibling
 					? raw.nextElementSibling.querySelector('.value-adjuster-handle')
@@ -402,25 +409,42 @@ export class Timeline {
 		const indices = [...this.doc.selectedSlotIndices].sort((a, b) => a - b);
 		if (!seq || indices.length === 0) return;
 
+		const frames = seq.frames.map(s => ({
+			frame: s.frame,
+			transform: s.transform ? { ...s.transform } : null,
+		}));
+
 		for (const i of indices) {
-			const slot = seq.frames[i];
+			const slot = frames[i];
 			if (!slot) continue;
 			const f = this.doc.sheet.frames[slot.frame];
 			if (!f) continue;
 
-			let px, py;
+			const base = slot.transform || {
+				translateX: 0, translateY: 0, rotation: 0,
+				scaleX: 1, scaleY: 1,
+				pivotX: f.centerx, pivotY: f.centery,
+			};
+			const next = { ...base };
 			if (which === 'origin') {
-				px = f.centerx;
-				py = f.centery;
+				next.pivotX = f.centerx;
+				next.pivotY = f.centery;
 			} else if (which === 'centre') {
-				px = f.width  / 2;
-				py = f.height / 2;
+				next.pivotX = f.width  / 2;
+				next.pivotY = f.height / 2;
 			} else return;
 
-			this.doc.editable.setSlotTransform(seq.name, i, {
-				pivotX: px, pivotY: py,
-			});
+			// Mirror the identity check from EditableSheet.setSlotTransforms
+			const isIdentity =
+				next.translateX === 0 && next.translateY === 0 &&
+				next.rotation === 0 &&
+				next.scaleX === 1 && next.scaleY === 1 &&
+				next.pivotX === f.centerx && next.pivotY === f.centery;
+
+			slot.transform = isIdentity ? null : next;
 		}
+
+		this.doc.editable.setSequence(seq.name, { frames });
 	}
 
 	_onSelectionChange() {
@@ -558,7 +582,6 @@ export class Timeline {
 
 		const additive = e.ctrlKey || e.metaKey;
 		const range    = e.shiftKey;
-		const wasSelectedBefore = this.doc.selectedSlotIndices.has(index);
 
 		this.doc.selectSlot(index, { additive, range });
 
@@ -577,8 +600,6 @@ export class Timeline {
 				transform: s.transform ? { ...s.transform } : null,
 			})),
 			moved: false,
-			wasSelectedBefore,
-			grabIndex: index,
 		};
 
 		const onMove = (ev) => this._onMove(ev);
@@ -677,7 +698,7 @@ export class Timeline {
 	_onUp() {
 		if (!this.drag) return;
 		const {
-			working, moved, grabIndex,
+			working, moved,
 			blockStart, originalBlockStart, originalBlockEnd,
 		} = this.drag;
 		this.drag = null;

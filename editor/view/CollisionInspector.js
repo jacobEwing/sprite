@@ -24,6 +24,7 @@ export class CollisionInspector {
 		this.doc = doc;
 		this.currentName = null;
 		this.fields = {};
+		this._renderedCircleCount = -1;
 
 		doc.on('sheetChanged',     () => this.rebuild());
 		doc.on('selectionChanged', () => this.rebuild());
@@ -46,6 +47,7 @@ export class CollisionInspector {
 
 		if (!this.doc.sheet) {
 			this.currentName = null;
+			this._renderedCircleCount = -1;
 			return;
 		}
 
@@ -54,12 +56,14 @@ export class CollisionInspector {
 
 		if (!frame) {
 			this._info('No frame selected.');
+			this._renderedCircleCount = -1;
 			return;
 		}
 
 		const circles = frame.collision && frame.collision.circles
 			? frame.collision.circles
 			: [];
+		this._renderedCircleCount = circles.length;
 
 		if (circles.length === 0) {
 			this._info('No collision for this frame. Add a circle to begin.');
@@ -78,8 +82,11 @@ export class CollisionInspector {
 		const copyBtn = document.createElement('button');
 		copyBtn.className = 'insp-add-btn';
 		copyBtn.textContent = 'Copy to all frames';
-		copyBtn.title = 'Overwrite every other frame\'s collision with this one';
-		copyBtn.disabled = this.doc.sheet.frameNames.length <= 1;
+		copyBtn.title = circles.length > 0
+			? 'Overwrite every other frame\'s collision with this one'
+			: 'This frame has no collision to copy';
+		copyBtn.disabled = this.doc.sheet.frameNames.length <= 1
+			|| circles.length === 0;
 		copyBtn.addEventListener('click', () => this._copyToAll());
 		this.root.appendChild(copyBtn);
 	}
@@ -93,6 +100,14 @@ export class CollisionInspector {
 		const circles = frame.collision && frame.collision.circles
 			? frame.collision.circles
 			: [];
+
+		// The DOM structure mirrors the circle count. If the underlying
+		// data now has a different number of circles, the existing rows
+		// no longer correspond to it - rebuild instead of refreshing.
+		if (circles.length !== this._renderedCircleCount) {
+			this.rebuild();
+			return;
+		}
 
 		for (let i = 0; i < circles.length; i++) {
 			for (const key of FIELDS) {

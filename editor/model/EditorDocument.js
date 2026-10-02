@@ -308,7 +308,9 @@ export class EditorDocument {
 		this.selection.clear();
 		this.emit('selectionModified', {});
 	}
-	_emitSelectionModified() {
+	// in EditorDocument, alongside setSelection / clearSelection
+	setSelectionFromDrag(x1, y1, x2, y2) {
+		this.selection.setFromDrag(x1, y1, x2, y2);
 		this.emit('selectionModified', {});
 	}
 	currentOpRect() {

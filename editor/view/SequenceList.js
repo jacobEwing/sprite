@@ -79,10 +79,16 @@ export class SequenceList {
 					}
 				});
 			});
-
 			// --- context menu ------------------------------------------
 			li.addEventListener('contextmenu', (e) => {
 				e.preventDefault();
+				// Right-click on an unselected item targets that item rather
+				// than leaving the previous selection intact. If the item is
+				// already selected (possibly as part of a multi-selection),
+				// leave the selection alone so the menu acts on the whole group.
+				if (!this.doc.selectedSequences.has(name)) {
+					this.doc.selectSequence(name);
+				}
 				this._showContextMenu(name, e.clientX, e.clientY);
 			});
 

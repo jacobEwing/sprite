@@ -103,7 +103,7 @@ export class EditableSheet {
 		};
 
 		this.history.execute(new AddFrameCommand(sheet, name, frame), 'data');
-		this.emit('changed', { typ: 'frameAdded', name });
+		this.emit('changed', { type: 'frameAdded', name });
 		return name;
 	}
 

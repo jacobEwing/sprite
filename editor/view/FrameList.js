@@ -86,6 +86,13 @@ export class FrameList {
 			// --- context menu ------------------------------------------
 			li.addEventListener('contextmenu', (e) => {
 				e.preventDefault();
+				// Right-click on an unselected item targets that item rather
+				// than leaving the previous selection intact. If the item is
+				// already selected (possibly as part of a multi-selection),
+				// leave the selection alone so the menu acts on the whole group.
+				if (!this.doc.selectedFrames.has(name)) {
+					this.doc.selectFrame(name);
+				}
 				this._showContextMenu(name, e.clientX, e.clientY);
 			});
 

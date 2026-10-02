@@ -183,12 +183,6 @@ export class AirbrushTool extends Tool {
 		return Math.max(1, t * t * 300);
 	}
 
-	// Pixels per tick in random mode. Quadratic in the slider value, with
-	// a floor of 1 so the minimum setting still produces output.
-	_randomAttempts() {
-		return this._attemptsFor(this.flow);
-	}
-
 	_blendPixel(x, y, color, a) {
 		const existing = this.transaction.getPixel(x, y);
 		if (!existing) return;
@@ -243,13 +237,6 @@ export class AirbrushTool extends Tool {
 			flowSetting,
 			{ key: 'onlyOpaque', label: 'Opaque only', type: 'checkbox' },
 		];
-	}
-
-	// Pure helper for the readout: attempt count for a hypothetical slider
-	// value, so the format function doesn't need to poke at this.flow.
-	_attemptsFor(sliderValue) {
-		const t = sliderValue / 30;
-		return Math.max(1, Math.round(t * t * 30));
 	}
 
 	getSettingValue(key) {

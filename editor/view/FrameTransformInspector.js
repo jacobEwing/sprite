@@ -124,7 +124,7 @@ export class FrameTransformInspector {
 		} else return;
 
 		this.doc.editable.setFrameTransform(this.currentName, {
-			ivotX: px, pivotY: py,
+			pivotX: px, pivotY: py,
 		});
 	}
 

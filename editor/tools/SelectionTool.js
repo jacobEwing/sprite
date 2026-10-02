@@ -54,10 +54,7 @@ export class SelectionTool extends Tool {
 				y2 = Math.max(fy1, Math.min(fy2, y2));
 			}
 		}
-
-		const sel = this.context.document.selection;
-		sel.setFromDrag(x1, y1, x2, y2);
-		this.context.document._emitSelectionModified();
+		this.context.document.setSelectionFromDrag(x1, y1, x2, y2);
 	}
 
 	onPointerUp(ev) {
