@@ -20,28 +20,15 @@ export class ToolSettingsPanel {
 		this.tool = tool;
 		this.root.innerHTML = '';
 
-		if (!tool || typeof tool.getSettings !== 'function') {
-			this._renderEmpty('No tool selected.');
-			return;
-		}
+		if (!tool || typeof tool.getSettings !== 'function') return;
 
 		const settings = tool.getSettings();
-		if (!settings || settings.length === 0) {
-			this._renderEmpty('No settings for this tool.');
-			return;
-		}
+		if (!settings || settings.length === 0) return;
 
 		for (const setting of settings) {
 			const el = this._renderSetting(setting);
 			if (el) this.root.appendChild(el);
 		}
-	}
-
-	_renderEmpty(msg) {
-		const el = document.createElement('div');
-		el.className = 'info';
-		el.textContent = msg;
-		this.root.appendChild(el);
 	}
 
 	_renderSetting(setting) {
