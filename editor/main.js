@@ -372,8 +372,9 @@ doc.on('dirtyChanged', ({ anyDirty, dirtyImage, dirtyData }) => {
 	el.title = 'Unsaved: ' + parts.join(', ');
 });
 
-// remove if retaining palette UI between loading different sprites becomes important
-doc.on('sheetChanged', () => palette.reset());
+// Primary / secondary and the recents list are user preferences: the palette
+// deliberately survives sheet changes so a colour picked on one sprite is
+// still available when the next one loads.
 
 // --- history --------------------------------------------------------------
 
