@@ -28,6 +28,7 @@ import { SpritePreview }   from './view/SpritePreview.js';
 import { saveSheetImage, saveSheetData, saveSheetBoth, proposeFilenames } from './io/saveSheet.js';
 import { SaveDialog }                   from './view/SaveDialog.js';
 import { ErrorDialog }     from './view/ErrorDialog.js';
+import { ConfirmDialog }   from './view/ConfirmDialog.js';
 import { applyToolIcons }  from './view/toolIcons.js';
 import { SheetDialog }     from './view/SheetDialog.js';
 import { CollisionOverlay }    from './view/CollisionOverlay.js';
@@ -443,7 +444,7 @@ document.querySelectorAll('[data-modifier-panel]').forEach(p => {
 
 // Delete the given frames, first warning if any are referenced by
 // sequences. The warning names the sequences so the user can back out.
-function confirmAndDeleteFrames(names) {
+async function confirmAndDeleteFrames(names) {
 	if (!names || names.length === 0) return;
 
 	const refs = doc.editable.framesReferencedBySequences(names);
@@ -454,11 +455,14 @@ function confirmAndDeleteFrames(names) {
 		const frameWord = refNames.length === 1 ? 'frame' : 'frames';
 		const seqWord   = totalSequences === 1 ? 'sequence' : 'sequences';
 		const verb      = refNames.length === 1 ? 'is' : 'are';
-		const ok = window.confirm(
-			`${refNames.length} ${frameWord} ${verb} used in ` +
-			`${totalSequences} ${seqWord}.\n\n` +
-			`Deleting will also remove them from those sequences. Continue?`
-		);
+		const ok = await confirmDialog.open({
+			title: 'Delete frames?',
+			message:
+				`${refNames.length} ${frameWord} ${verb} used in ` +
+				`${totalSequences} ${seqWord}.\n\n` +
+				`Deleting will also remove them from those sequences.`,
+			confirmLabel: 'Delete',
+		});
 		if (!ok) return;
 	}
 
@@ -542,6 +546,7 @@ $('btnMoveSequenceDown').addEventListener('click', () => {
 const errorDialog = new ErrorDialog();
 const saveDialog = new SaveDialog();
 const sheetDialog = new SheetDialog();
+const confirmDialog = new ConfirmDialog();
 
 // Cached between saves within a session. Lost on reload - that's fine.
 let savedFilenames = null;
@@ -551,15 +556,18 @@ let saveMode = null;  // 'directory' | 'download' | null
 
 // Shared guard for actions that will discard the current sheet's state.
 // Returns true if it's safe to proceed.
-function confirmDiscard(what) {
+async function confirmDiscard(what) {
 	if (!doc.anyDirty) return true;
-	return window.confirm(
-		`You have unsaved changes. ${what}?`
-	);
+	return await confirmDialog.open({
+		title: 'Unsaved changes',
+		message: `You have unsaved changes. ${what}?`,
+		confirmLabel: 'Discard',
+	});
 }
 
 async function doLoadSprite() {
-	if (!confirmDiscard('Discard them and load a sprite')) return;
+	if (!await confirmDiscard('Discard them and load a sprite')) return;
+
 	$('statusMessage').textContent = 'Choose a sprite JSON…';
 	let file;
 	try {
@@ -611,7 +619,8 @@ async function doLoadSprite() {
 }
 
 async function doLoadImage() {
-	if (!confirmDiscard('Discard them and load an image')) return;
+	if (!await confirmDiscard('Discard them and load an image')) return;
+
 	$('statusMessage').textContent = 'Choose an image…';
 	let file;
 	try {
@@ -633,9 +642,14 @@ async function doLoadImage() {
 }
 
 async function doNewSprite() {
-	if (doc.anyDirty && !window.confirm(
-		'The current sheet has unsaved changes. Discard them and create a new sheet?'
-	)) return;
+	if (doc.anyDirty) {
+		const ok = await confirmDialog.open({
+			title: 'Unsaved changes',
+			message: 'The current sheet has unsaved changes. Discard them and create a new sheet?',
+			confirmLabel: 'Discard',
+		});
+		if (!ok) return;
+	}
 
 	// If an image is loaded, keep it and prefill the dialog with its
 	// dimensions. Otherwise fall back to the standard defaults.
@@ -679,9 +693,14 @@ async function doNewSprite() {
 }
 
 async function doNewImage() {
-	if (doc.anyDirty && !window.confirm(
-		'The current sheet has unsaved changes. Discard them and create a new image?'
-	)) return;
+	if (doc.anyDirty) {
+		const ok = await confirmDialog.open({
+			title: 'Unsaved changes',
+			message: 'The current sheet has unsaved changes. Discard them and create a new image?',
+			confirmLabel: 'Discard',
+		});
+		if (!ok) return;
+	}
 
 	const defaults = {
 		width:  doc.sheet ? doc.sheet.imageWidth  : 256,

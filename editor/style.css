@@ -1619,17 +1619,20 @@ body {
 	border-left-color: var(--accent);
 }
 
-/* --- error dialog --- */
-.error-title {
+/* --- error / confirm dialogs --- */
+.error-title,
+.confirm-title {
 	margin: 0 0 10px;
 	font-size: var(--fs-heading);
 	font-weight: 600;
 }
-.error-message {
+.error-message,
+.confirm-message {
 	margin: 0 0 18px;
 	color: var(--ink);
 	font-size: 13px;
 	line-height: 1.5;
+	white-space: pre-line;
 }
 
 /* --- modifier panels (Modifiers tab) --- */
