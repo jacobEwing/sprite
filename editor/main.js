@@ -568,11 +568,20 @@ let savedFilenames = null;
 let savedDirectory = null;
 let saveMode = null;  // 'directory' | 'download' | null
 
-
-// Shared guard for actions that will discard the current sheet's state.
-// Returns true if it's safe to proceed.
-async function confirmDiscard(what) {
-	if (!doc.anyDirty) return true;
+// Guard for actions that will discard unsaved work. `kind` says which
+// half of the dirty state the operation will actually lose:
+//   'data'  - the sheet's frames/sequences/settings are being replaced
+//   'image' - the pixel atlas is being replaced
+//   'any'   - both (default; matches the old behaviour)
+//
+// Sprite loading keeps the current image, so it only cares about data.
+// Image loading keeps the sheet's structure, so it only cares about the
+// image.
+async function confirmDiscard(what, kind = 'any') {
+	const dirty = kind === 'data'  ? doc.dirtyData
+	            : kind === 'image' ? doc.dirtyImage
+	            :                    doc.anyDirty;
+	if (!dirty) return true;
 	return await confirmDialog.open({
 		title: 'Unsaved changes',
 		message: `You have unsaved changes. ${what}?`,
@@ -581,7 +590,7 @@ async function confirmDiscard(what) {
 }
 
 async function doLoadSprite() {
-	if (!await confirmDiscard('Discard them and load a sprite')) return;
+	if (!await confirmDiscard('Discard them and load a sprite', 'data')) return;
 
 	$('statusMessage').textContent = 'Choose a sprite JSON…';
 	let file;
@@ -634,7 +643,7 @@ async function doLoadSprite() {
 }
 
 async function doLoadImage() {
-	if (!await confirmDiscard('Discard them and load an image')) return;
+	if (!await confirmDiscard('Discard them and load an image', 'image')) return;
 
 	$('statusMessage').textContent = 'Choose an image…';
 	let file;
@@ -657,14 +666,7 @@ async function doLoadImage() {
 }
 
 async function doNewSprite() {
-	if (doc.anyDirty) {
-		const ok = await confirmDialog.open({
-			title: 'Unsaved changes',
-			message: 'The current sheet has unsaved changes. Discard them and create a new sheet?',
-			confirmLabel: 'Discard',
-		});
-		if (!ok) return;
-	}
+	if (!await confirmDiscard('Discard them and create a new sheet', 'data')) return;
 
 	// If an image is loaded, keep it and prefill the dialog with its
 	// dimensions. Otherwise fall back to the standard defaults.
@@ -708,14 +710,8 @@ async function doNewSprite() {
 }
 
 async function doNewImage() {
-	if (doc.anyDirty) {
-		const ok = await confirmDialog.open({
-			title: 'Unsaved changes',
-			message: 'The current sheet has unsaved changes. Discard them and create a new image?',
-			confirmLabel: 'Discard',
-		});
-		if (!ok) return;
-	}
+	if (!await confirmDiscard('Discard them and create a new image', 'image')) return;
+
 
 	const defaults = {
 		width:  doc.sheet ? doc.sheet.imageWidth  : 256,
