@@ -43,7 +43,9 @@ export class Timeline {
 		doc.on('selectionChanged', () => this._onSelectionChange());
 		doc.on('edit',             () => this._onEdit());
 
+		this._updateAddButtonState();
 		this.render();
+
 	}
 
 	// --- construction -----------------------------------------------------
@@ -53,6 +55,9 @@ export class Timeline {
 			<div class="tl-header">
 				<span class="tl-title">Timeline</span>
 				<span class="tl-hint">drag to reorder · click to select</span>
+				<button class="tl-add-btn" title="Add the selected frames to this sequence">
+					+ Add selected frames
+				</button>
 			</div>
 			<div class="tl-strip"></div>
 			<div class="tl-editor">
@@ -87,6 +92,10 @@ export class Timeline {
 	_bind() {
 		this.stripEl.addEventListener('mousedown', (e) => this._onDown(e));
 		this.stripEl.addEventListener('dblclick', (e) => this._onDoubleClick(e));
+
+		this.addBtn = this.root.querySelector('.tl-add-btn');
+		this.addBtn.addEventListener('click', () => this._addSelectedFrames());
+
 		this.root.querySelector('.tl-editor-close')
 			.addEventListener('click', () => this._closeEditor());
 		this.editorResetBtn
@@ -447,6 +456,22 @@ export class Timeline {
 		this.doc.editable.setSequence(seq.name, { frames });
 	}
 
+	// Add the currently-selected frames to the current sequence. Mirrors
+	// the SequenceInspector's button.
+	_addSelectedFrames() {
+		const seq = this.doc.getSelectedSequence();
+		const frames = this.doc.selectedFrameList;
+		if (!seq || frames.length === 0) return;
+		this.doc.editable.addFramesToSequence(seq.name, frames);
+	}
+
+	_updateAddButtonState() {
+		if (!this.addBtn) return;
+		const hasSeq = !!this.doc.getSelectedSequence();
+		const hasFrames = this.doc.selectedFrameList.length > 0;
+		this.addBtn.disabled = !hasSeq || !hasFrames;
+	}
+
 	_onSelectionChange() {
 		const seq = this.doc.getSelectedSequence();
 
@@ -458,6 +483,7 @@ export class Timeline {
 			}
 		}
 
+		this._updateAddButtonState();
 		this.render();
 	}
 

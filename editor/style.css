@@ -334,6 +334,26 @@ body {
 	color: var(--muted);
 	font-style: italic;
 }
+.tl-add-btn {
+	margin-left: auto;
+	align-self: center;
+	background: var(--panel-2);
+	color: var(--ink);
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	padding: 3px 10px;
+	cursor: pointer;
+	font: inherit;
+	font-size: var(--fs-ui-sm);
+}
+.tl-add-btn:hover:not(:disabled) {
+	background: #383840;
+	border-color: var(--accent-2);
+}
+.tl-add-btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
 .tl-strip {
 	flex: 0 0 118px;
 	display: flex;
