@@ -106,7 +106,36 @@ export class SequenceList {
 
 	_showContextMenu(name, x, y) {
 		const ed = this.doc.editable;
+
+		// Frames referenced by any selected sequence, deduplicated and in
+		// the order they appear within each sequence.
+		const selectedSet = new Set(this.doc.selectedSequences);
+		const seen = new Set();
+		const framesInSequences = [];
+		for (const seqName of this.doc.sheet.sequenceNames) {
+			if (!selectedSet.has(seqName)) continue;
+			const seq = this.doc.sheet.sequences[seqName];
+			for (const slot of seq.frames) {
+				if (seen.has(slot.frame)) continue;
+				if (!this.doc.sheet.frames[slot.frame]) continue;
+				seen.add(slot.frame);
+				framesInSequences.push(slot.frame);
+			}
+		}
+
 		new Menu(null, [
+			{
+				label: 'Select frames',
+				disabled: framesInSequences.length === 0,
+				action: () => {
+					this.doc.selectFrame(framesInSequences[0]);
+					for (let i = 1; i < framesInSequences.length; i++) {
+						this.doc.selectFrame(framesInSequences[i], { additive: true });
+					}
+					this._switchToFramesTab();
+				},
+			},
+			{ separator: true },
 			{
 				label: 'Duplicate',
 				action: () => {
@@ -126,6 +155,13 @@ export class SequenceList {
 				action: () => ed.removeSequences([...this.doc.selectedSequences]),
 			},
 		]).showAt(x, y);
+	}
+
+	// Trigger the sidebar's own tab click so the existing handler runs
+	// (selects the tab, toggles the panels, fires any onSwitch hook).
+	_switchToFramesTab() {
+		const btn = document.querySelector('#leftSidebar .sidebar-tab[data-tab="frames"]');
+		if (btn) btn.click();
 	}
 
 	_sync() {

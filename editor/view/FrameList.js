@@ -104,7 +104,30 @@ export class FrameList {
 
 	_showContextMenu(name, x, y) {
 		const ed = this.doc.editable;
+
+		// Sequences that reference any currently-selected frame. Acts on
+		// the whole selection, matching Duplicate and Delete.
+		const selectedSet = new Set(this.doc.selectedFrames);
+		const sequencesUsingFrames = [];
+		for (const [seqName, seq] of Object.entries(this.doc.sheet.sequences)) {
+			if (seq.frames.some(s => selectedSet.has(s.frame))) {
+				sequencesUsingFrames.push(seqName);
+			}
+		}
+
 		new Menu(null, [
+			{
+				label: 'Select sequences',
+				disabled: sequencesUsingFrames.length === 0,
+				action: () => {
+					this.doc.selectSequence(sequencesUsingFrames[0]);
+					for (let i = 1; i < sequencesUsingFrames.length; i++) {
+						this.doc.selectSequence(sequencesUsingFrames[i], { additive: true });
+					}
+					this._switchToSequencesTab();
+				},
+			},
+			{ separator: true },
 			{
 				label: 'New blank frame',
 				action: () => {
@@ -136,6 +159,13 @@ export class FrameList {
 				},
 			},
 		]).showAt(x, y);
+	}
+
+	// Trigger the sidebar's own tab click so the existing handler runs
+	// (selects the tab, toggles the panels, fires any onSwitch hook).
+	_switchToSequencesTab() {
+		const btn = document.querySelector('#leftSidebar .sidebar-tab[data-tab="sequences"]');
+		if (btn) btn.click();
 	}
 
 	_sync() {
