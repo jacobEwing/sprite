@@ -4,6 +4,7 @@ import {
 	rotate90CW, rotate90CCW,
 	flipVertical, flipHorizontal,
 	translateWrapped, rotateArbitrary,
+	centreContent,
 } from '../model/transforms.js';
 import { enableWheelStep } from '../lib/wheelStep.js';
 
@@ -142,6 +143,10 @@ export class TransformPanel {
 					<button type="button" class="tsp-btn tsp-dir" data-action="move-down"  title="Move down">↓</button>
 					<button type="button" class="tsp-btn tsp-dir" data-action="move-right" title="Move right">→</button>
 				</div>
+
+				<button type="button" class="tsp-btn tsp-centre"
+				        data-action="centre"
+				        title="Centre each frame's content within its rect">Centre content</button>
 
 				<label class="fp-checkbox">
 					<input type="checkbox" class="tsp-all"> All frames
@@ -314,6 +319,7 @@ export class TransformPanel {
 			'move-down':  ['Moved down',  (d) => translateWrapped(d,  0,  1)],
 			'move-left':  ['Moved left',  (d) => translateWrapped(d, -1,  0)],
 			'move-right': ['Moved right', (d) => translateWrapped(d,  1,  0)],
+			'centre':     ['Centred content',      centreContent],
 		};
 		const entry = map[action];
 		if (!entry) return;

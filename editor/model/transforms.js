@@ -92,6 +92,65 @@ export function translateWrapped(src, dx, dy) {
 	return dst;
 }
 
+// Translate `src` so that its non-transparent content's bounding box is
+// centred within the region. Returns a new ImageData, or the input
+// unchanged if there is no content or the content is already centred.
+//
+// Nearest-pixel integer translation: the same frame size always produces
+// the same result, so re-clicking the button is idempotent.
+export function centreContent(src) {
+	const w = src.width;
+	const h = src.height;
+	const sd = src.data;
+
+	// Find the content bounding box.
+	let minX = w, minY = h, maxX = -1, maxY = -1;
+	for (let y = 0; y < h; y++) {
+		for (let x = 0; x < w; x++) {
+			if (sd[(y * w + x) * 4 + 3] === 0) continue;
+			if (x < minX) minX = x;
+			if (x > maxX) maxX = x;
+			if (y < minY) minY = y;
+			if (y > maxY) maxY = y;
+		}
+	}
+
+	// No content to centre.
+	if (maxX < 0) return src;
+
+	const contentW = maxX - minX + 1;
+	const contentH = maxY - minY + 1;
+	const contentCX = minX + contentW / 2;
+	const contentCY = minY + contentH / 2;
+
+	// Round the shift so the content's centre lands as close as possible
+	// to the region's centre.
+	const dx = Math.round(w / 2 - contentCX);
+	const dy = Math.round(h / 2 - contentCY);
+	if (dx === 0 && dy === 0) return src;
+
+	// Non-wrapping shift. Content that would end up outside the region is
+	// dropped; in practice this only happens when the content was already
+	// larger than the region, which is a user error.
+	const dst = new ImageData(w, h);
+	const dd = dst.data;
+	for (let y = 0; y < h; y++) {
+		const sy = y - dy;
+		if (sy < 0 || sy >= h) continue;
+		for (let x = 0; x < w; x++) {
+			const sx = x - dx;
+			if (sx < 0 || sx >= w) continue;
+			const si = (sy * w + sx) * 4;
+			const di = (y * w + x) * 4;
+			dd[di]     = sd[si];
+			dd[di + 1] = sd[si + 1];
+			dd[di + 2] = sd[si + 2];
+			dd[di + 3] = sd[si + 3];
+		}
+	}
+	return dst;
+}
+
 // Rotate by an arbitrary angle in degrees. Positive values rotate the
 // content clockwise, matching rotate90CW. The output has the same
 // dimensions as the input; pixels that rotate outside the region are
