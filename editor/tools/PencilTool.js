@@ -14,6 +14,9 @@ import { hexToRGBA, linePoints } from '../paint/pixelUtils.js';
 // Brush mask weights are ignored — this tool stamps at its own opacity
 // regardless of brush shape.
 export class PencilTool extends Tool {
+	static displayName = 'Pencil';
+	static tips = [ 'Left click to draw with the primary colour', 'Right click to draw with the secondary colour' ];
+
 	constructor(context) {
 		super(context);
 		this.transaction = null;

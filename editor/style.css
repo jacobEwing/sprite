@@ -1084,6 +1084,29 @@ body {
 	font-size: var(--fs-mono);;
 	color: var(--muted);
 }
+/* --- tool tips (bottom of the options pane) --- */
+.tool-tips:empty {
+	display: none;
+}
+.tool-tips-list {
+	list-style: none;
+	margin: 10px 0 0;
+	padding: 10px 0 0;
+	border-top: 1px solid var(--rule);
+	color: var(--muted);
+	font-size: var(--fs-ui-sm);
+	line-height: 1.5;
+}
+.tool-tips-list li {
+	position: relative;
+	padding-left: 12px;
+}
+.tool-tips-list li::before {
+	content: '·';
+	position: absolute;
+	left: 2px;
+	color: var(--rule);
+}
 
 /* --- inspectors --- */
 .insp-row {

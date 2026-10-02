@@ -8,6 +8,11 @@
 //   { key, label, type: 'checkbox' }
 // `format(v)` returns the display string for range values.
 export class Tool {
+	// Subclasses override these to give the options pane a header
+	// and a short usage hint list. `tips` may be empty.
+	static displayName = 'Tool';
+	static tips = [];
+
 	constructor(context) {
 		this.context = context;
 
@@ -26,4 +31,7 @@ export class Tool {
 	getSettings()            { return []; }
 	getSettingValue(key)     { return undefined; }
 	setSettingValue(key, v)  {}
+
+	get displayName() { return this.constructor.displayName; }
+	getTips()         { return this.constructor.tips; }
 }

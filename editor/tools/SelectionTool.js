@@ -4,6 +4,9 @@ import { Tool } from './Tool.js';
 // dragging clears the selection. Clipping to the frame (when the Clip
 // toggle is on) keeps the marquee inside the frame's bounds.
 export class SelectionTool extends Tool {
+	static displayName = 'Select';
+	static tips = [ 'Drag to define a rectangular selection' ];
+
 	constructor(context) {
 		super(context);
 		this.anchorX = null;

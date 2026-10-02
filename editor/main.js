@@ -79,7 +79,11 @@ new CollisionInspector(document.getElementById('collisionInspector'), doc);
 new Timeline(document.getElementById('timeline'), doc, viewport);
 new SpritePreview(document.getElementById('spritePreview'), doc);
 const brushPicker = new BrushPicker(document.getElementById('brushPicker'));
-const toolSettingsPanel = new ToolSettingsPanel(document.getElementById('toolSettings'));
+const toolSettingsPanel = new ToolSettingsPanel(
+	document.getElementById('toolSettings'),
+	document.getElementById('toolOptionsHeader'),
+	document.getElementById('toolTips'),
+);
 new FrameTransformInspector(document.getElementById('frameTransformInspector'), doc);
 new FrameList(document.getElementById('frameList'), doc, {
 	onDeleteRequest: (names) => confirmAndDeleteFrames(names),

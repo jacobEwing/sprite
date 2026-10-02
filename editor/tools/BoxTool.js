@@ -2,6 +2,9 @@ import { ShapeTool } from './ShapeTool.js';
 import { rectOutline, rectFilled } from '../paint/shapes.js';
 
 export class BoxTool extends ShapeTool {
+	static displayName = 'Box';
+	static tips = [ 'Drag to draw a rectangle', 'Tick "Fill shape" to fill it' ];
+
 	_drawPreview(ctx, hex) {
 		ctx.fillStyle = hex;
 		const draw = this.context.fillShapes ? rectFilled : rectOutline;

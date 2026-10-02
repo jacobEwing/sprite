@@ -8,6 +8,9 @@ import { circleAt } from '../model/collisionUtils.js';
 // so a gesture on a frame with no collision simply adds the first circle
 // to that frame; nothing is inherited from anywhere else.
 export class CollisionTool extends Tool {
+	static displayName = 'Hit regions';
+	static tips = [ 'Click and drag to create a hit region or move an existing one', 'Right click to remove an existing region' ];
+
 	constructor(context) {
 		super(context);
 		this.mode = null;      // 'move' | 'create' | null

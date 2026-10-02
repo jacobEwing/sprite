@@ -5,6 +5,9 @@ import { floodFill } from '../paint/shapes.js';
 // Scanline flood fill. Fires on press and commits immediately; drag does
 // nothing. Painting is clipped to the selected frame by the transaction.
 export class FloodFillTool extends Tool {
+	static displayName = 'Airbrush';
+	static tips = [ 'Hold to build up paint', 'Left paints with primary, right with secondary' ];
+
 	onPointerDown(ev) {
 		if (!this.context.selectedFrame()) return;
 

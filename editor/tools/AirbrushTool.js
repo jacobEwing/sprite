@@ -16,6 +16,9 @@ import { hexToRGBA, linePoints } from '../paint/pixelUtils.js';
 // the deposits over a wider area.
 
 export class AirbrushTool extends Tool {
+	static displayName = 'Airbrush';
+	static tips = ['Hold to build up paint', 'Left paints with primary, right with secondary'];
+
 	constructor(context) {
 		super(context);
 		this.transaction = null;

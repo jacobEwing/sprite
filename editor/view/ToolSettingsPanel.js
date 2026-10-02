@@ -11,14 +11,19 @@
 //              index.html for the "Clip to frame" / "Fill shape" options
 
 export class ToolSettingsPanel {
-	constructor(root) {
+	constructor(root, headerEl, tipsEl) {
 		this.root = root;
+		this.headerEl = headerEl || null;
+		this.tipsEl = tipsEl || null;
 		this.tool = null;
 	}
 
 	showFor(tool) {
 		this.tool = tool;
 		this.root.innerHTML = '';
+
+		this._renderHeader(tool);
+		this._renderTips(tool);
 
 		if (!tool || typeof tool.getSettings !== 'function') return;
 
@@ -29,6 +34,33 @@ export class ToolSettingsPanel {
 			const el = this._renderSetting(setting);
 			if (el) this.root.appendChild(el);
 		}
+	}
+
+	_renderHeader(tool) {
+		if (!this.headerEl) return;
+		const name = tool && tool.displayName ? tool.displayName : 'Options';
+		this.headerEl.textContent = tool && tool.displayName
+			? `${name} options`
+			: 'Options';
+	}
+
+	_renderTips(tool) {
+		if (!this.tipsEl) return;
+		this.tipsEl.innerHTML = '';
+
+		const tips = tool && typeof tool.getTips === 'function'
+			? tool.getTips()
+			: null;
+		if (!tips || tips.length === 0) return;
+
+		const list = document.createElement('ul');
+		list.className = 'tool-tips-list';
+		for (const text of tips) {
+			const li = document.createElement('li');
+			li.textContent = text;
+			list.appendChild(li);
+		}
+		this.tipsEl.appendChild(list);
 	}
 
 	_renderSetting(setting) {

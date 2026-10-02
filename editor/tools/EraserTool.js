@@ -5,6 +5,9 @@ import { linePoints } from '../paint/pixelUtils.js';
 // pencil uses. Both mouse buttons erase - there is no secondary colour for
 // an eraser, so left and right behave identically.
 export class EraserTool extends Tool {
+	static displayName = 'Eraser';
+	static tips = [ 'Left or right click to erase', 'Opacity and brush weight control fade strength' ];
+
 	constructor(context) {
 		super(context);
 		this.transaction = null;

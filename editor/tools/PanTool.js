@@ -14,6 +14,9 @@ import { Tool } from './Tool.js';
 // Middle-drag always pans, regardless of what's active, because ToolLayer
 // routes middle-button gestures here directly.
 export class PanTool extends Tool {
+	static displayName = 'Pan';
+	static tips = [ 'Drag to pan the canvas', 'Middle-drag always pans', 'Drag a selected frame to move it' ];
+
 	constructor(context) {
 		super(context);
 		this.start = null;
