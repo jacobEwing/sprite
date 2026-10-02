@@ -189,7 +189,11 @@ export class FilterPanel {
 		this.root.querySelector('.fp-reset').addEventListener('click', () => this._resetControls());
 		this.root.querySelector('.fp-apply').addEventListener('click', () => this._apply());
 		this.root.querySelector('.fp-divisor-sum').addEventListener('click', () => {
-			this.divisor = matrixSum(this.matrix);
+			const sum = matrixSum(this.matrix);
+			// The engine treats a divisor of 0 as 1 (no division). Show
+			// the effective value so the field matches what the filter
+			// actually does.
+			this.divisor = sum === 0 ? 1 : sum;
 			this._sync();
 			this._onControlChange();
 		});

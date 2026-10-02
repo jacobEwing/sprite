@@ -70,7 +70,7 @@ export class TransformPanel {
 	activate() {
 		this.active = true;
 		this._overlayToken = this.viewport.addOverlay((ctx) => this._drawPreview(ctx));
-		this._resetPivotToRegionCentre();
+		this._resetPivotToDefault();
 		this._sync();
 		this._schedule();
 	}
@@ -219,15 +219,19 @@ export class TransformPanel {
 
 	_resetControls() {
 		this.angle = 0;
-		this._resetPivotToRegionCentre();
+		this._resetPivotToDefault();
 		this.scope.applyToAll = false;
 		this._sync();
 		this._onControlChange();
 	}
 
-	// Pivot defaults to the centre of the primary frame's pixel region,
-	// expressed in frame-local coordinates.
-	_resetPivotToRegionCentre() {
+	// Pivot default in frame-local coordinates:
+	//   • with a pixel selection, the centre of the selection ∩ the
+	//     primary frame
+	//   • without, the frame's origin (centerx, centery) — matching both
+	//     the "Frame origin" preset and the runtime's effective default
+	//     when a transform has no explicit pivot
+	_resetPivotToDefault() {
 		const primary = this.doc.getSelectedFrame();
 		if (!primary) {
 			this.pivotX = 0;
@@ -236,8 +240,8 @@ export class TransformPanel {
 		}
 		const sel = this.doc.selection.rect;
 		if (!sel) {
-			this.pivotX = primary.width / 2;
-			this.pivotY = primary.height / 2;
+			this.pivotX = primary.centerx;
+			this.pivotY = primary.centery;
 		} else {
 			const x1 = Math.max(sel.x, primary.x);
 			const y1 = Math.max(sel.y, primary.y);
@@ -400,10 +404,9 @@ export class TransformPanel {
 
 	_applyRotation() {
 		if (this.angle === 0) {
-			this._previewStale = true;
-			this.previewParts = [];
-			this._syncHint();
-			this.viewport.invalidate();
+			// Nothing to apply. Leave the preview and hint alone — the
+			// preview is already empty at angle 0, and marking it stale
+			// would produce a misleading "Applied..." message.
 			return;
 		}
 

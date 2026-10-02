@@ -21,11 +21,12 @@ export class ColorPicker {
 		this.v = 1;
 		this.alpha = 255;
 
-		this._onLive   = null;
+		this._onLive = null;
 		this._onCommit = null;
-		this._onClose  = null;
-		this._anchor   = null;
-		this._drag     = null;
+		this._onClose = null;
+		this._anchor = null;
+		this._drag = null;
+		this._dragCleanup = null;
 
 		this._build();
 		this._bindGlobal();
@@ -51,6 +52,13 @@ export class ColorPicker {
 
 	hide() {
 		if (!this.isOpen) return;
+		// If a drag was in progress, tear down its document listeners.
+		// Without this they survive to the next mouseup, which would
+		// fire onCommit with the mid-drag colour.
+		if (this._dragCleanup) {
+			this._dragCleanup();
+			this._dragCleanup = null;
+		}
 		this.root.style.display = 'none';
 		this._anchor = null;
 		this._drag = null;
@@ -159,11 +167,16 @@ export class ColorPicker {
 		const onUp   = () => {
 			document.removeEventListener('mousemove', onMove);
 			document.removeEventListener('mouseup',   onUp);
+			this._dragCleanup = null;
 			this._drag = null;
 			this._commit();
 		};
 		document.addEventListener('mousemove', onMove);
 		document.addEventListener('mouseup',   onUp);
+		this._dragCleanup = () => {
+			document.removeEventListener('mousemove', onMove);
+			document.removeEventListener('mouseup',   onUp);
+		};
 	}
 
 	_updateFromEvent(e, which) {
