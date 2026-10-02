@@ -5,6 +5,13 @@ import { escapeBlurs } from '../lib/fieldEscape.js';
 
 const THUMB_SIZE = 56;
 
+// Auto-scroll behaviour while dragging a block near the strip's edges.
+// AUTOSCROLL_EDGE_PX is how close the cursor must be to trigger scrolling;
+// AUTOSCROLL_MAX_SPEED_PX is the per-frame scroll speed at the very edge,
+// falling off linearly to zero at AUTOSCROLL_EDGE_PX away.
+const AUTOSCROLL_EDGE_PX      = 48;
+const AUTOSCROLL_MAX_SPEED_PX = 12;
+
 // Horizontal strip of frame thumbnails for the selected sequence. Each
 // tile carries a small toolbar for slot-level actions.
 //
@@ -626,14 +633,20 @@ export class Timeline {
 				transform: s.transform ? { ...s.transform } : null,
 			})),
 			moved: false,
+			lastClientX: e.clientX,
+			lastClientY: e.clientY,
+			autoScrollRaf: null,
+			autoScrollSpeed: 0,
 		};
 
 		const onMove = (ev) => this._onMove(ev);
 		const onUp   = (ev) => {
 			document.removeEventListener('mousemove', onMove);
 			document.removeEventListener('mouseup',   onUp);
+			this._stopAutoScroll();
 			this._onUp(ev);
 		};
+
 		document.addEventListener('mousemove', onMove);
 		document.addEventListener('mouseup',   onUp);
 
@@ -651,7 +664,17 @@ export class Timeline {
 
 	_onMove(e) {
 		if (!this.drag) return;
-		const el = document.elementFromPoint(e.clientX, e.clientY);
+		this.drag.lastClientX = e.clientX;
+		this.drag.lastClientY = e.clientY;
+		this._handleDragMove();
+		this._updateAutoScroll();
+	}
+
+	// Re-evaluate the drag against the current cursor position. Called
+	// from both the mousemove handler and the auto-scroll rAF loop, since
+	// the strip can move under a stationary cursor while scrolling.
+	_handleDragMove() {
+		const el = document.elementFromPoint(this.drag.lastClientX, this.drag.lastClientY);
 		const tile = el && el.closest && el.closest('.tl-tile');
 		if (!tile || !this.stripEl.contains(tile)) return;
 
@@ -708,6 +731,68 @@ export class Timeline {
 			this.drag.blockEnd   += 1;
 		}
 		return true;
+	}
+
+	// Trigger auto-scroll when the drag's cursor is near the strip's left
+	// or right edge. Speed scales with how far into the edge zone the
+	// cursor is: max at the very edge, zero at AUTOSCROLL_EDGE_PX away.
+	_updateAutoScroll() {
+		const rect = this.stripEl.getBoundingClientRect();
+		const x = this.drag.lastClientX;
+		let speed = 0;
+
+		if (x < rect.left + AUTOSCROLL_EDGE_PX) {
+			const t = Math.min(1, (rect.left + AUTOSCROLL_EDGE_PX - x) / AUTOSCROLL_EDGE_PX);
+			speed = -Math.round(AUTOSCROLL_MAX_SPEED_PX * t);
+		} else if (x > rect.right - AUTOSCROLL_EDGE_PX) {
+			const t = Math.min(1, (x - (rect.right - AUTOSCROLL_EDGE_PX)) / AUTOSCROLL_EDGE_PX);
+			speed = Math.round(AUTOSCROLL_MAX_SPEED_PX * t);
+		}
+
+		this.drag.autoScrollSpeed = speed;
+
+		if (speed !== 0 && this.drag.autoScrollRaf === null) {
+			this._startAutoScrollLoop();
+		} else if (speed === 0 && this.drag.autoScrollRaf !== null) {
+			cancelAnimationFrame(this.drag.autoScrollRaf);
+			this.drag.autoScrollRaf = null;
+		}
+	}
+
+	_startAutoScrollLoop() {
+		const step = () => {
+			// Defensive: the loop can outlive the drag by one frame if
+			// mouseup fires between the rAF scheduling and the callback.
+			if (!this.drag || this.drag.autoScrollSpeed === 0) {
+				if (this.drag) this.drag.autoScrollRaf = null;
+				return;
+			}
+
+			const before = this.stripEl.scrollLeft;
+			this.stripEl.scrollLeft = before + this.drag.autoScrollSpeed;
+			const after = this.stripEl.scrollLeft;
+
+			// Hit the scroll boundary. Keep the rAF alive so a direction
+			// reversal resumes smoothly - the loop no-ops until the
+			// cursor leaves the edge zone or reverses.
+			if (before !== after) {
+				// The strip moved under the cursor, so the tile the
+				// cursor is over may have changed. Re-evaluate.
+				this._handleDragMove();
+			}
+
+			this.drag.autoScrollRaf = requestAnimationFrame(step);
+		};
+		this.drag.autoScrollRaf = requestAnimationFrame(step);
+	}
+
+	_stopAutoScroll() {
+		if (!this.drag) return;
+		if (this.drag.autoScrollRaf !== null) {
+			cancelAnimationFrame(this.drag.autoScrollRaf);
+			this.drag.autoScrollRaf = null;
+		}
+		this.drag.autoScrollSpeed = 0;
 	}
 
 	// Map an old index to its new position given the block reorder. Slots

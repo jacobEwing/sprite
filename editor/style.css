@@ -52,7 +52,7 @@
 
 /* --- themed scrollbars --- */
 * {
-	scrollbar-color: var(--rule) transparent;   /* Firefox */
+	scrollbar-color: var(--accent) transparent;   /* Firefox */
 	scrollbar-width: thin;
 }
 *::-webkit-scrollbar {
@@ -63,12 +63,12 @@
 	background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-	background: var(--rule);
+	background: var(--thumb);
 	border-radius: 5px;
 	border: 2px solid var(--panel);
 }
 *::-webkit-scrollbar-thumb:hover {
-	background: #4a4a4e;
+	background: #e09050;
 }
 *::-webkit-scrollbar-corner {
 	background: transparent;
@@ -302,7 +302,7 @@ body {
 /* --- timeline strip --- */
 #timeline {
 	flex: 0 0 auto;
-	height: 148px;
+	height: 153px;
 	transition: height 220ms ease-out;
 	border-top: 1px solid var(--rule);
 	background: var(--panel);
