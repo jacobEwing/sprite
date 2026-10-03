@@ -255,14 +255,28 @@ export async function makeBlankSheet({
 	return sheet;
 }
 
-// Wrap a bare canvas in a minimal sheet with default frame settings and no
-// frames. Used when the user loads an image without a sprite.
+// Wrap a bare canvas in a minimal sheet with a single frame covering the
+// whole image. Used when the user loads or creates an image without a
+// sprite: the frame makes the editor immediately usable (drawing tools
+// need a frame to target), and its dimensions match the image, so no
+// resizing is needed before editing.
+//
+// The frame is loaded directly into the sheet via fromJSON, not through
+// EditableSheet, so no history entry is created and the sheet starts
+// clean - loading a sprite over it won't trigger the unsaved-changes
+// warning.
 export async function makeSheetFromImage(canvas) {
+	const w = canvas.width  || canvas.naturalWidth  || 16;
+	const h = canvas.height || canvas.naturalHeight || 16;
 	const sheet = await window.SpriteSheet.fromJSON({
 		image: canvas,
-		frameWidth: 16,
-		frameHeight: 16,
-		frames: {},
+		frameWidth: w,
+		frameHeight: h,
+		centerx: 0,
+		centery: 0,
+		frames: {
+			frame_1: { x: 0, y: 0, width: w, height: h },
+		},
 		sequences: {},
 	});
 	return sheet;

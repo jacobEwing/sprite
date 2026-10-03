@@ -134,9 +134,11 @@ viewport.on('view', ({ zoom }) => {
 });
 viewport.on('frameHover', ({ frameName }) => {
 	if (!doc.sheet) return;
+	const frameCount = doc.sheet.frameNames.length;
+	const conjugation = frameCount === 1 ? 'frame' : 'frames';
 	$('statusMessage').textContent = frameName
 		? `frame: ${frameName}`
-		: `${doc.sheet.imageWidth}×${doc.sheet.imageHeight}px · ${doc.sheet.frameNames.length} frames`;
+		: `${doc.sheet.imageWidth}×${doc.sheet.imageHeight}px · ${frameCount} ${conjugation}`;
 });
 
 // --- tool switching -------------------------------------------------------
@@ -330,11 +332,12 @@ doc.on('sheetChanged', () => {
 		$('statusMessage').textContent = 'Ready.';
 	} else {
 		emptyMsg.classList.add('hidden');
-		$('frameCount').textContent = doc.sheet.frameNames.length;
+		const frameCount = doc.sheet.frameNames.length;
+		$('frameCount').textContent = frameCount;
 		$('sequenceCount').textContent = doc.sheet.sequenceNames.length;
 		$('statusMessage').textContent =
 			`${doc.sheet.imageWidth}×${doc.sheet.imageHeight}px · ` +
-			`${doc.sheet.frameNames.length} frames`;
+			`${frameCount} frame${frameCount === 1 ? '' : 's'}`;
 	}
 
 	if (doc.selectedFrame) viewport.focusFrame(doc.selectedFrame);
